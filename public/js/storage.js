@@ -60,7 +60,7 @@ function defaults() {
     created: Date.now(),
     xp: 0,
     look: { shirt: 'navy', cap: 'black', skin: 1 },
-    settings: { volume: 0.8, voice: true, music: true, voiceStyle: 'classic', hints: 'auto', shake: true },
+    settings: { volume: 0.8, voice: true, music: true, voiceStyle: 'classic', hints: 'auto', shake: true, gfx: 'auto' },
     career: {},
     best: { blitz: 0, plate: 0, bases: 0, rumble: 0 },
     stats: {

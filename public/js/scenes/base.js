@@ -6,10 +6,12 @@ import { clamp, lerp, rand, randInt, pick, chance, weighted, dist, norm, sub, ad
 import { KITS, SKINS } from '../render/figures.js';
 import { BASES, UMP_SPOTS, POS } from '../render/field.js';
 import { Timeline, setupDefense, setupRunners, setupBatter, BASE_XY } from './timeline.js';
-import { UmpCam } from './umpcam.js';
+import { UmpCam, UmpCam3D } from './umpcam.js';
 
 const B1 = BASES.first, B2 = BASES.second, B3 = BASES.third, HOME = BASES.home;
 const BASE_NAME = { 1: '1ST BASE', 2: '2ND BASE', 3: '3RD BASE' };
+const BAG = { 1: { x: B1.x - 0.9, y: B1.y }, 2: { x: B2.x, y: B2.y }, 3: { x: B3.x + 0.9, y: B3.y } };
+const BAG_TOP = 0.3;
 // A play decided by less than this (seconds) counts as a "bang-bang" play.
 const CLOSE_PLAY = 0.16;
 // Diamond interior (inside the baselines) — Little League umpires work from outside it.
@@ -198,7 +200,7 @@ export class BasePlayEvent {
     if (pulled) tl.pose('1B', tb - 0.1, 'reach', { facing: fp.x < B1.x ? -1 : 1 });
     this.crits.push({
       key: 'force1B', type: 'force', baseNum: 1, base: B1, motion: norm(sub(glove, fp)),
-      throwSeg: [fp, glove], runSeg: [{ x: 1, y: -1 }, { x: B1.x + 11, y: B1.y + 9 }], fielderId: '1B',
+      throwSeg: [fp, glove], runSeg: [{ x: 1, y: -1 }, { x: B1.x + 11, y: B1.y + 9 }], fielderId: '1B', runnerId: 'BAT',
       tb, tr, out: !pulled && !dropped && tb < tr, dt: tr - tb,
       pulled: pulled ? tb - 0.07 : null, dropped, dropT: tb + 0.09,
       what: pulled ? 'pulled' : dropped ? 'dropped' : null,
@@ -265,7 +267,7 @@ export class BasePlayEvent {
     const dropped = !missed && !empty && chance(0.08);
     this.crits.push({
       key: this.play, type: 'tag', baseNum: to, base: target, motion: norm(sub(target, { x: R.x, y: R.y })),
-      throwSeg: [cFrom, gloveAt], runSeg: [{ x: R.x, y: R.y }, target], fielderId: coverId,
+      throwSeg: [cFrom, gloveAt], runSeg: [{ x: R.x, y: R.y }, target], fielderId: coverId, runnerId: rid,
       tb, tr, tt, out: !missed && !empty && !dropped && tt < tr, dt: tr - tt,
       missed, empty, dropped, dropT: tt + 0.09, slide: 'feet',
       what: missed ? 'missed' : empty ? 'empty' : dropped ? 'dropped' : null,
@@ -307,7 +309,7 @@ export class BasePlayEvent {
     const dropped = !missed && chance(0.08);
     this.crits.push({
       key: 'pickoff1B', type: 'tag', baseNum: 1, base: B1, motion: norm(sub(back, off)),
-      throwSeg: [cFrom, gloveAt], runSeg: [off, back], fielderId: '1B',
+      throwSeg: [cFrom, gloveAt], runSeg: [off, back], fielderId: '1B', runnerId: 'R1',
       tb, tr, tt, out: !missed && !dropped && tt < tr, dt: tr - tt, missed, empty: false, dropped, dropT: tt + 0.09, slide: 'head',
       what: missed ? 'missed' : dropped ? 'dropped' : null,
       card: 'tag-play',
@@ -374,13 +376,13 @@ export class BasePlayEvent {
     if (pulled1) tl.pose(pivot, tb1 - 0.1, 'reach', { facing: fp.x < pivotSpot.x ? -1 : 1 });
     this.crits.push({
       key: 'dp1', type: 'force', baseNum: 2, base: B2, motion: norm(sub(glove1, fp)),
-      throwSeg: [fp, glove1], runSeg: [B1, B2], fielderId: pivot,
+      throwSeg: [fp, glove1], runSeg: [B1, B2], fielderId: pivot, runnerId: 'R1',
       tb: tb1, tr: tr1, out: !pulled1 && tb1 < tr1, dt: tr1 - tb1, pulled: pulled1 ? tb1 - 0.07 : null, dropped: false,
       what: pulled1 ? 'pulled' : null, card: 'double-play',
     });
     this.crits.push({
       key: 'dp2', type: 'force', baseNum: 1, base: B1, motion: norm(sub(glove2, pivotSpot)),
-      throwSeg: [pivotSpot, glove2], runSeg: [HOME, { x: B1.x + 10, y: B1.y + 10 }], fielderId: '1B',
+      throwSeg: [pivotSpot, glove2], runSeg: [HOME, { x: B1.x + 10, y: B1.y + 10 }], fielderId: '1B', runnerId: 'BAT',
       tb: tb2, tr: tr2, out: tb2 < tr2, dt: tr2 - tb2, pulled: null, dropped: false, card: 'double-play',
     });
   }
@@ -446,6 +448,83 @@ export class BasePlayEvent {
 
   onAction() { return false; }
 
+  // Where the tag lands: on the sliding runner's leg (or hand on a dive back).
+  _tagPoint(c) {
+    if (c.type !== 'tag') return null;
+    const bag = BAG[c.baseNum];
+    const dir = norm(sub(c.runSeg[1], c.runSeg[0]));
+    const reach = c.slide === 'head' ? 0.9 : 1.3;
+    return { x: bag.x - dir.x * reach, y: bag.y - dir.y * reach, z: c.missed ? 1.4 : 0.45 };
+  }
+
+  // Pose fixes so the close-up shows exactly what happened: foot on the bag at tr,
+  // ball in the glove at tb, glove on the runner at tt.
+  _overrides(t) {
+    const tl = this.tl;
+    for (const a of tl.list()) { a.ik = null; a.faceAt = null; }
+    const c = this.crits[this.critIdx];
+    if (!c) return;
+    const tLast = Math.max(c.tb, c.tr, c.tt ?? 0);
+    const tFirst = Math.min(c.tb, c.tr, c.tt ?? Infinity);
+    if (t < tFirst - 1.2 || t > tLast + 1.5) return;
+    const F = tl.actors[c.fielderId];
+    const R = tl.actors[c.runnerId];
+    const bag = BAG[c.baseNum];
+    const dir = norm(sub(c.runSeg[1], c.runSeg[0]));
+    const ramp = (t0, t1) => clamp((t - t0) / (t1 - t0), 0, 1);
+    const glovePt = { x: c.throwSeg[1].x, y: c.throwSeg[1].y, z: c.throwSeg[1].z ?? 3 };
+    const ball = tl.ball;
+    if (F) {
+      F.ik = [];
+      if (c.type === 'force') {
+        F.faceAt = c.throwSeg[0];
+        const w = ramp(c.tb - 0.7, c.tb - 0.3) * (1 - ramp(c.tb + 0.8, c.tb + 1.1));
+        F.ik.push({ joint: 'handF', target: glovePt, w });
+        // pivot foot on the bag (or pulled off it)
+        const toF = norm(sub(F, bag));
+        let foot = { x: bag.x + toF.x * 0.3, y: bag.y + toF.y * 0.3, z: BAG_TOP };
+        if (c.pulled !== null && c.pulled !== undefined && t > c.pulled) {
+          const k = clamp((t - c.pulled) / 0.18, 0, 1);
+          const away = norm(sub(c.throwSeg[0], bag));
+          foot = { x: foot.x + away.x * 1.8 * k, y: foot.y + away.y * 1.8 * k, z: BAG_TOP * (1 - k) + Math.sin(k * Math.PI) * 0.5 };
+        }
+        F.ik.push({ joint: 'footB', target: foot, w: ramp(c.tb - 1.0, c.tb - 0.6) * (1 - ramp(c.tb + 1.0, c.tb + 1.3)) });
+        if (t >= c.tb && t < c.tb + 1.0) {
+          if (c.dropped && t > c.dropT) {
+            const d = t - c.dropT;
+            ball.x = glovePt.x + d * 1.2; ball.y = glovePt.y + d * 0.6; ball.z = Math.max(0.15, glovePt.z - 9 * d * d - 1.2 * d);
+          } else { ball.x = glovePt.x; ball.y = glovePt.y; ball.z = glovePt.z; }
+        }
+      } else {
+        F.faceAt = c.runSeg[0];
+        const tagPt = this._tagPoint(c);
+        let gl;
+        if (t <= c.tb) gl = glovePt;
+        else if (t <= c.tt) { const k = clamp((t - c.tb) / Math.max(0.05, c.tt - c.tb), 0, 1); const e = k * k; gl = { x: lerp(glovePt.x, tagPt.x, e), y: lerp(glovePt.y, tagPt.y, e), z: lerp(glovePt.z, tagPt.z, e) }; }
+        else { const k = clamp((t - c.tt) / 0.35, 0, 1); gl = { x: tagPt.x, y: tagPt.y, z: tagPt.z + k * 0.9 }; }
+        const w = ramp(c.tb - 0.7, c.tb - 0.3) * (1 - ramp(c.tt + 0.9, c.tt + 1.2));
+        F.ik.push({ joint: 'handF', target: gl, w });
+        const fw = norm(sub(c.runSeg[0], bag));
+        const bare = { x: F.x + fw.x * 0.5 - fw.y * 0.6, y: F.y + fw.y * 0.5 + fw.x * 0.6, z: 3.3 };
+        if (c.empty) F.ik.push({ joint: 'handB', target: bare, w });
+        if (t >= c.tb && t < c.tt + 1.0) {
+          if (c.empty) { ball.x = bare.x; ball.y = bare.y; ball.z = bare.z + 0.1; }
+          else if (c.dropped && t > c.dropT) {
+            const d = t - c.dropT;
+            ball.x = gl.x + d * 2; ball.y = gl.y + d; ball.z = Math.max(0.15, gl.z + 2.5 * d - 12 * d * d);
+          } else { ball.x = gl.x; ball.y = gl.y; ball.z = gl.z; }
+        }
+      }
+    }
+    if (R) {
+      R.ik = [];
+      const edge = { x: bag.x - dir.x * 0.35, y: bag.y - dir.y * 0.35, z: BAG_TOP };
+      const w = ramp(c.tr - 0.28, c.tr) * (1 - ramp(c.tr + 0.25, c.tr + 0.5));
+      if (c.type === 'tag' && c.slide === 'head') R.ik.push({ joint: 'handF', target: edge, w });
+      else R.ik.push({ joint: 'footF', target: c.type === 'tag' ? { ...edge, z: 0.2 } : edge, w });
+    }
+  }
+
   // Fit a set of ground points on screen (with some padding).
   _frame(pts) {
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -497,6 +576,7 @@ export class BasePlayEvent {
       } else this.timeScale = 1;
       this.t += dt * this.timeScale;
       this.tl.sample(this.t);
+      this._overrides(this.t);
       this._checkLane();
       // camera: keep the umpire, the ball, the base in play and the runners in frame
       const b = this.tl.ball;
@@ -516,6 +596,10 @@ export class BasePlayEvent {
     }
     if (this.state === 'cam') {
       this.cam.update(dt);
+      if (this.cam.three) {
+        this.tl.sample(this.cam.ct);
+        this._overrides(this.cam.ct);
+      }
       const c = this.crits[this.critIdx];
       if (!c.called && this.cam.seenAt !== null && this.cam.real - this.cam.seenAt > 6) this._call(null);
     }
@@ -555,7 +639,15 @@ export class BasePlayEvent {
     const sight = norm(sub(c.base, this.ump));
     const runDir = norm(sub(c.runSeg[1], c.runSeg[0]));
     const mirror = cross(sight, runDir) < 0;
-    this.cam = new UmpCam({
+    const Cam = this.s.field.is3d ? UmpCam3D : UmpCam;
+    const bag = BAG[c.baseNum];
+    const glovePt = { ...c.throwSeg[1], z: c.throwSeg[1].z ?? 3 };
+    // aim between the bag and the glove so both the foot and the catch are in the shot
+    const aim = { x: (bag.x * 2 + glovePt.x) / 3, y: (bag.y * 2 + glovePt.y) / 3, z: (BAG_TOP + glovePt.z) / 2 };
+    const half = Math.max(2.8, Math.hypot(glovePt.x - bag.x, glovePt.y - bag.y, glovePt.z - BAG_TOP) * 0.62 + 1.3);
+    c.camView = { eye: { x: this.ump.x, y: this.ump.y, z: 4.7 }, target: aim, half, moving };
+    this.cam = new Cam({
+      points: { bag: { x: bag.x, y: bag.y, z: BAG_TOP + 0.2 }, glove: glovePt, tag: this._tagPoint(c) },
       type: c.type, tb: c.tb, tr: c.tr, tt: c.tt, pulled: c.pulled, dropped: c.dropped, dropT: c.dropT,
       missed: c.missed, empty: c.empty, slide: c.slide, mirror,
       quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving },
@@ -563,7 +655,9 @@ export class BasePlayEvent {
       gradeLabel: `ANGLE ${c.grade}`, gradeColor: GRADE_COLOR[c.grade],
       skin: pick(SKINS),
     });
-    audio.whoosh();
+    this.cam.three = !!this.s.field.is3d;
+    audio.whoosh(0.35);
+    if (Math.abs(c.dt) < 0.22 || c.what) setTimeout(() => audio.ooh(), 250);
     this.s.hud.prompt('MAKE THE CALL!', 'Watch the bag — then call it');
     this.s.hud.options([
       { btn: 'A', id: 'out', label: 'OUT', big: true },
@@ -622,6 +716,7 @@ export class BasePlayEvent {
       this.state = 'after';
       this.afterT = 0;
       this.afterDone = () => this._verdict(c, correct, truth, id, timing, scored);
+      if (this.cam && this.cam.three) this.t = Math.max(this.t, Math.min(this.cam.ct, c.tFirst + 0.6));
       this.cam = null;
       hud.prompt('', '');
     }, 700);
@@ -698,7 +793,23 @@ export class BasePlayEvent {
       const w = portrait ? W * 0.94 : Math.min(W * 0.62, H * 1.25);
       const h = portrait ? w * 0.68 : w * 0.56;
       const rect = { x: (W - w) / 2, y: portrait ? H * 0.2 : Math.max(H * 0.17, (H - h) / 2 - H * 0.06), w, h };
-      this.cam.render(g, rect, s.dpr);
+      if (!this.cam.three) { this.cam.render(g, rect, s.app.dpr); return; }
+      const dpr = s.app.dpr;
+      const css = { x: rect.x / dpr, y: rect.y / dpr, w: rect.w / dpr, h: rect.h / dpr };
+      const c = this.crits[this.critIdx];
+      const v = c.camView;
+      const d = Math.max(4, Math.hypot(v.target.x - v.eye.x, v.target.y - v.eye.y, v.target.z - v.eye.z));
+      const fov = 2 * Math.atan((v.half || 3.1) / d);
+      const jit = v.moving ? 0.12 : 0;
+      const tt = performance.now() / 1000;
+      const eye = { x: v.eye.x + Math.sin(tt * 31) * jit, y: v.eye.y + Math.cos(tt * 27) * jit, z: v.eye.z + Math.sin(tt * 23) * jit };
+      const q = this.cam.q;
+      const block = q.distS >= 0.85 ? 1 : Math.round(lerp(7, 2, clamp((q.distS - 0.3) / 0.55, 0, 1)));
+      s.field.drawInset({ eye, target: v.target, fov }, css, { actors: this.tl.list(), ball: this.tl.ball }, block);
+      this.cam.renderOverlay(g, rect, dpr, (pt) => {
+        const pp = s.field.projectInset(pt, css);
+        return pp.behind ? null : { x: pp.x * dpr, y: pp.y * dpr };
+      });
     }
   }
 }

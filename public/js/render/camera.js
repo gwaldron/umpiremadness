@@ -165,7 +165,7 @@ export class FieldRig {
   }
 
   update(dt) {
-    const k = 1 - Math.exp(-dt * 3.2);
+    const k = 1 - Math.exp(-Math.max(0, Math.min(0.25, dt)) * 3.2);
     this.focus.x += (this.goalFocus.x - this.focus.x) * k;
     this.focus.y += (this.goalFocus.y - this.focus.y) * k;
     this.extent += (this.goalExtent - this.extent) * k;

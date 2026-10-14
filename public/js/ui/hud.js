@@ -33,6 +33,7 @@ export class Hud {
   }
 
   setBug({ balls = 0, strikes = 0, outs = 0, runners = [] } = {}) {
+    this.bug = { balls, strikes, outs };
     this.$('bugCount').innerHTML = `<b>${balls}</b>-<b>${strikes}</b>`;
     const outsEl = this.$('bugOuts').children;
     for (let i = 0; i < 2; i++) outsEl[i].classList.toggle('on', i < Math.min(outs, 2));
@@ -115,6 +116,7 @@ export class Hud {
     s.textContent = text;
     void s.offsetWidth;
     s.className = `stamp go ${cls}`;
+    audio.stamp();
   }
 
   floater(text, bad = false, x = 50, y = 46) {

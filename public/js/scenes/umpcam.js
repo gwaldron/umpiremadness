@@ -386,12 +386,121 @@ export class UmpCam {
   }
 }
 
-function roundRect(g, x, y, w, h, r) {
-  g.beginPath();
+function roundRect(g, x, y, w, h, r, append = false) {
+  if (!append) g.beginPath();
   g.moveTo(x + r, y);
   g.arcTo(x + w, y, x + w, y + h, r);
   g.arcTo(x + w, y + h, x, y + h, r);
   g.arcTo(x, y + h, x, y, r);
   g.arcTo(x, y, x + w, y, r);
   g.closePath();
+}
+
+// The 3D UMP CAM: the scene itself is rendered by the WebGL inset camera from the umpire's eyes.
+// This class keeps the timing/sounds of UmpCam and draws only the TV frame, labels and comic words.
+export class UmpCam3D extends UmpCam {
+  constructor(o) {
+    super(o);
+    this.points = o.points || {};
+  }
+
+  _word(text, u, z, color) {
+    if (!this.clear) return;
+    const key = { 'POP!': 'glove', 'TAP!': 'bag', 'SLAP!': 'bag', 'TAG!': 'tag', 'DROP!': 'glove' }[text];
+    this.fx.push({ text, color, born: this.real, world: this.points[key] || this.points.bag });
+  }
+
+  // rect in canvas pixels; project(worldPoint) -> {x, y} in canvas pixels
+  renderOverlay(g, rect, dpr, project) {
+    const r = 18 * dpr;
+    const W = g.canvas.width, H = g.canvas.height;
+    g.save();
+    // dim everything except the inset
+    g.beginPath();
+    g.rect(0, 0, W, H);
+    roundRect(g, rect.x, rect.y, rect.w, rect.h, r * 0.7, true);
+    g.fillStyle = 'rgba(0,0,0,0.5)';
+    g.fill('evenodd');
+    // frame
+    roundRect(g, rect.x - 5 * dpr, rect.y - 5 * dpr, rect.w + 10 * dpr, rect.h + 10 * dpr, r);
+    roundRect(g, rect.x, rect.y, rect.w, rect.h, r * 0.7, true);
+    g.fillStyle = '#0b1530';
+    g.fill('evenodd');
+    roundRect(g, rect.x - 5 * dpr, rect.y - 5 * dpr, rect.w + 10 * dpr, rect.h + 10 * dpr, r);
+    g.lineWidth = 4 * dpr;
+    g.strokeStyle = '#ffd34d';
+    g.stroke();
+    g.restore();
+
+    g.save();
+    roundRect(g, rect.x, rect.y, rect.w, rect.h, r * 0.7);
+    g.clip();
+    if (this.flash > 0) {
+      g.fillStyle = `rgba(255,255,255,${this.flash * 0.5})`;
+      g.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+    // comic words, anchored to the real 3D spots
+    for (const f of this.fx) {
+      const age = this.real - f.born;
+      if (age > 1.6 || !f.world) continue;
+      const p = project(f.world);
+      if (!p) continue;
+      const k = Math.min(1, age / 0.15);
+      const size = rect.h * 0.13 * (0.6 + 0.4 * k) * (1 + Math.max(0, 0.3 - age));
+      g.save();
+      g.globalAlpha = Math.min(1, 2 - age * 1.25);
+      g.translate(p.x, p.y - rect.h * 0.08 - age * rect.h * 0.04);
+      g.rotate(-0.12);
+      g.font = `${size}px Bungee, Impact, sans-serif`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.lineWidth = size * 0.16;
+      g.strokeStyle = '#0b1530';
+      g.strokeText(f.text, 0, 0);
+      g.fillStyle = f.color;
+      g.fillText(f.text, 0, 0);
+      g.restore();
+    }
+    // TV look: vignette + scanlines
+    const vg = g.createRadialGradient(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.h * 0.35, rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.4)');
+    g.fillStyle = vg;
+    g.fillRect(rect.x, rect.y, rect.w, rect.h);
+    g.fillStyle = 'rgba(0,0,0,0.06)';
+    for (let y = rect.y; y < rect.y + rect.h; y += 4 * dpr) g.fillRect(rect.x, y, rect.w, 1 * dpr);
+    g.restore();
+
+    // labels
+    g.save();
+    const fs = Math.max(11, rect.h * 0.065);
+    g.font = `${fs}px Bungee, Impact, sans-serif`;
+    g.textBaseline = 'top';
+    g.fillStyle = (Math.floor(this.real * 2) % 2) ? '#ff4d5a' : '#7a1d24';
+    g.beginPath(); g.arc(rect.x + fs * 0.9, rect.y + fs * 1.05, fs * 0.32, 0, Math.PI * 2); g.fill();
+    g.lineWidth = fs * 0.18;
+    g.strokeStyle = 'rgba(11,21,48,0.85)';
+    g.fillStyle = '#fff';
+    g.textAlign = 'left';
+    g.strokeText(`UMP CAM · ${this.o.baseName}`, rect.x + fs * 1.5, rect.y + fs * 0.5);
+    g.fillText(`UMP CAM · ${this.o.baseName}`, rect.x + fs * 1.5, rect.y + fs * 0.5);
+    g.textAlign = 'right';
+    g.fillStyle = '#ffd34d';
+    const sp = this.ct >= this.t1 ? 'REPLAY DONE' : `SLOW-MO ${this.speed.toFixed(1)}x`;
+    g.strokeText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
+    g.fillText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
+    if (this.o.gradeLabel) {
+      g.textAlign = 'left';
+      g.textBaseline = 'bottom';
+      g.fillStyle = this.o.gradeColor || '#fff';
+      g.strokeText(this.o.gradeLabel, rect.x + fs * 0.6, rect.y + rect.h - fs * 0.4);
+      g.fillText(this.o.gradeLabel, rect.x + fs * 0.6, rect.y + rect.h - fs * 0.4);
+    }
+    const k = (this.ct - this.t0) / (this.t1 - this.t0);
+    g.fillStyle = 'rgba(255,255,255,0.3)';
+    g.fillRect(rect.x + rect.w * 0.55, rect.y + rect.h - fs * 0.9, rect.w * 0.4, 4 * dpr);
+    g.fillStyle = '#ffd34d';
+    g.fillRect(rect.x + rect.w * 0.55, rect.y + rect.h - fs * 0.9, rect.w * 0.4 * Math.min(1, k), 4 * dpr);
+    g.restore();
+  }
 }

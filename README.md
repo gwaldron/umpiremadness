@@ -69,8 +69,10 @@ It deploys to `https://umpiremadness.<your-subdomain>.workers.dev`.
 | `public/js/scenes/base.js` | Base umpire: play generation, positioning and angle scoring |
 | `public/js/scenes/umpcam.js` | Slow-motion close-up whose clarity depends on your angle |
 | `public/js/scenes/situation.js` + `data/situations.js` | Scripted rule situations |
-| `public/js/render/*` | Camera, ballpark, crowd, players |
+| `public/js/render3d/*` | three.js ballpark, cel-shaded instanced players with IK, Ump Cam inset rendering, Locker Room preview |
+| `public/js/render/*` | Game camera and constants, plus the 2D fallback renderer (used if WebGL is unavailable or with `?gl=0`) |
+| `public/vendor/three/` | Vendored three.js (MIT) |
 | `public/js/ui/*` | HUD and menus (gamepad-navigable) |
 | `public/js/data/*` | Divisions, rule cards, achievements, ump-life events |
 
-There are no build steps and no image or audio files: everything is drawn on canvas and the sounds are synthesized with WebAudio.
+There are no build steps and no image or audio files. The 3D ballpark is built with three.js from procedurally painted textures, and all sound (bat crack, mitt pop, crowd, ballpark organ, menu theme) is synthesized with WebAudio.

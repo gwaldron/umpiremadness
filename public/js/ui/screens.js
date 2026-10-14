@@ -9,6 +9,7 @@ import { levelFromXp, xpForLevel, rankFor, SHIRT_UNLOCKS, CAP_UNLOCKS, randomNam
 import { UMP_SHIRTS, UMP_CAPS, SKINS, KITS, drawFigure } from '../render/figures.js';
 import { Camera } from '../render/camera.js';
 import { glyph } from './hud.js';
+import { UmpPreview } from '../render3d/preview.js';
 
 export class Screens {
   constructor(app) {
@@ -343,7 +344,13 @@ export class Screens {
     const cv = el('canvas', { width: 600, height: 640 });
     prev.append(cv);
     const right = el('div');
+    let preview = null;
+    if (app.field.is3d) { try { preview = new UmpPreview(cv); } catch (e) { preview = null; } }
     const draw = () => {
+      if (preview) {
+        preview.draw(p.look, { shirt: UMP_SHIRTS[p.look.shirt], cap: UMP_CAPS[p.look.cap], skin: SKINS[p.look.skin ?? 1] });
+        return;
+      }
       const g = cv.getContext('2d');
       const cam = new Camera();
       cam.fovY = 0.6;
@@ -367,7 +374,7 @@ export class Screens {
       g.fillText(`${rankFor(lvl)} · Lv ${lvl}`, cv.width / 2, 74);
     };
     let raf;
-    const loop = () => { draw(); raf = setTimeout(loop, 120); };
+    const loop = () => { draw(); raf = setTimeout(loop, preview ? 33 : 120); };
     loop();
     const changed = () => {
       p.stats.lockerChanged = (p.stats.lockerChanged || 0) + 1;
@@ -414,7 +421,7 @@ export class Screens {
     box.append(prev, right);
     wrapEl.append(box);
     const s = this.screen('dim', wrapEl);
-    s.onClose = () => clearTimeout(raf);
+    s.onClose = () => { clearTimeout(raf); if (preview) preview.dispose(); };
     s.refresh = () => build();
     return s;
   }
@@ -537,9 +544,10 @@ export class Screens {
     seg('Volume', 'Sound effects and crowd', [[0, 'Off'], [0.4, 'Low'], [0.8, 'Med'], [1, 'Loud']], 'volume', () => audio.select());
     seg('Umpire voice', 'Your calls spoken out loud', [[true, 'On'], [false, 'Off']], 'voice', (v) => v && audio.say('Strike!'));
     seg('Voice style', 'How your umpire sounds', [['classic', 'Classic'], ['bigleague', 'Big League'], ['hype', 'Hype'], ['robot', 'Robo-Ump']], 'voiceStyle', () => audio.say('Steee-rike!'));
-    seg('Ballpark organ', 'Charge! when you get on fire', [[true, 'On'], [false, 'Off']], 'music', (v) => v && audio.charge());
+    seg('Music & organ', 'Menu theme song and ballpark organ', [[true, 'On'], [false, 'Off']], 'music', (v) => v && audio.charge());
     seg('Hints', 'Zone box, ghost spots, coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
     seg('Screen shake', 'Big-moment camera shake', [[true, 'On'], [false, 'Off']], 'shake');
+    if (app.field.is3d) seg('Graphics', 'Lower it if the game feels slow', [['auto', 'Auto'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']], 'gfx');
     const resetRow = el('div', { class: 'setting' });
     resetRow.innerHTML = `<div class="lbl"><b>Reset progress</b><small>Erase your profile, stars and trophies on this device</small></div>`;
     const rb = el('button', { class: 'btn ghost', 'data-nav': '', type: 'button' }, 'Reset…');

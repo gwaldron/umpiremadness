@@ -115,6 +115,7 @@ export class Session {
     else hud.setLives(null);
     hud.setProgress(this.events ? this.events.map(() => null) : null, 0);
     audio.startCrowd();
+    if (this.field.setTimeOfDay) this.field.setTimeOfDay(this.cfg.night ? 'night' : 'day');
     document.body.classList.add('ingame');
     this.next();
   }
@@ -252,11 +253,13 @@ export class Session {
       this.field.cheer(res.kind === 'pitch' ? (res.strikeThree ? 0.9 : 0.3) : 0.85);
       if (this.streak > 0 && this.streak % 5 === 0) {
         audio.streak(this.streak / 5);
+        if (this.streak === 5 || this.streak === 15) audio.rally();
         if (this.streak === 10) { audio.charge(); hud.stamp('ON FIRE!', 'gold'); audio.cheer(1); }
       }
     } else {
       input.rumble(0.8, 0.4, 220);
       this.shake(8);
+      setTimeout(() => (Math.random() < 0.65 ? audio.aww() : audio.boo()), 350);
     }
     // Lives / blitz
     if (!res.correct && this.lives !== null) {
@@ -316,6 +319,7 @@ export class Session {
     this.shakeAmt *= Math.pow(0.02, dt);
     if (this.shakeAmt < 0.3) this.shakeAmt = 0;
     this.cam.shake = this.shakeAmt;
+    if (this.hud.bug) this.field.board = { ...this.hud.bug, line: `${this.game.label()} · ${this.score.toLocaleString()} PTS` };
     if (this.ev) {
       if (!(this.ev instanceof AtBatEvent)) this.rig.update(dt);
       this.ev.update(dt);
@@ -340,6 +344,7 @@ export class Session {
   }
 
   _teardown() {
+    if (this.field.setTimeOfDay) this.field.setTimeOfDay('day');
     audio.stopCrowd();
     input.stickEnabled = false;
     this.hud.hide();
@@ -427,6 +432,7 @@ export function buildCareer(divId, idx) {
   return {
     mode: 'career', div: divId, gameIndex: idx, role, events,
     title: (GAME_NAMES[divId] || [])[idx] || `Game ${idx + 1}`,
+    night: /Lights|Night|World Series Championship/.test((GAME_NAMES[divId] || [])[idx] || ''),
   };
 }
 

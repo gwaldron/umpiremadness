@@ -36,7 +36,7 @@ html, body {
   touch-action: manipulation;
   overscroll-behavior: none;
 }
-canvas#game {
+canvas#game, canvas#game3d {
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -45,6 +45,8 @@ canvas#game {
   display: block;
   touch-action: none;
 }
+canvas#game { background: transparent; z-index: 1; }
+canvas#game3d { z-index: 0; }
 button { font-family: inherit; color: inherit; }
 a { color: var(--gold); }
 [hidden] { display: none !important; }

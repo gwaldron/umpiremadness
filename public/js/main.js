@@ -4,6 +4,7 @@ import { audio } from './audio.js';
 import { el, pick, lerp } from './util.js';
 import { Camera, FieldRig } from './render/camera.js';
 import { FieldRenderer, POS, UMP_SPOTS, BASES } from './render/field.js';
+import { Field3D } from './render3d/world3d.js';
 import { KITS, SKINS, UMP_SHIRTS, UMP_CAPS } from './render/figures.js';
 import { loadProfile, saveProfile, touchDay, levelFromXp } from './storage.js';
 import { ACHIEVEMENTS } from './data/achievements.js';
@@ -15,10 +16,21 @@ import { Timeline } from './scenes/timeline.js';
 const canvas = document.getElementById('game');
 const g = canvas.getContext('2d');
 
+// 3D ballpark on a WebGL canvas underneath; the 2D canvas on top is a transparent overlay.
+let field;
+try {
+  if (new URLSearchParams(location.search).get('gl') === '0') throw new Error('2D requested');
+  field = new Field3D(document.getElementById('game3d'));
+} catch (err) {
+  console.warn('WebGL unavailable, using the 2D renderer', err);
+  document.getElementById('game3d').remove();
+  field = new FieldRenderer();
+}
+
 const app = {
   profile: loadProfile(),
   cam: new Camera(),
-  field: new FieldRenderer(),
+  field,
   hud: new Hud(),
   session: null,
   dpr: 1,
@@ -32,8 +44,12 @@ app.applySettings = () => {
   const s = app.profile.settings;
   audio.setVolume(s.volume);
   audio.voiceOn = s.voice;
-  audio.musicOn = s.music;
+  audio.setMusic(s.music);
   audio.voiceStyle = s.voiceStyle;
+  if (app.field.setQuality) {
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    app.field.setQuality(s.gfx === 'auto' || !s.gfx ? (coarse ? 'medium' : 'high') : s.gfx);
+  }
 };
 
 app.toast = ({ icon, kicker, title, desc, cls = '' }) => {
@@ -65,6 +81,7 @@ function startSession(cfg) {
   app.screens.closeAll();
   if (app.session) app.session.quit();
   audio.unlock();
+  audio.stopMusic();
   app.session = new Session(app, cfg);
   app.session.start();
 }
@@ -89,6 +106,7 @@ app.quitGame = () => {
   app.session = null;
   app.screens.closeAll();
   app.screens.push(app.screens.title());
+  audio.music('menu');
 };
 app.showResults = (r) => {
   const s = app.session;
@@ -96,6 +114,7 @@ app.showResults = (r) => {
     if (app.session === s) app.session = null;
     app.screens.closeAll();
     app.screens.push(app.screens.results(r));
+    setTimeout(() => { if (!app.session) audio.music('menu'); }, 2500);
     if (r.stars >= 2 || r.record) { audio.cheer(1.2); audio.charge(); }
   }, r.gameOver ? 1600 : 700);
 };
@@ -104,6 +123,7 @@ app.hud.onPause = () => app.pauseGame();
 
 app.boot = () => {
   app.applySettings();
+  audio.music('menu');
   touchDay(app.profile);
   app.save();
   app.screens.closeAll();
@@ -146,6 +166,7 @@ function resize() {
   canvas.width = Math.round(w * app.dpr);
   canvas.height = Math.round(h * app.dpr);
   app.cam.setViewport(canvas.width, canvas.height);
+  if (app.field.resize) app.field.resize(w, h, app.dpr);
   document.body.classList.toggle('portrait', h > w);
 }
 window.addEventListener('resize', resize);
@@ -203,8 +224,10 @@ const attract = {
 // ---------- main loop ----------
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000) * (app.speed || 1); // app.speed: debug fast-forward
+  // clamp: never step backwards (frame timestamps can lag after a long stall) or too far forward
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)) * (app.speed || 1); // app.speed: debug fast-forward
   last = now;
+  if (app.freeze) { requestAnimationFrame(frame); return; } // debug: hold the current picture
   input.poll(dt);
   const s = app.session;
   try {

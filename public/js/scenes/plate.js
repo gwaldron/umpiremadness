@@ -235,6 +235,7 @@ export class AtBatEvent {
     const handTxt = this.batter.hand === 'R' ? 'Right-handed batter' : 'Left-handed batter';
     hud.prompt(this.pitchNo === 0 ? 'GET IN THE SLOT' : 'RESET YOUR STANCE', `${handTxt} · move with ${this.s.moveHint()} · then Play Ball!`);
     hud.options([{ btn: 'A', id: 'ready', label: 'PLAY BALL!', big: true }], () => this._afterSetup());
+    if (this.pitchNo === 0 && !this.fast) setTimeout(() => audio.announce(`Now batting, number ${this.batter.num}`), 300);
     if (this.s.hints && !this.setupHinted) {
       this.setupHinted = true;
       hud.tip('<b>The slot</b> is the gap between the batter and the catcher. Put your head there with your chin just above the catcher\'s helmet so you can see the whole plate.');
@@ -463,11 +464,12 @@ export class AtBatEvent {
       this.pitcher.phase = clamp((t * 0.8) / pk.tRelease, 0, 1);
       if (!pk.released && t >= pk.tRelease) {
         pk.released = true;
-        audio.whoosh();
+        audio.whoosh(Math.max(0.25, pk.tGlove - pk.tRelease));
         if (live && !pk.called && this._isZoneCall()) {
           hud.options(this._optsFor(), (id) => this._call(id));
         }
       }
+      if (pk.swing && !pk.swingSnd && t >= pk.swing.start) { pk.swingSnd = true; audio.swing(); }
       // Catcher reaches for the ball late in its flight
       if (pk.kind !== 'contact' || pk.sub !== 'popCaught') {
         const reachStart = pk.tGlove - 0.16;
@@ -769,6 +771,7 @@ export class AtBatEvent {
     const pk = this.pk;
     const t = pk ? pk.t : 0;
     const ball = pk && this.state !== 'setup' ? pk.ballAt(t) : null;
+    if (s.field.is3d) return this._render3d(g, cam, t, ball);
 
     s.field.draw(g, cam, { actors: this.bg });
     // Pitcher hides the ball until release
@@ -784,8 +787,113 @@ export class AtBatEvent {
     this._drawArm(g, cam);
   }
 
+  _zoneShown() {
+    return (this.s.zoneHelper && (this.state === 'setup' || this.state === 'pre' || this.state === 'pitch')) || (this.state === 'setup' && this.s.hints);
+  }
+
+  // ---------- 3D rendering ----------
+  _render3d(g, cam, t, ball) {
+    const s = this.s;
+    const b = this.batter;
+    const bodies = [this._batterBody(t), this._catcherBody()];
+    const showZone = this._zoneShown();
+    s.field.draw(g, cam, {
+      actors: this.bg,
+      bodies,
+      ball: ball ? { ...ball, scale: 1.15 } : null,
+      zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 1.0 } : null,
+      extra: (P) => this._arm3d(P, cam),
+      overlay: (gg) => {
+        if (showZone) this._zoneLabels(gg, cam);
+        this._drawMask(gg, cam);
+      },
+    });
+  }
+
+  _batterBody(t) {
+    const b = this.batter;
+    const J = this._batterPose(t);
+    const f = { x: -b.side, y: 0, z: 0 };
+    const L = { x: -f.y, y: f.x, z: 0 };
+    const S = b.H / 5;
+    const handsDir = { x: J.batTip[0] - J.hands[0], y: J.batTip[1] - J.hands[1], z: J.batTip[2] - J.hands[2] };
+    const hl = Math.hypot(handsDir.x, handsDir.y, handsDir.z) || 1;
+    const P3 = (a) => ({ x: a[0], y: a[1], z: a[2] });
+    const hands = P3(J.hands);
+    const upperHand = { x: hands.x + (handsDir.x / hl) * 0.28, y: hands.y + (handsDir.y / hl) * 0.28, z: hands.z + (handsDir.z / hl) * 0.28 };
+    const W = {
+      f, L, S,
+      hip: P3(J.hip), neck: P3(J.neck), head: P3(J.head),
+      kneeF: P3(J.kneeF), kneeB: P3(J.kneeB), footF: P3(J.footF), footB: P3(J.footB),
+      shF: P3(J.shF), shB: P3(J.shB), elF: P3(J.elF), elB: P3(J.elB),
+      handF: upperHand, handB: hands, batTip: P3(J.batTip),
+    };
+    return { W, o: { kit: KITS.off, skin: b.skin, battingGloves: true, lookDir: { x: 0, y: 1, z: 0 }, pose: 'bat' } };
+  }
+
+  _catcherBody() {
+    const cx = this.catcherX;
+    const lift = (this.catcherStand || 0) * 1.4;
+    const f = { x: 0, y: 1, z: 0 };
+    const L = { x: -1, y: 0, z: 0 };
+    const S = 0.92;
+    const V = (x, y, z) => ({ x, y, z });
+    const glove = V(this.glove.x, this.glove.y, this.glove.z);
+    const shF = V(cx - 0.62, -2.25, 1.9 + lift), shB = V(cx + 0.62, -2.25, 1.9 + lift);
+    const elF = V((shF.x + glove.x) / 2 - 0.25, (shF.y + glove.y) / 2, Math.min(shF.z, glove.z) - 0.25);
+    const W = {
+      f, L, S,
+      hip: V(cx, -2.45, 1.15 + lift), neck: V(cx, -2.25, 2.12 + lift), head: V(cx, -2.1, 2.42 + lift),
+      kneeF: V(cx - 0.85, -1.75, 1.15 + lift * 0.5), kneeB: V(cx + 0.85, -1.75, 1.15 + lift * 0.5),
+      footF: V(cx - 0.75, -2.5, 0.05), footB: V(cx + 0.75, -2.5, 0.05),
+      shF, shB, elF, handF: glove,
+      elB: V(cx + 0.9, -2.15, 1.55 + lift), handB: V(cx + 0.75, -1.9, 1.25 + lift),
+    };
+    return { W, o: { kit: KITS.def, skin: this.catcherSkin, gear: 'catcher', glove: 'F', pose: 'catcher', gloveColor: '#7a4a22', noFace: true } };
+  }
+
+  // First-person strike mechanic: your right arm hammers up into view.
+  _arm3d(P, cam) {
+    if (this.armAnim < 0) return;
+    const t = this.armAnim;
+    const k = clamp(t / 0.2, 0, 1);
+    const out = clamp((t - 0.9) / 0.3, 0, 1);
+    const punch = Math.sin(clamp((t - 0.15) / 0.25, 0, 1) * Math.PI) * 0.12;
+    const e = cam.eye, r = cam.r, u = cam.u, f = cam.f;
+    const at = (a, b, c) => ({ x: e.x + r.x * a + u.x * b + f.x * c, y: e.y + r.y * a + u.y * b + f.y * c, z: e.z + r.z * a + u.z * b + f.z * c });
+    const drop = out * 1.4;
+    const sh = at(0.75, -1.1 - drop, 0.15);
+    const el = at(0.62 - 0.08 * k, -0.85 + 0.45 * k - drop, 0.75);
+    const fist = at(0.5 - 0.05 * k, -0.6 + 0.85 * k + punch - drop, 0.95);
+    P.ow = 0.012;
+    const sleeve = this.s.umpKit.jersey;
+    P.limb(sh, el, 0.16, sleeve);
+    P.sphere(el, 0.14, sleeve);
+    P.limb(el, fist, 0.11, this.s.umpSkin);
+    P.sphere(fist, 0.15, this.s.umpSkin);
+  }
+
+  _zoneLabels(g, cam) {
+    const z = this.zone;
+    const b = this.batter;
+    const lab = (txt, zz) => {
+      const p = cam.project(-b.side * (HALF + 0.12), 1.0, zz);
+      if (!p) return;
+      g.font = `700 ${Math.round(12 * this.s.app.dpr)}px Rubik, sans-serif`;
+      g.fillStyle = 'rgba(255,240,190,0.95)';
+      g.strokeStyle = 'rgba(11,21,48,0.8)';
+      g.lineWidth = 3 * this.s.app.dpr;
+      g.textAlign = b.side < 0 ? 'left' : 'right';
+      g.textBaseline = 'middle';
+      g.strokeText(txt, p.x, p.y);
+      g.fillText(txt, p.x, p.y);
+    };
+    lab('ARMPITS', z.top);
+    lab('TOP OF KNEES', z.bot);
+  }
+
   _drawZoneHelper(g, cam) {
-    const show = (this.s.zoneHelper && (this.state === 'setup' || this.state === 'pre' || this.state === 'pitch')) || this.state === 'setup' && this.s.hints;
+    const show = this._zoneShown();
     if (!show) return;
     const z = this.zone;
     const y = 1.0;
