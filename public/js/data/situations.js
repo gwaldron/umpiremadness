@@ -66,7 +66,8 @@ function slideTo(tl, id, t0, t1, base, endOffset = { x: 0, y: 0 }) {
 export const SITUATIONS = [
   // ===== INFIELD FLY =====
   {
-    id: 'iff', card: 'infield-fly', title: 'Pop-Up Panic', weight: 3,
+    // Minors (AA/AAA) don't use the infield fly rule, so it's only quizzed at Majors and above.
+    id: 'iff', card: 'infield-fly', title: 'Pop-Up Panic', weight: 3, divs: ['MAJ', 'AS', 'WS'],
     variant(div) {
       const yes = { outs: pick([0, 1]), runners: pick([[1, 2], [1, 2, 3]]), ball: 'popup' };
       const twist = pick(['none', 'none', 'none', 'outs', 'runners', 'liner', 'bunt']);

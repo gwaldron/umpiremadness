@@ -69,7 +69,7 @@ function startSession(cfg) {
   app.session.start();
 }
 app.startCareer = (div, idx) => startSession(buildCareer(div, idx));
-app.startCamp = () => startSession(buildCamp());
+app.startCamp = (level = 'minors') => startSession(buildCamp(level));
 app.startArcade = (mode) => startSession(mode === 'rumble' ? buildRumble() : { ...ARCADE[mode] });
 
 app.pauseGame = () => {

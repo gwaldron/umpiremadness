@@ -157,7 +157,7 @@ export class Screens {
       b.innerHTML = `<span class="ico">${ico}</span><span><div class="t">${t}</div><div class="d">${d}</div></span>`;
       return b;
     };
-    if (!campDone) menu.append(main('hero', '🎓', 'ROOKIE CAMP', 'New here? Learn every control in 3 minutes.', () => app.startCamp(), { 'data-autofocus': '' }));
+    if (!campDone) menu.append(main('hero', '🎓', 'ROOKIE CAMP', 'New here? Start with Minors Camp: every control in 3 minutes.', () => this.push(this.campChooser()), { 'data-autofocus': '' }));
     menu.append(main(campDone ? 'hero' : '', '🏆', 'CAREER', `AA → AAA → Majors → All-Stars → Williamsport · ${careerStars(p)}★ earned`, () => this.push(this.career()), campDone ? { 'data-autofocus': '' } : {}));
     menu.append(main('', '🕹️', 'ARCADE', 'Plate Survival · Base Hustle · Rulebook Rumble · Blitz', () => this.push(this.arcade())));
     const row = el('div', { class: 'menu-row' });
@@ -172,7 +172,7 @@ export class Screens {
       mini('🗂️', 'Rule Cards', () => this.push(this.cards()), `${Math.min(cards, ACTIVE_RULES.length)}/${ACTIVE_RULES.length}`),
       mini('📊', 'Stats', () => this.push(this.stats())),
       mini('❓', 'How to Play', () => this.push(this.howto())),
-      mini('🎓', campDone ? 'Rookie Camp' : 'Camp', () => app.startCamp()),
+      mini('🎓', 'Rookie Camp', () => this.push(this.campChooser())),
       mini('⚙️', 'Settings', () => this.push(this.settings())),
       mini('📖', 'Bootcamp', () => window.open(BOOTCAMP, '_blank', 'noopener')),
     );
@@ -233,7 +233,7 @@ export class Screens {
     grid.append(
       card('⚡', 'Strike Zone Blitz', '60 seconds of rapid-fire balls and strikes. Wrong calls cost 3 seconds. How many can you get?', `${b.blitz || 0} calls`, () => app.startArcade('blitz')),
       card('🧑‍⚖️', 'Plate Survival', 'Endless at-bats that get faster and nastier. Three missed calls and you\'re ejected!', (b.plate || 0).toLocaleString(), () => app.startArcade('plate')),
-      card('🏃', 'Base Hustle', 'Endless bang-bang plays on the bases. Get your angle, sell the call. Three misses = ejected.', (b.bases || 0).toLocaleString(), () => app.startArcade('bases')),
+      card('🏃', 'Base Hustle', 'Endless plays on the bases. Get your angle, sell the call. Three misses = ejected.', (b.bases || 0).toLocaleString(), () => app.startArcade('bases')),
       card('📕', 'Rulebook Rumble', '12 rule situations from every division — infield fly, obstruction, appeals, local rules and more.', (b.rumble || 0).toLocaleString(), () => app.startArcade('rumble')),
     );
     wrapEl.append(grid);
@@ -472,6 +472,26 @@ export class Screens {
     return this.screen('dim', el('div', { class: 'modal-center' }, panel));
   }
 
+  // ---------- ROOKIE CAMP: pick a level ----------
+  campChooser() {
+    const app = this.app;
+    const p = app.profile;
+    const wrapEl = el('div', { class: 'wrap', style: { maxWidth: '820px' } }, this.topbar('ROOKIE CAMP'));
+    wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-6px', marginBottom: '14px' } }, 'Two levels. New umps start in Minors.'));
+    const grid = el('div', { class: 'grid' });
+    const card = (ico, t, d, done, fn, extra = {}) => {
+      const c = el('button', { class: `card${done ? ' gold' : ''}`, 'data-nav': '', type: 'button', onclick: fn, ...extra });
+      c.innerHTML = `<div class="ico-big">${ico}</div><h3>${t}</h3><p>${d}</p>${done ? `<p style="margin-top:8px;color:var(--gold);font-weight:800">${'★'.repeat(done.stars)}${'☆'.repeat(3 - done.stars)} completed</p>` : ''}`;
+      return c;
+    };
+    grid.append(
+      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules. Balls and strikes, the slot, A and B positions, a force play, a steal, fair or foul, and your first coach. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
+      card('🔥', 'Majors Camp', 'Full Little League rules: faster pitching, the uncaught (dropped) third strike, the infield fly rule, and turning a double play.', p.career['camp-majors'], () => app.startCamp('majors')),
+    );
+    wrapEl.append(grid);
+    return this.screen('dim', wrapEl);
+  }
+
   // ---------- HOW TO PLAY ----------
   howto() {
     const wrapEl = el('div', { class: 'wrap' }, this.topbar('HOW TO PLAY'));
@@ -568,7 +588,7 @@ export class Screens {
     const career = r.mode === 'career';
     const wrap = el('div', { class: 'results' });
     let head;
-    if (r.mode === 'camp') head = r.acc >= 0.5 ? 'CAMP COMPLETE! 🎓' : 'CAMP COMPLETE';
+    if (r.mode === 'camp') head = r.acc >= 0.5 ? `${(r.cfg.level || 'minors') === 'majors' ? 'MAJORS' : 'MINORS'} CAMP DONE! 🎓` : 'CAMP COMPLETE';
     else if (r.gameOver) head = 'EJECTED! 🚪';
     else if (r.mode === 'blitz') head = "TIME'S UP!";
     else head = career ? (r.stars ? 'FINAL OUT!' : 'TOUGH GAME') : 'FINAL';
@@ -600,10 +620,14 @@ export class Screens {
       actions.append(btn(hasNext ? '↻ Replay' : `${glyph('A')} REPLAY`, () => app.startCareer(d.id, r.cfg.gameIndex), !hasNext, !hasNext));
       actions.append(btn('🏆 Career map', () => { this.replace(this.title()); this.push(this.career()); }));
     } else if (r.mode === 'camp') {
-      app.profile.career.camp = { stars: r.stars, best: r.score };
+      const lvl = r.cfg.level || 'minors';
+      const key = lvl === 'majors' ? 'camp-majors' : 'camp';
+      const prev = app.profile.career[key] || { stars: 0, best: 0 };
+      app.profile.career[key] = { stars: Math.max(prev.stars, r.stars), best: Math.max(prev.best, r.score) };
       app.save();
       actions.append(btn(`${glyph('A')} START MY CAREER`, () => { this.replace(this.title()); this.push(this.career()); }, true, true));
-      actions.append(btn('↻ Camp again', () => app.startCamp()));
+      if (lvl === 'minors') actions.append(btn('🔥 Try Majors Camp', () => app.startCamp('majors')));
+      actions.append(btn('↻ Camp again', () => app.startCamp(lvl)));
     } else {
       actions.append(btn(`${glyph('A')} PLAY AGAIN`, () => app.startArcade(r.mode), true, true));
       actions.append(btn('🕹️ Arcade', () => { this.replace(this.title()); this.push(this.arcade()); }));

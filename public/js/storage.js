@@ -124,6 +124,7 @@ export function touchDay(p) {
 export function careerStars(p, divId = null) {
   let n = 0;
   for (const [k, v] of Object.entries(p.career)) {
+    if (k.startsWith('camp')) continue;
     if (divId && !k.startsWith(divId + '-')) continue;
     n += v.stars || 0;
   }

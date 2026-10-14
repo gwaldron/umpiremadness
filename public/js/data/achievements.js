@@ -17,7 +17,7 @@ export const ACHIEVEMENTS = [
   { id: 'slot', icon: '🎯', name: 'Slot Machine', desc: 'Be set in the slot for 25 pitches.', check: (p) => S(p).slotOk >= 25 },
   { id: 'patience', icon: '🧘', name: 'Patience, Grasshopper', desc: '25 perfectly timed calls.', check: (p) => S(p).perfectTiming >= 25 },
   { id: 'jumped', icon: '🐇', name: 'Jumped the Gun', desc: 'Call a pitch before it reaches the glove. (Oops.)', hidden: true, check: (p) => S(p).early >= 1 },
-  { id: 'bangbang', icon: '💥', name: 'Bang-Bang!', desc: 'Get a play right that was decided by less than 0.05 seconds.', check: (p) => S(p).bangBang >= 1 },
+  { id: 'bangbang', icon: '💥', name: 'Bang-Bang!', desc: 'Get a bang-bang play right (decided by less than 0.16 seconds).', check: (p) => S(p).bangBang >= 1 },
   { id: 'bangbang10', icon: '🎆', name: 'No Such Thing as a Tie', desc: 'Get 10 bang-bang plays right.', check: (p) => S(p).bangBang >= 10 },
   { id: 'angle', icon: '📐', name: 'Angle Master', desc: 'Earn an A position grade on 10 base plays.', check: (p) => S(p).angleA >= 10 },
   { id: 'abc', icon: '🔤', name: 'Easy as A-B-C', desc: 'Start in the correct A, B, or C spot 15 times.', check: (p) => S(p).startOk >= 15 },

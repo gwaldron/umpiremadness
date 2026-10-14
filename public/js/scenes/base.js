@@ -10,6 +10,12 @@ import { UmpCam } from './umpcam.js';
 
 const B1 = BASES.first, B2 = BASES.second, B3 = BASES.third, HOME = BASES.home;
 const BASE_NAME = { 1: '1ST BASE', 2: '2ND BASE', 3: '3RD BASE' };
+// A play decided by less than this (seconds) counts as a "bang-bang" play.
+const CLOSE_PLAY = 0.16;
+// Diamond interior (inside the baselines) — Little League umpires work from outside it.
+function insideDiamond(p) {
+  return p.y > Math.abs(p.x) + 2 && p.y < BASES.second.y - Math.abs(p.x) - 2;
+}
 
 function cross(a, b) { return a.x * b.y - a.y * b.x; }
 
@@ -53,7 +59,7 @@ function idealSpot(crit, from, maxTravel = 200) {
       // prefer spots that don't require a marathon, and fair territory near the infield
       // Foul ground between home and first/third is the runner's lane — never a good spot
       const foul = Math.abs(p.x) > p.y;
-      const s = v.score - dist(p, from) * 0.0015 - (foul && p.y < 44 ? 0.3 : foul ? 0.05 : 0);
+      const s = v.score - dist(p, from) * 0.0015 - (foul && p.y < 44 ? 0.3 : foul ? 0.05 : 0) - (insideDiamond(p) ? 0.15 : 0);
       if (!best || s > best.s) best = { ...p, s, v };
     }
   }
@@ -99,15 +105,23 @@ export class BasePlayEvent {
   // ---------- play construction ----------
   _bang() {
     const d = this.div.bangBang;
-    const mag = chance(0.2) ? rand(0.18, 0.3) : rand(d[0], d[1]);
+    const mag = chance(0.2) ? rand(0.35, 0.55) : rand(d[0], d[1]);
     return chance(0.5) ? mag : -mag; // + = ball first (out), - = runner first (safe)
+  }
+
+  // Keep runners at kid speed: if beating the ball by dt would need a superhuman runner
+  // (arriving before minT), make it an out by the same margin instead (or a bigger one).
+  _fitDt(dt, tRef, minT) {
+    if (tRef + dt < minT) dt = Math.abs(dt);
+    if (tRef + dt < minT) dt = minT - tRef;
+    return dt;
   }
 
   _build() {
     const tl = (this.tl = new Timeline());
     const play = this.play;
     let runners = [];
-    if (play === 'force1B') runners = pick([[], [], [], [], [2], [3], [2, 3]]);
+    if (play === 'force1B') runners = this.spec.runners || pick([[], [], [], [], [2], [3], [2, 3]]);
     if (play === 'steal2B' || play === 'pickoff1B' || play === 'dp') runners = [1];
     if (play === 'steal3B') runners = [2];
     this.runners = runners;
@@ -280,11 +294,12 @@ export class BasePlayEvent {
     tl.hold(tb, tb + 3, '1B', 2.2);
     const sweep = rand(0.1, 0.2);
     const tt = tb + sweep;
-    const dt = this._bang();
-    const tr = tt + dt;
     const back = { x: B1.x - 0.9, y: B1.y + 0.4 };
     const dd = dist(off, back);
-    const tReact = Math.max(tThrow + 0.05, tr - dd / 10);
+    const tFree = Math.max(tThrow + 0.05, tPlate + 0.95); // reacts after finishing his lead-off steps
+    const dt = this._fitDt(this._bang(), tt, tFree + dd / 16);
+    const tr = tt + dt;
+    const tReact = Math.max(tFree, tr - dd / 10);
     tl.move('R1', tReact, tr, back.x, back.y, 'dive', 'run');
     tl.pose('R1', tr + 1, 'stand');
     tl.pose('1B', tt + 0.7, 'stand');
@@ -338,21 +353,21 @@ export class BasePlayEvent {
     tl.pose('1B', tb2 - 0.35, 'reach', { facing: -1 });
     tl.hold(tb2, tb2 + 3, '1B', 3.2);
     // Runner from first → second
-    const dt1 = this._bang();
-    const pulled1 = chance(0.12);
-    const tr1 = tb1 + (pulled1 ? Math.abs(dt1) + 0.05 : dt1);
     const R = tl.actors.R1;
     const slideAt = { x: lerp(R.x, B2.x, 0.82), y: lerp(R.y, B2.y, 0.82) };
     const runD = dist(R, B2);
     const r1Start = tPlate + 0.05;
+    const dt1 = this._fitDt(this._bang(), tb1, r1Start + runD / 19);
+    const pulled1 = chance(0.12);
+    const tr1 = tb1 + (pulled1 ? Math.abs(dt1) + 0.05 : dt1);
     const v1 = runD / (tr1 - r1Start);
     tl.move('R1', r1Start, r1Start + (runD * 0.82) / v1, slideAt.x, slideAt.y, 'run');
     tl.move('R1', r1Start + (runD * 0.82) / v1, tr1, B2.x + 0.5, B2.y - 0.6, 'slide', 'slide');
     tl.pose('R1', tr1 + 1, 'stand');
     // Batter-runner to first
-    const dt2 = this._bang();
-    const tr2 = tb2 + dt2;
     const brStart = tPlate + 0.35;
+    const dt2 = this._fitDt(this._bang(), tb2, brStart + 59 / 19.5);
+    const tr2 = tb2 + dt2;
     tl.pose('BAT', brStart - 0.05, 'stand');
     tl.move('BAT', brStart, tr2, B1.x - 0.3, B1.y - 0.3, 'run');
     tl.move('BAT', tr2, tr2 + 1.3, B1.x + 14, B1.y + 12, 'stand');
@@ -379,7 +394,7 @@ export class BasePlayEvent {
     hud.options([{ btn: 'A', id: 'set', label: "I'M SET — PITCH!", big: true }], () => this._go());
     if (this.s.hints) {
       const spot = this.expectSpot;
-      const why = { A: 'Bases empty → start in <b>A</b>: foul ground behind first base.', B: 'Runner on 1st only → start in <b>B</b>: inside the diamond, second-base side.', C: 'Runner on 2nd or 3rd → start in <b>C</b>: inside the diamond, shortstop side.' }[spot];
+      const why = { A: 'Bases empty → start in <b>A</b>: foul ground behind first base.', B: 'Runner on 1st only → start in <b>B</b>: outside the baseline between first and second, near second base.', C: 'Runner on 2nd or 3rd → start in <b>C</b>: outside the baseline between second and third, near second base.' }[spot];
       hud.tip(`${why} Move with ${this.s.moveHint()}.`);
     }
     this.s.rig.set({ x: 8, y: 52 }, 62, 0.72);
@@ -544,7 +559,7 @@ export class BasePlayEvent {
       type: c.type, tb: c.tb, tr: c.tr, tt: c.tt, pulled: c.pulled, dropped: c.dropped, dropT: c.dropT,
       missed: c.missed, empty: c.empty, slide: c.slide, mirror,
       quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving },
-      baseName: BASE_NAME[c.baseNum], speed: this.div.id === 'WS' || this.div.id === 'AS' ? 0.35 : 0.3,
+      baseName: BASE_NAME[c.baseNum], speed: 0.4,
       gradeLabel: `ANGLE ${c.grade}`, gradeColor: GRADE_COLOR[c.grade],
       skin: pick(SKINS),
     });
@@ -589,7 +604,7 @@ export class BasePlayEvent {
     if (c.moving) bonus.push({ label: 'Called it on the move', pts: -25 });
     for (const p of this.penalties) bonus.push(p);
     this.penalties = [];
-    const bang = Math.abs(c.dt) < 0.05 && !c.what;
+    const bang = Math.abs(c.dt) < CLOSE_PLAY && !c.what;
     const res = {
       kind: 'base', sub: c.key, correct, timing, card: c.card,
       extraCards: [
@@ -623,7 +638,7 @@ export class BasePlayEvent {
     else if (c.what === 'empty') lines.push(`He tagged with an **empty glove** — the ball was in his other hand! A tag needs the ball. **Safe.**`);
     else if (c.type === 'force') lines.push(c.out ? `The ball beat the runner by **${by} s**. **Out.**` : `The runner beat the ball by **${by} s**. **Safe.**`);
     else lines.push(c.out ? `The tag beat the runner to the bag by **${by} s**. **Out.**` : `The runner reached the bag **${by} s** before the tag. **Safe.**`);
-    if (Math.abs(c.dt) < 0.05 && !c.what) lines.push('That was a true **bang-bang** play — and there\'s no such thing as a tie.');
+    if (Math.abs(c.dt) < CLOSE_PLAY && !c.what) lines.push('That was a true **bang-bang** play — and there\'s no such thing as a tie.');
     // Position coaching
     const tips = [];
     if (v.occl) tips.push('A fielder\'s body **blocked your view**. Step so you can see daylight between glove and runner.');

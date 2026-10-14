@@ -19,6 +19,9 @@ An arcade-style training game for young **Little League baseball** umpires. It's
   the running lane, base paths, fair/foul, catch/no catch, appeals, timing plays, balks (50/70), and
   **FXLL AA/AAA local rules**.
 - **Ump life**: coaches, parents, lightning, missing throat guards, illegal bats.
+- **Rookie Camp** in two levels: **Minors** (AA/AAA rules, where new umps start) and **Majors**. The infield fly and the
+  dropped third strike are only quizzed at Majors and above, since Minors doesn't use them.
+- **Little League mechanics**: on the 60-ft diamond the base umpire's B and C positions are outside the baselines.
 - **Gamification**: XP and ranks, a 5-division career (AA → AAA → Majors → All-Stars → Williamsport), stars,
   45 achievements, a collectible rule-card set, unlockable gear in the Locker Room, streak multipliers,
   and arcade modes (Blitz, Plate Survival, Base Hustle, Rulebook Rumble).

@@ -262,11 +262,12 @@ export class AtBatEvent {
       ['check', 7],
       ['hbp', 4],
       ['inPlay', this.pitchNo >= 3 ? 8 : 2],
-      ['u3k', st === 2 ? 14 : 0],
+      ['u3k', st === 2 && d.u3k ? 14 : 0], // dropped third strike: Majors and above only
       ['bunt2', st === 2 ? 4 : 0],
     ]);
     if (this.spec.only) kind = pick(this.spec.only);
     if ((kind === 'u3k' || kind === 'bunt2') && st !== 2) kind = 'take';
+    if (kind === 'u3k' && !d.u3k) kind = 'swingMiss';
     this.pk = { kind, t: 0, released: false, called: null, callT: null, decided: false };
     const pk = this.pk;
     const mph = rand(d.mph[0], d.mph[1]) * (this.fast ? 1.05 : 1);

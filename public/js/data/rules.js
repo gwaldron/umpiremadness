@@ -19,7 +19,7 @@ export const RULES = [
   { id: 'uncaught-third-strike', icon: '🏃', title: 'Uncaught Third Strike', lesson: 'uncaught-third-strike', group: 'Plate',
     text: 'If strike three isn\'t legally caught, the batter may run when **first base is open** or there are **two outs**. With first occupied and fewer than two outs, the batter is out. FXLL: not used in AA or AAA.' },
   { id: 'abc', icon: '🔤', title: 'A, B & C Positions', lesson: 'a-position-bases-empty', group: 'Bases',
-    text: '**A**: bases empty, foul ground behind first. **B**: runner on first only, infield on the second-base side. **C**: any runner on second or third, shortstop side.' },
+    text: 'On Little League\'s 60-ft diamond, work from outside the baselines. **A**: bases empty, foul ground behind first. **B**: runner on first only, behind the 1B–2B baseline near second. **C**: any runner on second or third, behind the 2B–3B baseline near second.' },
   { id: 'angles', icon: '📐', title: 'Angle Over Distance', lesson: 'working-the-bases', group: 'Bases',
     text: 'Move while the play develops, then **stop** before the critical moment. Get about 90° to the throw (force) or the runner (tag). Stay out of throwing lanes and runners\' paths.' },
   { id: 'force-play', icon: '👟', title: 'Force Plays', lesson: 'force-plays-at-first', group: 'Bases',

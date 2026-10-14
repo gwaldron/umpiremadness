@@ -430,20 +430,38 @@ export function buildCareer(divId, idx) {
   };
 }
 
-export function buildCamp() {
-  const iff = SITUATIONS.find((s) => s.id === 'iff');
-  const coach = LIFE.find((l) => l.id === 'tie-coach');
+// Rookie Camp has two levels. New umps start in Minors (AA/AAA rules: no infield fly,
+// no dropped third strike). Majors Camp adds those.
+export function buildCamp(level = 'minors') {
+  const sit = (id) => SITUATIONS.find((s) => s.id === id);
+  const life = (id) => LIFE.find((l) => l.id === id);
+  if (level === 'majors') {
+    return {
+      mode: 'camp', level: 'majors', div: 'MAJ', title: 'Majors Camp', badge: 'CAMP',
+      events: [
+        { type: 'info', title: 'WELCOME TO MAJORS CAMP!', sub: 'Majors rules: the full Little League rulebook', body: "In **Majors**, pitches are faster and two rules switch on that **Minors doesn't use**: the **uncaught (dropped) third strike** and the **infield fly**. Let's try both. First, set up in **the slot** and call a few pitches.", card: 'strike-zone' },
+        { type: 'atbat', forceKinds: ['take', 'swingMiss', 'take'], maxPitches: 3, tutorial: true },
+        { type: 'info', title: 'DROPPED THIRD STRIKE', sub: 'Two strikes. Here comes the pitch…', body: "If strike three **isn't legally caught**, the batter may run when **first base is open** or there are **two outs**. With first base **occupied** and **fewer than two outs**, the batter is simply **out**. Signal strike three, and only say \"out\" if the batter is out.", card: 'uncaught-third-strike' },
+        { type: 'atbat', strikes: 2, outs: 1, runners: [], forceKinds: ['u3k'], maxPitches: 1, tutorial: true },
+        { type: 'info', title: 'THE INFIELD FLY', sub: 'Four boxes to check', body: "**Fewer than two outs**, runners on **1st & 2nd** (or bases loaded), a **fair fly ball** (not a line drive or bunt) that an infielder can catch with **ordinary effort**. All four? \"Infield fly, batter's out!\"", card: 'infield-fly' },
+        { type: 'sit', def: sit('iff'), div: 'MAJ' },
+        { type: 'info', title: 'TURN TWO', sub: 'Runner on first: start in B, outside the baseline', body: 'With a runner on first, ground balls can become **double plays**. Get an angle on the force at second, make the call, then **turn** and get the best look you can at first.', card: 'double-play' },
+        { type: 'base', play: 'dp', tutorial: true },
+        { type: 'life', def: life('rule-question') },
+      ],
+    };
+  }
   return {
-    mode: 'camp', div: 'AA', title: 'Rookie Camp', badge: 'CAMP',
+    mode: 'camp', level: 'minors', div: 'AA', title: 'Minors Camp', badge: 'CAMP',
     events: [
-      { type: 'info', title: 'WELCOME TO ROOKIE CAMP!', sub: 'You are the umpire. Every call is yours.', body: 'First up: **the plate**. You\'ll see the pitch from behind the catcher. Get into **the slot** (between the batter and catcher), watch the ball **all the way into the glove**, pause, then make the call: **STRIKE** or **BALL**. A faint box shows the strike zone while you learn — it disappears in tougher divisions!', card: 'strike-zone' },
-      { type: 'atbat', forceKinds: ['take', 'take', 'swingMiss', 'take'], maxPitches: 4, tutorial: true },
-      { type: 'info', title: 'NOW: THE BASES', sub: 'Two-umpire crew: you\'re the base umpire', body: 'Before each pitch, run to your **starting spot**: **A** (bases empty, behind first base), **B** (runner on 1st only), or **C** (runner on 2nd or 3rd). When the ball is hit, **move for an angle**, then **STOP** before the play. The **UMP CAM** shows you the bag in slow motion — the better your angle, the clearer the picture. A gold ring shows a great spot while you learn.', card: 'abc' },
-      { type: 'base', play: 'force1B', tutorial: true },
+      { type: 'info', title: 'WELCOME TO ROOKIE CAMP!', sub: 'You are the umpire. Every call is yours.', body: "First up: **the plate**. You'll see the pitch from behind the catcher. Get into **the slot** (between the batter and catcher), watch the ball **all the way into the glove**, pause, then make the call: **STRIKE** or **BALL**. A faint box shows the strike zone while you learn. It disappears in tougher divisions!", card: 'strike-zone' },
+      { type: 'atbat', forceKinds: ['take', 'take', 'swingMiss', 'take'], maxPitches: 4, outs: 0, runners: [], tutorial: true },
+      { type: 'info', title: 'NOW: THE BASES', sub: "Two-umpire crew: you're the base umpire", body: "Before each pitch, run to your **starting spot**: **A** (bases empty, foul ground behind first base), **B** (runner on 1st only), or **C** (runner on 2nd or 3rd). On Little League's 60-foot diamond, **B and C are outside the baselines**. When the ball is hit, **move for an angle**, then **STOP** before the play. The **UMP CAM** shows the bag in slow motion: the better your angle, the clearer the picture.", card: 'abc' },
+      { type: 'base', play: 'force1B', runners: [], tutorial: true },
       { type: 'base', play: 'steal2B', tutorial: true },
-      { type: 'info', title: 'KNOW YOUR RULES', sub: 'Situations, local rules & myths', body: 'Some plays freeze at the key moment and ask **"What\'s the call?"** These test your rule knowledge — infield fly, obstruction, interference, appeals and more. Every one links to its **Umpire Bootcamp lesson**, and you collect a **rule card** for each.', card: 'infield-fly' },
-      { type: 'sit', def: iff, div: 'MAJ' },
-      { type: 'life', def: coach },
+      { type: 'info', title: 'KNOW YOUR RULES', sub: 'Situations, local rules & myths', body: "Some plays freeze at the key moment and ask **\"What's the call?\"** Every one links to its **Umpire Bootcamp lesson**, and you collect a **rule card** for each. Let's start simple: **fair or foul?**", card: 'fair-foul' },
+      { type: 'sit', def: sit('fairfoul'), div: 'AA' },
+      { type: 'life', def: life('tie-coach') },
     ],
   };
 }
@@ -472,7 +490,7 @@ export function buildRumble() {
   const picks = shuffle(pool).slice(0, 12);
   const events = picks.map((def) => {
     const divs = def.divs ? def.divs : ['AA', 'AAA', 'MAJ', 'MAJ', 'AS', 'WS'];
-    const d = def.id === 'iff' ? pick(['AAA', 'MAJ', 'MAJ', 'AS']) : pick(divs);
+    const d = pick(divs);
     return { type: 'sit', def, div: d };
   });
   return { ...ARCADE.rumble, events };

@@ -6,7 +6,7 @@
 //   - the ball never goes NaN
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { SITUATIONS } from '../public/js/data/situations.js';
+import { SITUATIONS, situationsFor } from '../public/js/data/situations.js';
 import { DIVISIONS } from '../public/js/data/divisions.js';
 import { LIFE } from '../public/js/data/life.js';
 import { RULE } from '../public/js/data/rules.js';
@@ -55,6 +55,13 @@ for (const def of SITUATIONS) {
     }
   }
 }
+// Minors (AA/AAA) never quiz the infield fly; the dropped third strike is off there too.
+for (const div of DIVISIONS) {
+  if (div.iff) continue;
+  if (situationsFor(div).some((s) => s.card === 'infield-fly')) problems.push(`${div.id}: infield fly quizzed in a Minors division`);
+  if (div.u3k) problems.push(`${div.id}: uncaught third strike enabled in a Minors division`);
+}
+
 for (const l of LIFE) {
   if (!l.options.some((o) => o.id === l.answer)) problems.push(`life ${l.id}: bad answer`);
   if (!RULE[l.card]) problems.push(`life ${l.id}: unknown card ${l.card}`);
