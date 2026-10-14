@@ -54,7 +54,7 @@ class InfoEvent {
   start() {
     this.s.hud.prompt('', '');
     this.s.rig.set({ x: 0, y: 50 }, 70, 0.62);
-    this.s.hud.verdict({ correct: true, title: this.spec.title, sub: this.spec.sub || '', body: this.spec.body, extraHtml: this.spec.html || '', card: this.spec.card || null, scored: null }, () => this.s.eventDone(true));
+    this.s.hud.verdict({ correct: true, info: true, title: this.spec.title, sub: this.spec.sub || '', body: this.spec.body, extraHtml: this.spec.html || '', card: this.spec.card || null, scored: null }, () => this.s.eventDone(true));
   }
   update() {}
   onAction() { return false; }
@@ -437,37 +437,105 @@ export function buildCareer(divId, idx) {
 }
 
 // Rookie Camp has two levels. New umps start in Minors (AA/AAA rules: no infield fly,
-// no dropped third strike). Majors Camp adds those.
+// no dropped third strike). Majors Camp adds those. Each camp is a full practice session:
+// stations of drills with a coach card between them, ending with a no-hints scrimmage.
 export function buildCamp(level = 'minors') {
   const sit = (id) => SITUATIONS.find((s) => s.id === id);
   const life = (id) => LIFE.find((l) => l.id === id);
+  const card = (n, total, title, sub, body, rule) => ({ type: 'info', title: `STATION ${n} OF ${total}: ${title}`, sub, body, card: rule });
+  const ab = (extra = {}) => ({ type: 'atbat', tutorial: true, ...extra });
+  const bp = (play, extra = {}) => ({ type: 'base', play, tutorial: true, ...extra });
+  const sq = (id, div) => ({ type: 'sit', def: sit(id), div });
+
   if (level === 'majors') {
+    const T = 7;
     return {
       mode: 'camp', level: 'majors', div: 'MAJ', title: 'Majors Camp', badge: 'CAMP',
       events: [
-        { type: 'info', title: 'WELCOME TO MAJORS CAMP!', sub: 'Majors rules: the full Little League rulebook', body: "In **Majors**, pitches are faster and two rules switch on that **Minors doesn't use**: the **uncaught (dropped) third strike** and the **infield fly**. Let's try both. First, set up in **the slot** and call a few pitches.", card: 'strike-zone' },
-        { type: 'atbat', forceKinds: ['take', 'swingMiss', 'take'], maxPitches: 3, tutorial: true },
-        { type: 'info', title: 'DROPPED THIRD STRIKE', sub: 'Two strikes. Here comes the pitch…', body: "If strike three **isn't legally caught**, the batter may run when **first base is open** or there are **two outs**. With first base **occupied** and **fewer than two outs**, the batter is simply **out**. Signal strike three, and only say \"out\" if the batter is out.", card: 'uncaught-third-strike' },
-        { type: 'atbat', strikes: 2, outs: 1, runners: [], forceKinds: ['u3k'], maxPitches: 1, tutorial: true },
-        { type: 'info', title: 'THE INFIELD FLY', sub: 'Four boxes to check', body: "**Fewer than two outs**, runners on **1st & 2nd** (or bases loaded), a **fair fly ball** (not a line drive or bunt) that an infielder can catch with **ordinary effort**. All four? \"Infield fly, batter's out!\"", card: 'infield-fly' },
-        { type: 'sit', def: sit('iff'), div: 'MAJ' },
-        { type: 'info', title: 'TURN TWO', sub: 'Runner on first: start in B, outside the baseline', body: 'With a runner on first, ground balls can become **double plays**. Get an angle on the force at second, make the call, then **turn** and get the best look you can at first.', card: 'double-play' },
-        { type: 'base', play: 'dp', tutorial: true },
-        { type: 'life', def: life('rule-question') },
+        { type: 'info', title: 'WELCOME TO MAJORS CAMP!', sub: 'The full Little League rulebook — about 15 minutes', body: "Majors means **faster pitching**, **runners who can really run**, and two rules that **Minors doesn't use**: the **uncaught (dropped) third strike** and the **infield fly**. You'll work through **7 stations**, then finish with a **scrimmage** — no hints allowed. Let's go!", card: 'strike-zone' },
+        // 1 — faster pitching
+        card(1, T, 'FASTER HEAT', 'Majors pitchers throw a lot harder', "The ball gets to the plate **fast**. Get set in the slot **before** the pitch, stay still, and track it all the way into the mitt. Don't guess early — a quick trigger costs points even when you're right.", 'timing'),
+        ab({ forceKinds: ['take', 'take', 'swingMiss', 'take', 'take'], maxPitches: 5 }),
+        ab({ maxPitches: 6 }),
+        ab({ maxPitches: 6 }),
+        // 2 — dropped third strike
+        card(2, T, 'DROPPED THIRD STRIKE', 'Two strikes. Ball in the dirt. Now what?', "If strike three **isn't legally caught**, the batter may run when **first base is open** or there are **two outs**. With first base **occupied** and **fewer than two outs**, the batter is **out**. Watch the scoreboard: runners and outs decide it!", 'uncaught-third-strike'),
+        ab({ strikes: 2, outs: 1, runners: [], forceKinds: ['u3k'], maxPitches: 1 }),
+        ab({ strikes: 2, outs: 0, runners: [1], forceKinds: ['u3k'], maxPitches: 1 }),
+        ab({ strikes: 2, outs: 2, runners: [1, 2], forceKinds: ['u3k'], maxPitches: 1 }),
+        ab({ strikes: 2, outs: 1, runners: [2], forceKinds: ['u3k'], maxPitches: 1 }),
+        // 3 — infield fly
+        card(3, T, 'THE INFIELD FLY', 'Four boxes to check, every time', "**Fewer than two outs**, runners on **1st & 2nd** (or bases loaded), a **fair fly ball** — not a line drive or a bunt — that an infielder can catch with **ordinary effort**. All four boxes? \"Infield fly, batter's out!\" Any box missing? **No call.**", 'infield-fly'),
+        sq('iff', 'MAJ'), sq('iff', 'MAJ'), sq('iff', 'MAJ'),
+        // 4 — the double play
+        card(4, T, 'TURN TWO', 'Runner on first: start in B — outside the baseline', "With a runner on first, ground balls become **double plays**. Get an angle on the force at **second**, sell the call, then **turn** and get the best look you can at **first**. Two calls, one play.", 'double-play'),
+        bp('dp'), bp('dp'),
+        // 5 — steals and back-picks
+        card(5, T, 'RUNNERS ON THE MOVE', 'Tag plays: watch the glove AND the bag', "On steals and back-picks it's a **tag play**. You need **daylight** between the glove and the runner. Watch for **missed tags**, **dropped balls**, and the sneaky **empty glove** (ball still in his other hand!).", 'tag-play'),
+        bp('steal2B'), bp('steal3B'), bp('pickoff1B'), bp('force1B'),
+        // 6 — rules that trip up rookies
+        card(6, T, 'RULES THAT FOOL ROOKIES', 'Appeals, timing plays and interference', "Some plays freeze and ask **\"What's the call?\"** These are the ones that fool new umpires: **appeals** (say nothing until they appeal!), **timing plays** (does the run count?), and **interference** vs. **obstruction**.", 'appeal-tagup'),
+        sq('tagup', 'MAJ'), sq('timing', 'MAJ'), sq('ci', 'MAJ'), sq('lane', 'MAJ'), sq('obs-rundown', 'MAJ'),
+        // 7 — game management
+        card(7, T, 'RUNNING THE GAME', 'Coaches, safety, and keeping your cool', 'Big games bring loud coaches and tough moments. Answer **rule** questions clearly, don\'t argue **judgment** calls, and **safety always comes first**.', 'handling-questions'),
+        { type: 'life', def: life('rule-question') }, { type: 'life', def: life('lightning') }, { type: 'life', def: life('calm-ejection') },
+        // Scrimmage
+        { type: 'info', title: 'SCRIMMAGE TIME!', sub: 'Final exam — no zone box, no gold rings, no tips', body: "You've seen it all. Now it's a real game: **plate**, **bases**, and **rules**, with **no hints**. Show what you learned!", card: 'signals' },
+        ab({ tutorial: false, exam: true, maxPitches: 6 }),
+        bp(null, { tutorial: false, exam: true }),
+        ab({ tutorial: false, exam: true, maxPitches: 6 }),
+        sq('basepath', 'MAJ'),
+        bp(null, { tutorial: false, exam: true }),
+        ab({ tutorial: false, exam: true, maxPitches: 6 }),
+        sq('hit-runner', 'MAJ'),
+        bp(null, { tutorial: false, exam: true }),
+        { type: 'life', def: life('partner-help') },
       ],
     };
   }
+
+  const T = 7;
   return {
     mode: 'camp', level: 'minors', div: 'AA', title: 'Minors Camp', badge: 'CAMP',
     events: [
-      { type: 'info', title: 'WELCOME TO ROOKIE CAMP!', sub: 'You are the umpire. Every call is yours.', body: "First up: **the plate**. You'll see the pitch from behind the catcher. Get into **the slot** (between the batter and catcher), watch the ball **all the way into the glove**, pause, then make the call: **STRIKE** or **BALL**. A faint box shows the strike zone while you learn. It disappears in tougher divisions!", card: 'strike-zone' },
-      { type: 'atbat', forceKinds: ['take', 'take', 'swingMiss', 'take'], maxPitches: 4, outs: 0, runners: [], tutorial: true },
-      { type: 'info', title: 'NOW: THE BASES', sub: "Two-umpire crew: you're the base umpire", body: "Before each pitch, run to your **starting spot**: **A** (bases empty, foul ground behind first base), **B** (runner on 1st only), or **C** (runner on 2nd or 3rd). On Little League's 60-foot diamond, **B and C are outside the baselines**. When the ball is hit, **move for an angle**, then **STOP** before the play. The **UMP CAM** shows the bag in slow motion: the better your angle, the clearer the picture.", card: 'abc' },
-      { type: 'base', play: 'force1B', runners: [], tutorial: true },
-      { type: 'base', play: 'steal2B', tutorial: true },
-      { type: 'info', title: 'KNOW YOUR RULES', sub: 'Situations, local rules & myths', body: "Some plays freeze at the key moment and ask **\"What's the call?\"** Every one links to its **Umpire Bootcamp lesson**, and you collect a **rule card** for each. Let's start simple: **fair or foul?**", card: 'fair-foul' },
-      { type: 'sit', def: sit('fairfoul'), div: 'AA' },
-      { type: 'life', def: life('tie-coach') },
+      { type: 'info', title: 'WELCOME TO ROOKIE CAMP!', sub: 'You are the umpire. Every call is yours. (About 15 minutes)', body: "You'll work through **7 training stations** — balls and strikes, the slot, the bases, angles, rules, and handling coaches — then finish with a **scrimmage** where the hints are turned off. Ready? Let's play ball!", card: 'strike-zone' },
+      // 1 — balls and strikes
+      card(1, T, 'BALLS & STRIKES', 'You see the pitch from behind the catcher', "Watch the ball **all the way into the glove**, pause, then call **STRIKE** or **BALL**. The faint yellow box is the strike zone: **armpits** to **top of the knees**, over the plate. It's only there while you learn!", 'strike-zone'),
+      ab({ forceKinds: ['take', 'take', 'take', 'take'], maxPitches: 4, outs: 0, runners: [] }),
+      ab({ forceKinds: ['take', 'swingMiss', 'take', 'take', 'swingMiss'], maxPitches: 5 }),
+      ab({ maxPitches: 5 }),
+      // 2 — the slot and timing
+      card(2, T, 'THE SLOT & YOUR TIMING', 'Where you stand changes what you see', "Stand **straight behind the catcher** and his helmet blocks the plate. Slide into **the slot** — the gap between batter and catcher — with your chin just above the catcher's helmet. And don't rush: calling **before** the ball hits the glove is a **quick trigger**!", 'slot'),
+      ab({ maxPitches: 6 }),
+      ab({ maxPitches: 6 }),
+      ab({ maxPitches: 6 }),
+      // 3 — the base positions
+      card(3, T, 'A, B & C', 'Where the base umpire starts', "Before each pitch, run to your **starting spot**. **A**: bases empty, foul ground behind first. **B**: runner on 1st only. **C**: runner on 2nd or 3rd. On Little League's 60-foot diamond, **B and C are outside the baselines**.", 'abc'),
+      bp('force1B', { runners: [] }),
+      bp('steal2B'),
+      bp('steal3B'),
+      // 4 — angles
+      card(4, T, 'GET THE ANGLE', 'The UMP CAM shows what YOU can see', "When the ball is hit, **move for an angle** — about **90°** to the throw on a force play, or to the slide on a tag. Then **STOP** before the play. A great angle gives you a crystal-clear UMP CAM. A bad one... good luck! The gold ring shows a great spot while you learn.", 'angles'),
+      bp('force1B'), bp('force1B', { runners: [2] }), bp('pickoff1B'), bp('steal2B'),
+      // 5 — rules
+      card(5, T, 'FAIR, FOUL, CATCH?', 'Calls the plate umpire owns', "The plate umpire has **every fair/foul call** and **every catch/no-catch call** on the field. Remember: the lines and bases are **fair**, and a catch needs **secure possession**.", 'fair-foul'),
+      sq('fairfoul', 'AA'), sq('fairfoul', 'AA'), sq('catch', 'AA'), sq('catch', 'AA'),
+      // 6 — local rules + interference
+      card(6, T, 'MINORS RULES', 'FXLL local rules and contact plays', "Minors has its own **local rules**: one base per steal, no stealing home, an outfielder can't make an out at a base in AA, and a warning for leaving early. Plus: who has the right of way when a runner and fielder collide?", 'local-aa'),
+      sq('one-base', 'AA'), sq('aa-of', 'AA'), sq('leave-early', 'AAA'), sq('hit-runner', 'AA'), sq('obs-delayed', 'AA'),
+      // 7 — game management
+      card(7, T, 'COACHES & SAFETY', 'The part of umpiring nobody talks about', 'Stay calm, answer questions in a sentence or two, don\'t argue with the stands, and **always** stop the game for a safety problem.', 'handling-questions'),
+      { type: 'life', def: life('tie-coach') }, { type: 'life', def: life('throat-guard') }, { type: 'life', def: life('parent') }, { type: 'life', def: life('signal-ball') },
+      // Scrimmage
+      { type: 'info', title: 'SCRIMMAGE TIME!', sub: 'Final exam — no zone box, no gold rings, no tips', body: "Now it's a real game. Plate, bases, and rules — **no hints**. Get in the slot, get your angle, and make the call!", card: 'signals' },
+      ab({ tutorial: false, exam: true, maxPitches: 6 }),
+      bp(null, { tutorial: false, exam: true }),
+      ab({ tutorial: false, exam: true, maxPitches: 6 }),
+      sq('slide-myth', 'AAA'),
+      bp(null, { tutorial: false, exam: true }),
+      ab({ tutorial: false, exam: true, maxPitches: 6 }),
+      bp(null, { tutorial: false, exam: true }),
+      { type: 'life', def: life('swinging-bats') },
     ],
   };
 }

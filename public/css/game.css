@@ -392,6 +392,8 @@ button.card { text-align: left; cursor: pointer; color: inherit; font: inherit; 
 .progress i.ok { background: var(--green); }
 .progress i.bad { background: var(--red); }
 .progress i.cur { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+.progress.many { gap: 3px; max-width: min(46vw, 420px); flex-wrap: wrap; justify-content: center; }
+.progress.many i { width: 7px; height: 7px; border-radius: 50%; }
 
 .prompt {
   position: absolute; top: calc(70px + var(--safe-top)); left: 50%; transform: translateX(-50%);

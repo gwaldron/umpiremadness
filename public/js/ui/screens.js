@@ -158,7 +158,7 @@ export class Screens {
       b.innerHTML = `<span class="ico">${ico}</span><span><div class="t">${t}</div><div class="d">${d}</div></span>`;
       return b;
     };
-    if (!campDone) menu.append(main('hero', '🎓', 'ROOKIE CAMP', 'New here? Start with Minors Camp: every control in 3 minutes.', () => this.push(this.campChooser()), { 'data-autofocus': '' }));
+    if (!campDone) menu.append(main('hero', '🎓', 'ROOKIE CAMP', 'New here? Start with Minors Camp: 7 training stations + a scrimmage.', () => this.push(this.campChooser()), { 'data-autofocus': '' }));
     menu.append(main(campDone ? 'hero' : '', '🏆', 'CAREER', `AA → AAA → Majors → All-Stars → Williamsport · ${careerStars(p)}★ earned`, () => this.push(this.career()), campDone ? { 'data-autofocus': '' } : {}));
     menu.append(main('', '🕹️', 'ARCADE', 'Plate Survival · Base Hustle · Rulebook Rumble · Blitz', () => this.push(this.arcade())));
     const row = el('div', { class: 'menu-row' });
@@ -470,7 +470,7 @@ export class Screens {
   firstRunPrompt() {
     const app = this.app;
     const panel = el('div', { class: 'panel' });
-    panel.innerHTML = `<div style="font-size:54px">🎓</div><h2>READY FOR ROOKIE CAMP?</h2><p>A quick 3-minute tutorial: calling pitches, working the bases, and making rulings. Highly recommended!</p>`;
+    panel.innerHTML = `<div style="font-size:54px">🎓</div><h2>READY FOR ROOKIE CAMP?</h2><p>Minors Camp: 7 training stations — pitches, the slot, the bases, angles, rules and coaches — then a scrimmage. Highly recommended!</p>`;
     const go = el('button', { class: 'btn big', 'data-nav': '', 'data-autofocus': '', type: 'button', onclick: () => { this.closeAll(); app.startCamp(); } });
     go.innerHTML = `${glyph('A')} LET'S GO!`;
     const skip = el('button', { class: 'btn ghost', 'data-nav': '', type: 'button', onclick: () => this.pop() });
@@ -492,8 +492,8 @@ export class Screens {
       return c;
     };
     grid.append(
-      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules. Balls and strikes, the slot, A and B positions, a force play, a steal, fair or foul, and your first coach. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
-      card('🔥', 'Majors Camp', 'Full Little League rules: faster pitching, the uncaught (dropped) third strike, the infield fly rule, and turning a double play.', p.career['camp-majors'], () => app.startCamp('majors')),
+      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules · about 15 minutes. 7 stations: balls & strikes, the slot, A/B/C positions, angles, fair/foul & catches, Minors local rules, coaches & safety, then a no-hints scrimmage. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
+      card('🔥', 'Majors Camp', 'Full Little League rules · about 15 minutes. 7 stations: faster pitching, the dropped third strike, the infield fly, double plays, steals & back-picks, appeals & timing plays, game management, then a no-hints scrimmage.', p.career['camp-majors'], () => app.startCamp('majors')),
     );
     wrapEl.append(grid);
     return this.screen('dim', wrapEl);

@@ -64,6 +64,7 @@ export class Hud {
   setProgress(list, cur) {
     const p = this.$('hudProgress');
     if (!list) { p.innerHTML = ''; return; }
+    p.classList.toggle('many', list.length > 16);
     p.innerHTML = list.map((st, i) => `<i class="${i === cur ? 'cur' : st === true ? 'ok' : st === false ? 'bad' : ''}"></i>`).join('');
   }
 
@@ -161,7 +162,7 @@ export class Hud {
     }
     box.className = `verdict${v.correct ? '' : ' bad'}`;
     box.innerHTML = `
-      <div class="vhead"><div class="vicon">${v.correct ? '✅' : '❌'}</div>
+      <div class="vhead"><div class="vicon">${v.info ? '📋' : v.correct ? '✅' : '❌'}</div>
         <div><div class="vtitle">${escapeHtml(v.title)}</div><div class="vsub">${escapeHtml(v.sub || '')}</div></div></div>
       <div class="vbody"><p>${mini(v.body || '')}</p>${v.extraHtml || ''}</div>
       ${card ? `<div class="rulecard-mini"><span class="rc-ico">${card.icon}</span><div><b>${escapeHtml(card.title)}</b> rule card ${sc && sc.newCard ? '<b style="color:#2fd67b">· NEW!</b>' : ''}<br><a class="lesson" href="${lessonUrl(card.lesson)}" target="_blank" rel="noopener">📖 Bootcamp lesson →</a></div></div>` : ''}
@@ -171,7 +172,7 @@ export class Hud {
     box.hidden = false;
     this.verdictHandler = onContinue;
     box.querySelector('#vcont').addEventListener('click', () => this._continue());
-    if (v.correct) audio.correct(); else audio.wrong();
+    if (v.info) audio.select(); else if (v.correct) audio.correct(); else audio.wrong();
   }
   _continue() {
     if (!this.verdictHandler) return false;

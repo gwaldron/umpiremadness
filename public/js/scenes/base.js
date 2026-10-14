@@ -394,7 +394,7 @@ export class BasePlayEvent {
     const rtxt = this.runners.length === 0 ? 'Bases empty' : 'Runner' + (this.runners.length > 1 ? 's' : '') + ' on ' + this.runners.map((b) => ['', '1st', '2nd', '3rd'][b]).join(' & ');
     hud.prompt('TAKE YOUR POSITION', `${rtxt} · ${this.outs} out${this.outs === 1 ? '' : 's'} · You're the base umpire`);
     hud.options([{ btn: 'A', id: 'set', label: "I'M SET — PITCH!", big: true }], () => this._go());
-    if (this.s.hints) {
+    if (this.s.hints && !this.spec.exam) {
       const spot = this.expectSpot;
       const why = { A: 'Bases empty → start in <b>A</b>: foul ground behind first base.', B: 'Runner on 1st only → start in <b>B</b>: outside the baseline between first and second, near second base.', C: 'Runner on 2nd or 3rd → start in <b>C</b>: outside the baseline between second and third, near second base.' }[spot];
       hud.tip(`${why} Move with ${this.s.moveHint()}.`);
@@ -777,11 +777,11 @@ export class BasePlayEvent {
     const s = this.s;
     const actors = [...this.tl.list(), this.umpActor];
     const markers = [];
-    if (this.state === 'position' && (s.hints || this.spec.tutorial)) {
+    if (this.state === 'position' && (s.hints || this.spec.tutorial) && !this.spec.exam) {
       const sp = UMP_SPOTS[this.expectSpot];
       markers.push({ x: sp.x, y: sp.y, r: 4, color: 'rgba(255,211,77,0.95)', dash: [6, 5], label: this.expectSpot });
     }
-    if (this.state === 'live' && (s.hints || this.spec.tutorial)) {
+    if (this.state === 'live' && (s.hints || this.spec.tutorial) && !this.spec.exam) {
       const c = this.crits[this.critIdx];
       if (c && c.ideal && this.t > this.tPlate - 0.2) markers.push({ x: c.ideal.x, y: c.ideal.y, r: 3.5, color: 'rgba(255,211,77,0.9)', dash: [5, 4] });
     }

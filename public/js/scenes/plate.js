@@ -236,7 +236,7 @@ export class AtBatEvent {
     hud.prompt(this.pitchNo === 0 ? 'GET IN THE SLOT' : 'RESET YOUR STANCE', `${handTxt} · move with ${this.s.moveHint()} · then Play Ball!`);
     hud.options([{ btn: 'A', id: 'ready', label: 'PLAY BALL!', big: true }], () => this._afterSetup());
     if (this.pitchNo === 0 && !this.fast) setTimeout(() => audio.announce(`Now batting, number ${this.batter.num}`), 300);
-    if (this.s.hints && !this.setupHinted) {
+    if (this.s.hints && !this.spec.exam && !this.setupHinted && (this.s.slotTips = (this.s.slotTips || 0) + 1) <= 2) {
       this.setupHinted = true;
       hud.tip('<b>The slot</b> is the gap between the batter and the catcher. Put your head there with your chin just above the catcher\'s helmet so you can see the whole plate.');
     }
@@ -788,6 +788,7 @@ export class AtBatEvent {
   }
 
   _zoneShown() {
+    if (this.spec.exam) return false;
     return (this.s.zoneHelper && (this.state === 'setup' || this.state === 'pre' || this.state === 'pitch')) || (this.state === 'setup' && this.s.hints);
   }
 
