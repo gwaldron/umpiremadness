@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Umpire Madness</title>
+  <meta name="description" content="Umpire Madness — an arcade umpire training game for Little League umpires. Call balls and strikes, safes and outs, infield flies, obstruction, interference and more. A companion to Umpire Bootcamp.">
+  <meta name="theme-color" content="#0b1530">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta property="og:title" content="Umpire Madness">
+  <meta property="og:description" content="Make the call. Own the field. An arcade training game for young Little League umpires.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body data-input="keyboard">
+  <canvas id="game" aria-label="Ballfield"></canvas>
+
+  <div id="hud" class="hud" hidden>
+    <div class="bug" id="bug">
+      <div class="bug-top"><span class="bug-div" id="bugDiv">MAJ</span><span class="bug-inn" id="bugInn">TOP 1</span></div>
+      <div class="bug-body">
+        <div class="bug-diamond" id="bugDiamond"><i data-b="2"></i><i data-b="3"></i><i data-b="1"></i></div>
+        <div class="bug-count">
+          <div class="count" id="bugCount"><b>0</b>-<b>0</b></div>
+          <div class="outs" id="bugOuts"><i></i><i></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="scorebox">
+      <div class="score" id="hudScore">0</div>
+      <div class="streak" id="hudStreak"></div>
+      <div class="lives" id="hudLives"></div>
+    </div>
+    <button class="pause-btn" id="pauseBtn" aria-label="Pause">❚❚</button>
+    <div class="progress" id="hudProgress"></div>
+    <div class="prompt" id="prompt"><div class="prompt-main"></div><div class="prompt-sub"></div></div>
+    <div class="stamp" id="stamp"></div>
+    <div class="floaters" id="floaters"></div>
+    <div class="timerbar" id="timerbar"><i></i></div>
+    <div class="options" id="options"></div>
+    <div class="kzone" id="kzone" hidden><canvas width="220" height="260"></canvas><div class="kz-label"></div></div>
+    <div class="coach-tip" id="coachTip" hidden></div>
+    <div class="verdict" id="verdict" hidden></div>
+  </div>
+
+  <div id="ui"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="rotate" class="rotate-hint">↻ Turn your phone sideways for the best view</div>
+
+  <noscript><p style="color:#fff;padding:2rem;font-family:sans-serif">Umpire Madness needs JavaScript turned on.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

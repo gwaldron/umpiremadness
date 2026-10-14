@@ -1,0 +1,15 @@
+{
+  "name": "umpire-madness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Umpire Madness — an arcade-style Little League umpire training game. Companion to Umpire Bootcamp.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.0"
+  }
+}

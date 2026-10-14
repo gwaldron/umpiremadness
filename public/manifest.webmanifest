@@ -1,0 +1,13 @@
+{
+  "name": "Umpire Madness",
+  "short_name": "Ump Madness",
+  "description": "Arcade umpire training for Little League umpires. Make the call. Own the field.",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1530",
+  "theme_color": "#0b1530",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
