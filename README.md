@@ -67,12 +67,13 @@ It deploys to `https://umpiremadness.<your-subdomain>.workers.dev`.
 | `public/js/game/session.js` | Scoring, streaks, lives/timers, stats, achievements, career and arcade builders |
 | `public/js/scenes/plate.js` | Plate umpire: pitch physics, strike zone, batter and catcher, K-Zone |
 | `public/js/scenes/base.js` | Base umpire: play generation, positioning and angle scoring |
-| `public/js/scenes/umpcam.js` | Slow-motion close-up whose clarity depends on your angle |
+| `public/js/scenes/umpcam.js` | Slow-motion close-up whose clarity depends on your angle, plus the Call Cam that cuts to your umpire selling the call |
 | `public/js/scenes/situation.js` + `data/situations.js` | Scripted rule situations |
-| `public/js/render3d/*` | three.js ballpark, cel-shaded instanced players with IK, Ump Cam inset rendering, Locker Room preview |
+| `public/js/render3d/*` | three.js ballpark (bloom and color grade, waving flags, birds, night stars), cel-shaded instanced players with IK and faces, dirt-dust particles, Ump Cam inset rendering, Locker Room preview |
 | `public/js/render/*` | Game camera and constants, plus the 2D fallback renderer (used if WebGL is unavailable or with `?gl=0`) |
 | `public/vendor/three/` | Vendored three.js (MIT) |
-| `public/js/ui/*` | HUD and menus (gamepad-navigable) |
+| `public/js/ui/*` | HUD and menus (gamepad-navigable), TV-style batter lower-third, confetti |
+| `public/js/audio.js` + `voice.js` | Synthesized sound and music; umpire calls, PA announcer and color commentary via the browser's speech voices |
 | `public/js/data/*` | Divisions, rule cards, achievements, ump-life events |
 
 There are no build steps and no image or audio files. The 3D ballpark is built with three.js from procedurally painted textures, and all sound (bat crack, mitt pop, crowd, ballpark organ, menu theme) is synthesized with WebAudio.

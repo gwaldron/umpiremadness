@@ -5,6 +5,24 @@ import { TOON_STEPS } from './engine.js';
 import { poseJoints } from '../render/figures.js';
 
 const CAP = 3000;
+const HAIRS = ['#2b1d14', '#4a2f1b', '#1a1a1a', '#7a4b23', '#c9a25c', '#5a3a22', '#8b3a1a'];
+function hashStr(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return Math.abs(h);
+}
+function blobTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(0,0,0,0.85)');
+  gr.addColorStop(0.5, 'rgba(0,0,0,0.45)');
+  gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
 const OUTLINE = '#0b0f1c';
 
 // --- tiny vector helpers on {x,y,z} ---
@@ -82,6 +100,18 @@ export class People {
     this._c = new THREE.Color();
     this.state = new WeakMap(); // per-actor heading smoothing
     this.ow = 0.05;
+    this.blobs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, opacity: 0.5 }), 200);
+    this.blobs.frustumCulled = false;
+    this.blobs.renderOrder = 4;
+    this.blobs.count = 0;
+    scene.add(this.blobs);
+    this.nb = 0;
+  }
+
+  blob(x, y, r) {
+    if (this.nb >= 200) return;
+    this._m.makeScale(r * 2, r * 2, 1).setPosition(x, y, groundZ(x, y) + 0.05);
+    this.blobs.setMatrixAt(this.nb++, this._m);
   }
 
   begin(camera, focalPx) {
@@ -89,9 +119,12 @@ export class People {
     this.on.sphere = this.on.cyl = this.on.dome = 0;
     this.camPos = camera.position;
     this.focal = focalPx;
+    this.nb = 0;
   }
 
   end() {
+    this.blobs.count = this.nb;
+    this.blobs.instanceMatrix.needsUpdate = true;
     for (const k of ['sphere', 'cyl', 'dome']) {
       const f = this.fills[k], o = this.outlines[k];
       f.count = this.n[k];
@@ -246,6 +279,7 @@ export class People {
     const S = W.S || 1;
     this.ow = this._outlineFor(W.hip);
     const f = W.f, L = W.L;
+    this.blob((W.footF.x + W.footB.x) / 2, (W.footF.y + W.footB.y) / 2, 1.3 * S);
     const skin = o.skin || '#e0ac69';
     const sock = o.gear === 'catcher' ? '#1f4fb0' : kit.trim || '#333';
     const pants = kit.pants;
@@ -310,10 +344,28 @@ export class People {
     hf = o.lookDir ? norm(V(o.lookDir.x, o.lookDir.y, 0)) : len(hf) > 0.2 ? norm(hf) : f;
     const hl = cross(UP, hf);
     this.sphere(headC, hr, skin);
-    // face
+    // hair peeking out under the cap (back of the head)
+    const hair = o.hair || HAIRS[hashStr(String(o.skin) + (o.num ?? '') + (kit.jersey || '')) % HAIRS.length];
+    if (o.gear !== 'catcher') this.ellipsoid(add(add(headC, mul(hf, -hr * 0.22)), mul(UP, -hr * 0.04)), hl, hf, UP, hr * 1.04, hr * 0.92, hr * 0.88, hair, false);
+    // ears
+    for (const s of [1, -1]) this.ellipsoid(add(headC, mul(hl, s * hr * 0.96)), hl, hf, UP, hr * 0.16, hr * 0.2, hr * 0.26, skin, false);
+    // face: big cartoon eyes, brows, nose, smile
     if (!o.noFace) {
-      for (const s of [1, -1]) this.sphere(add(add(add(headC, mul(hf, hr * 0.88)), mul(hl, s * hr * 0.34)), mul(UP, hr * 0.12)), hr * 0.12, '#141414', false);
-      this.sphere(add(add(headC, mul(hf, hr * 0.98)), mul(UP, -hr * 0.12)), hr * 0.14, skin, false);
+      for (const s of [1, -1]) {
+        const eye = add(add(add(headC, mul(hf, hr * 0.85)), mul(hl, s * hr * 0.32)), mul(UP, -hr * 0.02));
+        this.ellipsoid(eye, hl, hf, UP, hr * 0.16, hr * 0.12, hr * 0.2, '#ffffff', false);
+        this.sphere(add(add(eye, mul(hf, hr * 0.1)), mul(UP, -hr * 0.02)), hr * 0.095, '#16110e', false);
+        this.ellipsoid(add(add(eye, mul(UP, hr * 0.25)), mul(hf, hr * 0.02)), hl, hf, UP, hr * 0.17, hr * 0.06, hr * 0.045, hair, false);
+      }
+      this.sphere(add(add(headC, mul(hf, hr * 0.97)), mul(UP, -hr * 0.2)), hr * 0.12, skin, false);
+      // a little curved grin
+      const mouthC = add(add(headC, mul(hf, hr * 0.87)), mul(UP, -hr * 0.45));
+      this.ellipsoid(mouthC, hl, hf, UP, hr * 0.12, hr * 0.05, hr * 0.035, '#3a1212', false);
+      for (const s of [1, -1]) {
+        const d = norm(add(hl, mul(UP, 1.0 * s)));
+        const c = add(add(add(mouthC, mul(hl, s * hr * 0.15)), mul(UP, hr * 0.08)), mul(hf, -hr * 0.03));
+        this.ellipsoid(c, d, hf, norm(cross(d, hf)), hr * 0.09, hr * 0.05, hr * 0.032, '#3a1212', false);
+      }
     }
     // headgear
     if (o.gear === 'catcher') {

@@ -288,6 +288,11 @@ class AudioEngine {
     this._bell(base, 0, 0.1, 0.25);
     this._bell(base * 1.5, 0.06, 0.1, 0.3);
   }
+  // stadium PA "ding-dong-ding"
+  paChime() {
+    if (!this.ok) return;
+    [[79, 0], [76, 0.16], [72, 0.32]].forEach(([n, w]) => this._bell(midi(n), w, 0.11, 0.7));
+  }
   countdown() {
     this._tone({ freq: 1400, dur: 0.07, type: 'sine', peak: 0.16 });
   }

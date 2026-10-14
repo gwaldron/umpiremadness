@@ -370,6 +370,41 @@ export function cloudTexture() {
   return t;
 }
 
+// ---------- Flags ----------
+export function flagTexture(kind = 'stars') {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 144;
+  const g = c.getContext('2d');
+  if (kind === 'stars') {
+    for (let i = 0; i < 13; i++) {
+      g.fillStyle = i % 2 ? '#f5f5f5' : '#c8102e';
+      g.fillRect(0, (i * 144) / 13, 256, 144 / 13 + 1);
+    }
+    g.fillStyle = '#1f2f6b';
+    g.fillRect(0, 0, 108, 78);
+    g.fillStyle = '#ffffff';
+    for (let r = 0; r < 5; r++) for (let k = 0; k < 6; k++) {
+      g.beginPath();
+      g.arc(10 + k * 17.5 + (r % 2) * 8, 9 + r * 15, 2.6, 0, Math.PI * 2);
+      g.fill();
+    }
+  } else {
+    // team pennant: stripe + star
+    g.fillStyle = kind;
+    g.fillRect(0, 0, 256, 144);
+    g.fillStyle = 'rgba(255,255,255,0.9)';
+    g.fillRect(0, 60, 256, 24);
+    g.fillStyle = '#ffd34d';
+    g.font = 'bold 90px sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('★', 70, 74);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 // ---------- Glow sprite (stadium lights, sun) ----------
 export function glowTexture(color = '255,250,220') {
   const c = document.createElement('canvas');
@@ -423,4 +458,88 @@ export function labelTexture(text, color = '#ffd34d') {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+// ---------- Tiling ground detail: R = grass blades, G = dirt grain/pebbles ----------
+export function groundDetailTexture(size = 512) {
+  const rnd = mulberry(77);
+  const layer = (draw) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgb(128,128,128)';
+    g.fillRect(0, 0, size, size);
+    for (const ox of [-size, 0, size]) for (const oy of [-size, 0, size]) {
+      g.save();
+      g.translate(ox, oy);
+      draw(g, mulberry(5));
+      g.restore();
+    }
+    return g.getImageData(0, 0, size, size).data;
+  };
+  const grass = layer((g, r) => {
+    for (let i = 0; i < 2600; i++) {
+      const x = r() * size, y = r() * size, len = 6 + r() * 14, a = -Math.PI / 2 + (r() - 0.5) * 1.2;
+      const v = r() < 0.5 ? 70 + r() * 40 : 170 + r() * 60;
+      g.strokeStyle = `rgb(${v},${v},${v})`;
+      g.lineWidth = 1 + r() * 1.6;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke();
+    }
+  });
+  const dirt = layer((g, r) => {
+    for (let i = 0; i < 5000; i++) {
+      const x = r() * size, y = r() * size, rr = 0.6 + r() * 1.8;
+      const v = r() < 0.5 ? 85 + r() * 40 : 160 + r() * 55;
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.beginPath(); g.arc(x, y, rr, 0, Math.PI * 2); g.fill();
+    }
+    for (let i = 0; i < 90; i++) {
+      const x = r() * size, y = r() * size, rr = 2 + r() * 4;
+      g.fillStyle = 'rgb(205,200,195)';
+      g.beginPath(); g.ellipse(x, y, rr, rr * 0.7, r() * 3, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgb(80,70,60)';
+      g.beginPath(); g.ellipse(x + 1, y + 1.2, rr * 0.9, rr * 0.4, r() * 3, 0, Math.PI * 2); g.fill();
+    }
+  });
+  const out = document.createElement('canvas');
+  out.width = out.height = size;
+  const og = out.getContext('2d');
+  const img = og.createImageData(size, size);
+  for (let i = 0; i < size * size; i++) {
+    img.data[i * 4] = grass[i * 4];
+    img.data[i * 4 + 1] = dirt[i * 4];
+    img.data[i * 4 + 2] = 128;
+    img.data[i * 4 + 3] = 255;
+  }
+  og.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(out);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+// Patch a Lambert material so it multiplies in the tiling ground detail.
+export function addGroundDetail(material, detail, { scale = 0.45, strength = 0.42 } = {}) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.detailMap = { value: detail };
+    shader.uniforms.detailScale = { value: scale };
+    shader.uniforms.detailStrength = { value: strength };
+    shader.vertexShader = 'varying vec2 vDetailPos;\n' + shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\n  vDetailPos = (modelMatrix * vec4(position, 1.0)).xy;'
+    );
+    shader.fragmentShader = 'varying vec2 vDetailPos;\nuniform sampler2D detailMap;\nuniform float detailScale;\nuniform float detailStrength;\n' + shader.fragmentShader.replace(
+      '#include <map_fragment>',
+      `#include <map_fragment>
+  {
+    vec3 dt = texture2D(detailMap, vDetailPos * detailScale).rgb;
+    float grassy = clamp((diffuseColor.g - diffuseColor.r) * 7.0 + 0.45, 0.0, 1.0);
+    float d = mix(dt.g, dt.r, grassy);
+    diffuseColor.rgb *= mix(1.0, d * 2.0, detailStrength);
+  }`
+    );
+  };
+  material.customProgramCacheKey = () => 'ground-detail';
+  return material;
 }

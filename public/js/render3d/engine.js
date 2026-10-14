@@ -1,5 +1,31 @@
 // WebGL engine: renderer, lights, sky, and camera syncing with our game Camera.
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// Final "broadcast" grade: saturation, contrast, vignette, a little film grain.
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, sat: { value: 1.1 }, con: { value: 1.05 }, vig: { value: 0.24 }, grain: { value: 0.022 }, time: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float vig; uniform float grain; uniform float time;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec3 col = c.rgb;
+      float l = dot(col, vec3(0.299, 0.587, 0.114));
+      col = mix(vec3(l), col, sat);
+      col = (col - 0.5) * con + 0.5;
+      vec2 d = vUv - 0.5;
+      col *= 1.0 - dot(d, d) * vig * 2.0;
+      float n = fract(sin(dot(vUv * (time + 1.7), vec2(12.9898, 78.233))) * 43758.5453);
+      col += (n - 0.5) * grain;
+      gl_FragColor = vec4(col, c.a);
+    }`,
+};
 
 export const TOON_STEPS = (() => {
   const data = new Uint8Array([90, 90, 90, 255, 165, 165, 165, 255, 230, 230, 230, 255, 255, 255, 255, 255]);
@@ -102,9 +128,31 @@ export class Engine {
     this.quality = 'high';
   }
 
+  _makeComposer() {
+    const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+    const comp = new EffectComposer(this.renderer, rt);
+    this.renderPass = new RenderPass(this.scene, this.camera);
+    comp.addPass(this.renderPass);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.16, 0.45, 0.96);
+    comp.addPass(this.bloom);
+    comp.addPass(new OutputPass());
+    this.grade = new ShaderPass(GradeShader);
+    comp.addPass(this.grade);
+    this.composer = comp;
+    this._sizeComposer();
+  }
+  _sizeComposer() {
+    if (!this.composer) return;
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
+    this.composer.setSize(this.cssW, this.cssH);
+  }
+
   // 'high' | 'medium' | 'low'
   setQuality(q) {
     this.quality = q;
+    if (q === 'high' && !this.composer) {
+      try { this._makeComposer(); } catch (e) { console.warn('post-processing unavailable', e); this.composer = null; }
+    }
     const sun = this.sun;
     sun.castShadow = q !== 'low';
     const size = q === 'high' ? 2048 : 1024;
@@ -127,6 +175,7 @@ export class Engine {
     const pr = Math.min(dpr, cap, cssW * cssH > 1.2e6 ? 1.5 : 2);
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(cssW, cssH, false);
+    this._sizeComposer();
   }
 
   // Match our game Camera (z-up, vertical fov, screen shake) exactly.
@@ -145,7 +194,12 @@ export class Engine {
   render() {
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, this.cssW, this.cssH);
-    this.renderer.render(this.scene, this.camera);
+    if (this.quality === 'high' && this.composer) {
+      this.grade.uniforms.time.value = (performance.now() % 100000) / 1000;
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   // Render the scene from another camera into a rectangle (CSS pixels, top-left origin).
@@ -193,7 +247,9 @@ export class Engine {
       this.sun.color.set('#e8f0ff'); this.sun.intensity = 1.9;
       this.sun.position.set(30, -60, 300);
       this.scene.fog.color.set('#1a2140');
+      if (this.bloom) { this.bloom.strength = 0.85; this.bloom.threshold = 0.62; this.bloom.radius = 0.6; }
     } else {
+      if (this.bloom) { this.bloom.strength = 0.16; this.bloom.threshold = 0.96; this.bloom.radius = 0.45; }
       u.top.value.set('#2f7fd6'); u.horizon.value.set('#cfe4f5'); u.bottom.value.set('#9fb7a0'); u.sunAmt.value = 1;
       this.hemi.color.set('#d7ecff'); this.hemi.groundColor.set('#5d7d43'); this.hemi.intensity = 1.25;
       this.sun.color.set('#fff1d9'); this.sun.intensity = 2.6;

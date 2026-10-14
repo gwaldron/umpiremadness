@@ -5,6 +5,7 @@ import { Engine } from './engine.js';
 import { Stadium } from './stadium.js';
 import { People, vec3 } from './people.js';
 import { ballTexture, labelTexture, glowTexture } from './textures.js';
+import { Dust, onDirt } from './dust.js';
 
 const { V } = vec3;
 
@@ -14,6 +15,9 @@ export class Field3D {
     this.scene = this.engine.scene;
     this.stadium = new Stadium(this.engine);
     this.people = new People(this.engine);
+    this.dust = new Dust(this.scene);
+    this.track = new WeakMap();
+    this.prevBall = null;
     this.excite = 0;
     this.t0 = performance.now();
     this.last = this.t0;
@@ -136,6 +140,32 @@ export class Field3D {
   }
 
   // Populate people + props for a world description. Shared by the main view and inset views.
+  _emitDust(world, dt) {
+    if (dt <= 0) return;
+    for (const a of world.actors || []) {
+      if (a.hidden) continue;
+      let st = this.track.get(a);
+      if (!st) { st = { x: a.x, y: a.y, acc: 0 }; this.track.set(a, st); }
+      const v = Math.hypot(a.x - st.x, a.y - st.y) / dt;
+      st.x = a.x; st.y = a.y;
+      if (v > 60) continue; // teleport, not movement
+      if ((a.pose === 'slide' || a.pose === 'dive') && v > 2.5) {
+        this.dust.emit(a.x, a.y, 0.1, 3, { spread: 0.7, size: 1.3, up: 1.3, speed: 3.2, life: 1.1 });
+      } else if (a.pose === 'run' && v > 6 && onDirt(a.x, a.y)) {
+        st.acc += dt;
+        if (st.acc > 0.11) { st.acc = 0; this.dust.emit(a.x, a.y, 0.05, 1, { size: 0.6, up: 0.9, speed: 1.4, life: 0.7, spread: 0.3 }); }
+      }
+    }
+    const b = world.ball;
+    if (b && b.visible !== false) {
+      const p = this.prevBall;
+      if (p && p.z > 0.5 && (b.z || 0) <= 0.5 && Math.hypot(b.x - p.x, b.y - p.y) < 8 && onDirt(b.x, b.y)) {
+        this.dust.emit(b.x, b.y, 0.1, 7, { size: 0.55, spread: 0.25, up: 1.6, speed: 1.8, life: 0.8 });
+      }
+      this.prevBall = { x: b.x, y: b.y, z: b.z || 0 };
+    } else this.prevBall = null;
+  }
+
   _populate(world, camera, focal, t) {
     const P = this.people;
     P.begin(camera, focal);
@@ -169,6 +199,9 @@ export class Field3D {
     e.syncCamera(cam);
     this.stadium.update(dt, t, { excite: this.excite, board: this.board });
     const focal = cam.focal;
+    this._emitDust(world, dt);
+    this.dust.update(dt);
+    this.dust.setView(e.cssH * e.renderer.getPixelRatio(), e.camera.fov * Math.PI / 180);
     this._populate(world, e.camera, focal, t);
     e.render();
     if (world.overlay) world.overlay(g, cam);
@@ -185,6 +218,7 @@ export class Field3D {
     const focal = (rect.h / 2) / Math.tan(view.fov / 2);
     const t = (performance.now() - this.t0) / 1000;
     this._populate(world, c, focal, t);
+    this.dust.setView(rect.h * e.renderer.getPixelRatio() / block, view.fov);
     e.renderInset(rect, block);
   }
 

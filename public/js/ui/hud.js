@@ -30,6 +30,7 @@ export class Hud {
     this.kzone(null);
     this.tip(null);
     this.timer(null);
+    this.lowerThird(null);
   }
 
   setBug({ balls = 0, strikes = 0, outs = 0, runners = [] } = {}) {
@@ -109,6 +110,16 @@ export class Hud {
     audio.select();
     h(o.id);
     return true;
+  }
+
+  // TV-style "NOW BATTING" graphic
+  lowerThird(b) {
+    const l = this.$('lower3');
+    l.className = 'lower3';
+    if (!b || !b.name) return;
+    l.innerHTML = `<div class="l3-num"><small>#</small>${b.num}</div><div class="l3-txt"><div class="l3-k">NOW BATTING</div><div class="l3-n">${escapeHtml(b.name.first)} <b>${escapeHtml(b.name.last)}</b></div><div class="l3-s">${escapeHtml(b.line || '')}</div></div>`;
+    void l.offsetWidth;
+    l.className = 'lower3 go';
   }
 
   stamp(text, cls = '') {

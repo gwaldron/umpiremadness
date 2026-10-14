@@ -1,5 +1,6 @@
 // Rule situations: a scripted play runs on the field, freezes at the key moment, and asks for the ruling.
 import { audio } from '../audio.js';
+import { voices } from '../voice.js';
 import { clamp, lerp, pick } from '../util.js';
 import { Timeline, setupDefense, setupRunners, setupBatter, setupUmps } from './timeline.js';
 
@@ -113,7 +114,7 @@ export class SituationEvent {
     };
     const scored = this.s.record(res);
     const label = (v) => (st.options.find((o) => o.id === v) || {}).label || v;
-    if (st.say && id === st.answer) audio.say(st.say);
+    if (st.say && id === st.answer) voices.ump(st.say);
     hud.stamp(correct ? 'CORRECT!' : 'NOPE!', correct ? 'good' : 'bad');
     this.state = 'after';
     setTimeout(() => {

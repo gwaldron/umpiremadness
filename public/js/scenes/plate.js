@@ -1,6 +1,7 @@
 // Behind the dish: the plate umpire's first-person view.
 // One AtBatEvent = one batter, pitch after pitch, until the at-bat ends.
 import { audio } from '../audio.js';
+import { voices, playerName } from '../voice.js';
 import { input } from '../input.js';
 import { clamp, lerp, rand, randInt, pick, chance, weighted, easeOut } from '../util.js';
 import { drawFigure, KITS, SKINS } from '../render/figures.js';
@@ -12,6 +13,14 @@ const GRAV = 32.17;
 const GLOVE_Y = -1.25;
 const MPH = 1.4667;
 const LOOK_Z = -1.2; // camera aims a little below the zone so the plate sits mid-screen
+
+const FUN_FACTS = [
+  '🍕 Pizza fanatic', '🐶 Has 3 dogs', '🎮 Gamer', '⚡ Fastest kid on the team', '🌻 Seed-spitting champ',
+  '🎸 Air guitar legend', '🧢 Lucky cap (unwashed)', '🍦 Ice cream expert', '🐢 Pet turtle named Speedy',
+  '🏀 Also plays hoops', '🥤 Blue slushie only', '🦖 Dino expert', '🎯 Never misses at cornhole',
+  '🍬 Bubble gum record holder', '🛹 Skateboards to practice', '🎤 Sings the anthem in the shower',
+  '🐟 Caught a 5-lb bass', '📚 Reads the rulebook for fun', '🥞 Pancake eating champ', '🚀 Wants to be an astronaut',
+];
 
 export function makeBatter(div, opts = {}) {
   const hand = opts.hand || (Math.random() < 0.7 ? 'R' : 'L');
@@ -26,6 +35,8 @@ export function makeBatter(div, opts = {}) {
     by: rand(0.3, 1.0),
     skin: opts.skin || pick(SKINS),
     num: randInt(1, 42),
+    name: playerName(),
+    line: `BATS ${hand} · AVG .${randInt(180, 455)} · ${pick(FUN_FACTS)}`,
   };
 }
 
@@ -235,7 +246,10 @@ export class AtBatEvent {
     const handTxt = this.batter.hand === 'R' ? 'Right-handed batter' : 'Left-handed batter';
     hud.prompt(this.pitchNo === 0 ? 'GET IN THE SLOT' : 'RESET YOUR STANCE', `${handTxt} · move with ${this.s.moveHint()} · then Play Ball!`);
     hud.options([{ btn: 'A', id: 'ready', label: 'PLAY BALL!', big: true }], () => this._afterSetup());
-    if (this.pitchNo === 0 && !this.fast) setTimeout(() => audio.announce(`Now batting, number ${this.batter.num}`), 300);
+    if (this.pitchNo === 0 && !this.fast) {
+      setTimeout(() => voices.batter(this.batter), 250);
+      hud.lowerThird(this.batter);
+    }
     if (this.s.hints && !this.spec.exam && !this.setupHinted && (this.s.slotTips = (this.s.slotTips || 0) + 1) <= 2) {
       this.setupHinted = true;
       hud.tip('<b>The slot</b> is the gap between the batter and the catcher. Put your head there with your chin just above the catcher\'s helmet so you can see the whole plate.');
@@ -602,8 +616,14 @@ export class AtBatEvent {
     const strikeCall = id === 'strike' || id === 'k' || id === 'out' || id === 'run' || id === 'tip';
     this.state = 'signal';
     this.armAnim = strikeCall ? 0 : -1;
-    const words = { strike: pick(['Strike!', 'Steee-rike!', 'Strike!']), ball: 'Ball.', tip: 'Strike!', foul: 'Foul ball!', catch: "He's out!", k: 'Strike three!', hbp: 'Time! Take your base.', out: "Strike three, he's out!", run: 'Strike three!' }[id] || '';
-    if (words) audio.say(words);
+    {
+      // what the count will be after this call (judgment calls stand)
+      let b = this.balls, st = this.strikes;
+      if (id === 'strike' || id === 'tip') st++;
+      if (id === 'ball') b++;
+      const kind = id === 'strike' ? (st >= 3 ? 'k' : 'strike') : id === 'ball' ? (b >= 4 ? 'bb' : 'ball') : id === 'catch' ? 'out' : id === 'out' || id === 'run' ? 'k' : id;
+      if (id && id !== 'none') voices.call(kind, { balls: Math.min(b, 3), strikes: Math.min(st, 2), fast: this.fast });
+    }
     const stampTxt = { strike: 'STRIKE!', ball: 'BALL', tip: 'FOUL TIP!', foul: 'FOUL!', catch: 'OUT!', k: 'STRIKE 3!', hbp: 'TAKE YOUR BASE', out: 'STRIKE 3!', run: 'STRIKE 3!', none: 'NO CALL?!' }[pk.called];
     hud.stamp(stampTxt, pk.called === 'ball' ? '' : 'gold');
 

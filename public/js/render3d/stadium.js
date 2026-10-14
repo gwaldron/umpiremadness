@@ -1,6 +1,6 @@
 // The ballpark: everything that doesn't move (plus the crowd, which cheers).
 import * as THREE from 'three';
-import { paintField, wallTexture, chainLinkTexture, scoreboardCanvas, paintScoreboard, cloudTexture, glowTexture } from './textures.js';
+import { paintField, wallTexture, chainLinkTexture, scoreboardCanvas, paintScoreboard, cloudTexture, glowTexture, groundDetailTexture, addGroundDetail, flagTexture } from './textures.js';
 
 const R2 = Math.SQRT1_2;
 const B = 60 * R2;
@@ -67,11 +67,13 @@ export class Stadium {
     outer.receiveShadow = true;
     group.add(outer);
 
+    const detail = groundDetailTexture();
+    detail.anisotropy = aniso;
     const plane = (region, ppf, z, order) => {
       const tex = paintField(region, ppf);
       tex.anisotropy = aniso;
       const w = region.x1 - region.x0, h = region.y1 - region.y0;
-      const mat = new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -order, polygonOffsetUnits: -order * 4 });
+      const mat = addGroundDetail(new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -order, polygonOffsetUnits: -order * 4 }), detail);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
       m.position.set(region.x0 + w / 2, region.y0 + h / 2, z);
       m.receiveShadow = true;
@@ -84,7 +86,7 @@ export class Stadium {
     plane({ x0: -8, x1: 8, y0: -8, y1: 8 }, 64, 0.02, 3);
 
     // ---- Mound, rubber, bases, plate ----
-    const mound = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 5.6, 0.5, 40), lam('#c48246'));
+    const mound = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 5.6, 0.5, 40), addGroundDetail(lam('#c48246'), detail));
     mound.rotation.x = Math.PI / 2;
     mound.position.set(0, 46, 0.25);
     mound.receiveShadow = true;
@@ -332,6 +334,87 @@ export class Stadium {
       group.add(s);
       this.clouds.push(s);
     }
+
+    // ---- Flags (cloth waves in the breeze) ----
+    this.flags = [];
+    const addFlag = (x, y, poleH, w, h, tex, heading, poleColor = '#c9ced8') => {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, poleH, 6), lam(poleColor));
+      pole.rotation.x = Math.PI / 2;
+      pole.position.set(x, y, poleH / 2);
+      group.add(pole);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), lam('#ffd34d'));
+      ball.position.set(x, y, poleH + 0.4);
+      group.add(ball);
+      const geo = new THREE.PlaneGeometry(w, h, 18, 6);
+      geo.rotateX(Math.PI / 2);
+      geo.translate(w / 2, 0, 0);
+      const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+      mesh.position.set(x, y, poleH - h / 2 - 0.3);
+      mesh.rotation.z = heading;
+      group.add(mesh);
+      this.flags.push({ geo, base: Float32Array.from(geo.attributes.position.array), w, ph: rnd() * 6 });
+    };
+    addFlag(-156, 219, 64, 15, 8.5, flagTexture('stars'), -0.35);
+    addFlag(-142, 226, 40, 7, 3.6, flagTexture('#1f5fe0'), -0.35);
+    addFlag(-94, 250, 40, 7, 3.6, flagTexture('#d62839'), -0.35);
+
+    // ---- Night sky stars ----
+    const sp = [];
+    for (let i = 0; i < 450; i++) {
+      const az = rnd() * Math.PI * 2, el = 0.12 + Math.pow(rnd(), 0.7) * 1.35;
+      const r = 1700;
+      sp.push(Math.cos(az) * Math.cos(el) * r, Math.sin(az) * Math.cos(el) * r, Math.sin(el) * r);
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+    this.stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: '#ffffff', size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.85, fog: false, depthWrite: false }));
+    this.stars.visible = false;
+    group.add(this.stars);
+
+    // ---- Birds circling out past the fence ----
+    this.birds = [];
+    const wingGeo = new THREE.BufferGeometry();
+    wingGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, -0.5, 0, 0, 0.6, 0, 2.5, -0.1, 0], 3));
+    const birdMat = new THREE.MeshBasicMaterial({ color: '#1e2430', side: THREE.DoubleSide });
+    for (let i = 0; i < 6; i++) {
+      const b = new THREE.Group();
+      const L = new THREE.Mesh(wingGeo, birdMat);
+      const R = new THREE.Mesh(wingGeo, birdMat);
+      R.scale.x = -1;
+      b.add(L, R);
+      group.add(b);
+      this.birds.push({ g: b, L, R, cx: -60 + rnd() * 120, cy: 300 + rnd() * 140, cz: 70 + rnd() * 50, r: 40 + rnd() * 60, w: (0.12 + rnd() * 0.1) * (rnd() < 0.5 ? 1 : -1), a: rnd() * 6.3, ph: rnd() * 6.3 });
+    }
+  }
+
+  updateAmbience(t) {
+    for (const f of this.flags) {
+      const pos = f.geo.attributes.position;
+      const a = pos.array, base = f.base;
+      for (let i = 0; i < a.length; i += 3) {
+        const u = base[i] / f.w;
+        const z = base[i + 2];
+        a[i] = base[i] * (1 - 0.04 * u);
+        a[i + 1] = (Math.sin(u * 6.5 - t * 5.2 + f.ph + z * 0.15) * 0.75 + Math.sin(u * 13 - t * 8.3) * 0.18) * u;
+        a[i + 2] = z - u * u * 0.5 * (0.6 + 0.4 * Math.sin(t * 0.7 + f.ph));
+      }
+      pos.needsUpdate = true;
+      f.geo.computeVertexNormals();
+    }
+    const night = !!this.engine.night;
+    this.stars.visible = night;
+    if (night) this.stars.material.opacity = 0.7 + Math.sin(t * 1.7) * 0.08;
+    for (const b of this.birds) {
+      b.g.visible = !night;
+      if (night) continue;
+      const ang = b.a + t * b.w;
+      b.g.position.set(b.cx + Math.cos(ang) * b.r, b.cy + Math.sin(ang) * b.r, b.cz + Math.sin(t * 0.3 + b.ph) * 6);
+      b.g.rotation.z = ang + (b.w > 0 ? 0 : Math.PI);
+      const glide = Math.sin(t * 0.45 + b.ph) > 0.2;
+      const flap = glide ? 0.12 : Math.sin(t * 9 + b.ph) * 0.65;
+      b.L.rotation.y = -flap;
+      b.R.rotation.y = flap;
+    }
   }
 
   updateCrowd(t, excite) {
@@ -363,6 +446,7 @@ export class Stadium {
 
   update(dt, t, info = {}) {
     this.updateCrowd(t, info.excite || 0);
+    this.updateAmbience(t);
     for (const c of this.clouds) {
       c.userData.a += dt * 0.002;
       c.position.x = Math.cos(c.userData.a) * c.userData.r;

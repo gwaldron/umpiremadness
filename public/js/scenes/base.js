@@ -1,6 +1,7 @@
 // On the bases: you control the base umpire. Start in the right spot (A/B/C),
 // move for an angle while the play develops, stop, then make the call in the UMP CAM.
 import { audio } from '../audio.js';
+import { voices } from '../voice.js';
 import { input } from '../input.js';
 import { clamp, lerp, rand, randInt, pick, chance, weighted, dist, norm, sub, add, mul, dot, segDist } from '../util.js';
 import { KITS, SKINS } from '../render/figures.js';
@@ -594,11 +595,21 @@ export class BasePlayEvent {
       }
       return;
     }
+    if (this.callCam) {
+      this.callCam.t += dt;
+      ua.phase = Math.min(1, this.callCam.t / 0.4);
+    }
     if (this.state === 'cam') {
       this.cam.update(dt);
       if (this.cam.three) {
         this.tl.sample(this.cam.ct);
         this._overrides(this.cam.ct);
+        const cc = this.crits[this.critIdx];
+        if (!cc.dusted && this.cam.ct >= cc.tr && this.s.field.dust) {
+          cc.dusted = true;
+          const bag = BAG[cc.baseNum];
+          this.s.field.dust.emit(bag.x, bag.y, 0.25, cc.type === 'tag' ? 22 : 12, { size: cc.type === 'tag' ? 1.1 : 0.8, spread: 0.6, speed: 2.6, up: 2.2, life: 1.3 });
+        }
       }
       const c = this.crits[this.critIdx];
       if (!c.called && this.cam.seenAt !== null && this.cam.real - this.cam.seenAt > 6) this._call(null);
@@ -658,7 +669,9 @@ export class BasePlayEvent {
     this.cam.three = !!this.s.field.is3d;
     audio.whoosh(0.35);
     if (Math.abs(c.dt) < 0.22 || c.what) setTimeout(() => audio.ooh(), 250);
-    this.s.hud.prompt('MAKE THE CALL!', 'Watch the bag — then call it');
+    // short (phone landscape) screens: the inset fills the top, so let the OUT/SAFE buttons speak
+    if (innerHeight < 480) this.s.hud.prompt('', '');
+    else this.s.hud.prompt('MAKE THE CALL!', 'Watch the bag — then call it');
     this.s.hud.options([
       { btn: 'A', id: 'out', label: 'OUT', big: true },
       { btn: 'B', id: 'safe', label: 'SAFE', big: true },
@@ -685,8 +698,18 @@ export class BasePlayEvent {
     this.signalPose = id === 'out' ? 'out' : id === 'safe' ? 'safe' : 'stand';
     this.umpActor.pose = this.signalPose;
     this.umpActor.phase = 1;
-    audio.say(id === 'out' ? pick(["He's out!", 'Out!', "He's out!"]) : id === 'safe' ? 'Safe!' : '');
-    hud.stamp(id === 'out' ? 'OUT!' : id === 'safe' ? 'SAFE!' : 'NO CALL?!', id === 'out' ? 'gold' : 'good');
+    if (id && cam && cam.three) {
+      // broadcast "CALL CAM": cut to the umpire selling the call toward the bag
+      this.callCam = { t: 0, id, base: { x: c.base.x, y: c.base.y } };
+      this.umpActor.faceAt = this.callCam.base;
+      this.umpActor.phase = 0;
+      cam.callLabel = id === 'out' ? 'CALL CAM · OUT!' : 'CALL CAM · SAFE!';
+      cam.flash = 0.6;
+      hud.prompt('', '');
+      audio.whoosh(0.25);
+    }
+    if (id) voices.call(id, { close: Math.abs(c.dt) < 0.22 });
+    hud.stamp(id === 'out' ? 'OUT!' : id === 'safe' ? 'SAFE!' : 'NO CALL?!', `${id === 'out' ? 'gold' : 'good'}${this.callCam ? ' low' : ''}`);
     // Score
     const bonus = [];
     if (this.critIdx === 0) {
@@ -718,8 +741,9 @@ export class BasePlayEvent {
       this.afterDone = () => this._verdict(c, correct, truth, id, timing, scored);
       if (this.cam && this.cam.three) this.t = Math.max(this.t, Math.min(this.cam.ct, c.tFirst + 0.6));
       this.cam = null;
+      this.callCam = null;
       hud.prompt('', '');
-    }, 700);
+    }, this.callCam ? 1450 : 700);
   }
 
   _verdict(c, correct, truth, id, timing, scored) {
@@ -759,6 +783,7 @@ export class BasePlayEvent {
     }, () => {
       this.showIdeal = null;
       this.signalPose = null;
+      this.umpActor.faceAt = null;
       if (this.critIdx === 0 && this.crits.length > 1) {
         this.critIdx++;
         this.state = 'live';
@@ -797,6 +822,21 @@ export class BasePlayEvent {
       const dpr = s.app.dpr;
       const css = { x: rect.x / dpr, y: rect.y / dpr, w: rect.w / dpr, h: rect.h / dpr };
       const c = this.crits[this.critIdx];
+      if (this.callCam) {
+        const cc = this.callCam;
+        const u = this.ump;
+        let dx = cc.base.x - u.x, dy = cc.base.y - u.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        dx /= dl; dy /= dl;
+        const push = 1.18 - 0.18 * Math.min(1, cc.t / 1.2);
+        const back = Math.min(10, Math.max(5, dl * 0.6)) * push;
+        const kick = cc.id === 'out' ? Math.max(0, 1 - Math.abs(cc.t - 0.32) / 0.12) * 0.12 : 0;
+        const eye = { x: u.x + dx * back - dy * back * 0.38, y: u.y + dy * back + dx * back * 0.38, z: 4.3 + kick };
+        const fov = 2 * Math.atan(3.4 / back);
+        s.field.drawInset({ eye, target: { x: u.x, y: u.y, z: 3.5 }, fov }, css, { actors: [...this.tl.list(), this.umpActor], ball: this.tl.ball }, 1);
+        this.cam.renderOverlay(g, rect, dpr, () => null);
+        return;
+      }
       const v = c.camView;
       const d = Math.max(4, Math.hypot(v.target.x - v.eye.x, v.target.y - v.eye.y, v.target.z - v.eye.z));
       const fov = 2 * Math.atan((v.half || 3.1) / d);

@@ -9,6 +9,7 @@ import { levelFromXp, xpForLevel, rankFor, SHIRT_UNLOCKS, CAP_UNLOCKS, randomNam
 import { UMP_SHIRTS, UMP_CAPS, SKINS, KITS, drawFigure } from '../render/figures.js';
 import { Camera } from '../render/camera.js';
 import { glyph } from './hud.js';
+import { voices } from '../voice.js';
 import { UmpPreview } from '../render3d/preview.js';
 
 export class Screens {
@@ -542,8 +543,9 @@ export class Screens {
       list.append(row);
     };
     seg('Volume', 'Sound effects and crowd', [[0, 'Off'], [0.4, 'Low'], [0.8, 'Med'], [1, 'Loud']], 'volume', () => audio.select());
-    seg('Umpire voice', 'Your calls spoken out loud', [[true, 'On'], [false, 'Off']], 'voice', (v) => v && audio.say('Strike!'));
-    seg('Voice style', 'How your umpire sounds', [['classic', 'Classic'], ['bigleague', 'Big League'], ['hype', 'Hype'], ['robot', 'Robo-Ump']], 'voiceStyle', () => audio.say('Steee-rike!'));
+    seg('Umpire voice', 'Your calls spoken out loud', [[true, 'On'], [false, 'Off']], 'voice', (v) => v && voices.call('strike'));
+    seg('Announcer & commentary', 'Stadium PA and TV color commentary', [[true, 'On'], [false, 'Off']], 'announcer', (v) => v && voices.announce('Now batting... number seven!'));
+    seg('Voice style', 'How your umpire sounds', [['classic', 'Classic'], ['bigleague', 'Big League'], ['hype', 'Hype'], ['robot', 'Robo-Ump']], 'voiceStyle', () => voices.call('k'));
     seg('Music & organ', 'Menu theme song and ballpark organ', [[true, 'On'], [false, 'Off']], 'music', (v) => v && audio.charge());
     seg('Hints', 'Zone box, ghost spots, coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
     seg('Screen shake', 'Big-moment camera shake', [[true, 'On'], [false, 'Off']], 'shake');

@@ -47,6 +47,7 @@ canvas#game, canvas#game3d {
 }
 canvas#game { background: transparent; z-index: 1; }
 canvas#game3d { z-index: 0; }
+canvas#fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
 button { font-family: inherit; color: inherit; }
 a { color: var(--gold); }
 [hidden] { display: none !important; }
@@ -436,11 +437,37 @@ button.card { text-align: left; cursor: pointer; color: inherit; font: inherit; 
 .stamp.good { color: var(--green); }
 .stamp.bad { color: var(--red); }
 .stamp.gold { color: var(--gold); }
+.stamp.low { top: 74%; }
 @keyframes stampIn {
   0% { opacity: 0; transform: translate(-50%, -50%) rotate(-6deg) scale(2.2); }
   18% { opacity: 1; transform: translate(-50%, -50%) rotate(-6deg) scale(1); }
   80% { opacity: 1; transform: translate(-50%, -50%) rotate(-6deg) scale(1.03); }
   100% { opacity: 0; transform: translate(-50%, -60%) rotate(-6deg) scale(0.96); }
+}
+
+.lower3 {
+  position: absolute; left: calc(10px + var(--safe-l)); top: calc(138px + var(--safe-top));
+  display: flex; align-items: stretch; max-width: min(44vw, 380px);
+  opacity: 0; transform: translateX(-120%) skewX(-8deg);
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.45));
+}
+.lower3.go { animation: l3In 3.8s cubic-bezier(.2,1.2,.3,1) forwards; }
+.l3-num {
+  font-family: var(--display); font-size: 30px; line-height: 1; color: #fff;
+  background: linear-gradient(160deg, #ff4253, #a3121f); padding: 10px 12px 8px; border-radius: 10px 0 0 10px;
+  display: flex; align-items: center; text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+}
+.l3-num small { font-size: 15px; opacity: 0.8; margin-right: 1px; }
+.l3-txt { background: rgba(8,14,34,0.92); padding: 6px 14px 7px 12px; border-radius: 0 10px 10px 0; border-bottom: 3px solid var(--gold); min-width: 0; }
+.l3-k { font-size: 10.5px; font-weight: 900; letter-spacing: 2px; color: var(--gold); }
+.l3-n { font-family: var(--display); font-size: clamp(16px, 2.4vw, 22px); line-height: 1.05; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l3-n b { font-weight: 400; color: #fff; }
+.l3-s { font-size: 11.5px; font-weight: 700; color: #c9d3ee; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes l3In {
+  0% { opacity: 0; transform: translateX(-120%) skewX(-8deg); }
+  12% { opacity: 1; transform: translateX(0) skewX(-8deg); }
+  88% { opacity: 1; transform: translateX(0) skewX(-8deg); }
+  100% { opacity: 0; transform: translateX(-120%) skewX(-8deg); }
 }
 
 .floaters { position: absolute; inset: 0; }
@@ -640,6 +667,9 @@ body.ingame.portrait .rotate-hint { display: block; animation: toastOut 0.5s eas
 }
 @media (max-height: 480px) {
   .prompt { top: calc(54px + var(--safe-top)); }
+  .lower3 { top: calc(124px + var(--safe-top)); max-width: 34vw; }
+  .l3-num { font-size: 22px; padding: 6px 8px; }
+  .l3-s { display: none; }
   .opt { padding: 8px 12px; }
   .opt.big { padding: 10px 14px; font-size: 20px; }
   .verdict { padding: 12px 14px; }
@@ -676,4 +706,9 @@ body.ingame.portrait .rotate-hint { display: block; animation: toastOut 0.5s eas
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01s !important; }
+  /* keep key feedback visible: fade only, no motion */
+  .stamp.go { animation: fadeHold 1.1s linear forwards !important; transform: translate(-50%, -50%) rotate(-6deg); }
+  .lower3.go { animation: fadeHold 3.8s linear forwards !important; transform: skewX(-8deg); }
+  .floater { animation: fadeHold 1.3s linear forwards !important; transform: translate(-50%, 0); }
 }
+@keyframes fadeHold { 0% { opacity: 0; } 8% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }

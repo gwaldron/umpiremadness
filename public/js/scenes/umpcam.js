@@ -158,7 +158,7 @@ export class UmpCam {
     g.fillStyle = '#ffd34d';
     const sp = this.ct >= this.t1 ? 'REPLAY DONE' : `SLOW-MO ${this.speed.toFixed(1)}x`;
     g.fillText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
-    if (this.o.gradeLabel) {
+    if (this.o.gradeLabel && !this.callLabel) {
       g.textAlign = 'left';
       g.textBaseline = 'bottom';
       g.fillStyle = this.o.gradeColor || '#fff';
@@ -482,14 +482,15 @@ export class UmpCam3D extends UmpCam {
     g.strokeStyle = 'rgba(11,21,48,0.85)';
     g.fillStyle = '#fff';
     g.textAlign = 'left';
-    g.strokeText(`UMP CAM · ${this.o.baseName}`, rect.x + fs * 1.5, rect.y + fs * 0.5);
-    g.fillText(`UMP CAM · ${this.o.baseName}`, rect.x + fs * 1.5, rect.y + fs * 0.5);
+    const label = this.callLabel || `UMP CAM · ${this.o.baseName}`;
+    g.strokeText(label, rect.x + fs * 1.5, rect.y + fs * 0.5);
+    g.fillText(label, rect.x + fs * 1.5, rect.y + fs * 0.5);
     g.textAlign = 'right';
     g.fillStyle = '#ffd34d';
-    const sp = this.ct >= this.t1 ? 'REPLAY DONE' : `SLOW-MO ${this.speed.toFixed(1)}x`;
+    const sp = this.callLabel ? 'LIVE' : this.ct >= this.t1 ? 'REPLAY DONE' : `SLOW-MO ${this.speed.toFixed(1)}x`;
     g.strokeText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
     g.fillText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
-    if (this.o.gradeLabel) {
+    if (this.o.gradeLabel && !this.callLabel) {
       g.textAlign = 'left';
       g.textBaseline = 'bottom';
       g.fillStyle = this.o.gradeColor || '#fff';

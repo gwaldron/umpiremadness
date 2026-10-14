@@ -1,6 +1,8 @@
 // A Session runs one game: a list (or endless stream) of events, with scoring, streaks and lives.
 import { audio } from '../audio.js';
+import { voices } from '../voice.js';
 import { input } from '../input.js';
+import { confetti } from '../ui/confetti.js';
 import { pick, shuffle, weighted, clamp, chance } from '../util.js';
 import { DIV, DIVISIONS, gameRole, GAME_NAMES } from '../data/divisions.js';
 import { situationsFor, SITUATIONS, SOFTBALL_ENABLED } from '../data/situations.js';
@@ -115,6 +117,10 @@ export class Session {
     else hud.setLives(null);
     hud.setProgress(this.events ? this.events.map(() => null) : null, 0);
     audio.startCrowd();
+    const umpName = this.profile.name || 'Blue';
+    if (this.mode === 'career' || this.mode === 'camp') setTimeout(() => voices.gameIntro(this.cfg.title, umpName), 400);
+    else if (this.mode === 'blitz') setTimeout(() => voices.announce('Sixty seconds on the clock... GO!'), 300);
+    else setTimeout(() => voices.announce(`It's ${this.cfg.title}! Let's go, ${umpName}!`), 300);
     if (this.field.setTimeOfDay) this.field.setTimeOfDay(this.cfg.night ? 'night' : 'day');
     document.body.classList.add('ingame');
     this.next();
@@ -250,7 +256,22 @@ export class Session {
     hud.setStreak(this.streak, mult);
     hud.floater(`${points >= 0 ? '+' : ''}${points}`, points < 0 || !res.correct, 50, 30);
     if (res.correct) {
+      if (res.bangBang) voices.comment('bangGood', { force: true });
+      else if (res.painted) voices.comment('painted');
+      else if (res.grade === 'A') voices.comment('angle');
+      if (this.streak === 5) voices.comment('streak5', { force: true });
+      if (this.streak === 10) voices.comment('streak10', { force: true });
+      if (this.streak === 20) voices.comment('streak20', { force: true });
+    } else {
+      voices.comment(res.timing === 'early' ? 'quick' : 'miss');
+    }
+    if (res.correct) {
       this.field.cheer(res.kind === 'pitch' ? (res.strikeThree ? 0.9 : 0.3) : 0.85);
+      // confetti for the big moments
+      if (this.streak > 0 && this.streak % 5 === 0) confetti.burst({ x: 0.5, y: 0.42, n: 70 + Math.min(80, this.streak * 3), power: 1.1 });
+      else if (res.bangBang) confetti.burst({ x: 0.5, y: 0.45, n: 70 });
+      else if (res.grade === 'A') confetti.burst({ x: 0.5, y: 0.45, n: 36, power: 0.8 });
+      else if (res.strikeThree) confetti.burst({ x: 0.5, y: 0.5, n: 30, power: 0.75 });
       if (this.streak > 0 && this.streak % 5 === 0) {
         audio.streak(this.streak / 5);
         if (this.streak === 5 || this.streak === 15) audio.rally();
@@ -268,7 +289,7 @@ export class Session {
       if (this.lives <= 0) {
         this.gameOver = true;
         st.ejections++;
-        setTimeout(() => { hud.stamp("YOU'RE EJECTED!", 'bad'); audio.boo(); }, 900);
+        setTimeout(() => { hud.stamp("YOU'RE EJECTED!", 'bad'); audio.boo(); voices.comment('ejected', { force: true }); }, 900);
       }
     }
     if (!res.correct && this.timeLeft !== null) {
@@ -281,7 +302,7 @@ export class Session {
       if (i < DIVISIONS.length - 1) {
         this.div = DIVISIONS[i + 1];
         hud.setDivision(this.div.name.toUpperCase());
-        setTimeout(() => hud.stamp(`LEVEL UP: ${this.div.name.toUpperCase()}!`, 'gold'), 600);
+        setTimeout(() => { hud.stamp(`LEVEL UP: ${this.div.name.toUpperCase()}!`, 'gold'); confetti.rain({ n: 120 }); }, 600);
       }
     }
     this.checkAchievements();

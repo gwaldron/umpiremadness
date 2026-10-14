@@ -1,6 +1,7 @@
 // Umpire Madness — app bootstrap, main loop, and input routing.
 import { input } from './input.js';
 import { audio } from './audio.js';
+import { voices } from './voice.js';
 import { el, pick, lerp } from './util.js';
 import { Camera, FieldRig } from './render/camera.js';
 import { FieldRenderer, POS, UMP_SPOTS, BASES } from './render/field.js';
@@ -9,6 +10,7 @@ import { KITS, SKINS, UMP_SHIRTS, UMP_CAPS } from './render/figures.js';
 import { loadProfile, saveProfile, touchDay, levelFromXp } from './storage.js';
 import { ACHIEVEMENTS } from './data/achievements.js';
 import { Hud } from './ui/hud.js';
+import { confetti } from './ui/confetti.js';
 import { Screens } from './ui/screens.js';
 import { Session, buildCareer, buildCamp, buildRumble, ARCADE } from './game/session.js';
 import { Timeline } from './scenes/timeline.js';
@@ -46,6 +48,9 @@ app.applySettings = () => {
   audio.voiceOn = s.voice;
   audio.setMusic(s.music);
   audio.voiceStyle = s.voiceStyle;
+  voices.enabled = s.voice;
+  voices.style = s.voiceStyle;
+  voices.extras = s.announcer !== false;
   if (app.field.setQuality) {
     const coarse = matchMedia('(pointer: coarse)').matches;
     app.field.setQuality(s.gfx === 'auto' || !s.gfx ? (coarse ? 'medium' : 'high') : s.gfx);
@@ -71,6 +76,7 @@ app.checkAchievements = () => {
       p.achievements[a.id] = Date.now();
       app.toast({ icon: a.icon, kicker: 'ACHIEVEMENT UNLOCKED', title: a.name, desc: a.desc });
       audio.achievement();
+      confetti.burst({ x: 0.5, y: 0.16, n: 45, power: 0.7 });
     }
   }
   app.save();
@@ -115,7 +121,7 @@ app.showResults = (r) => {
     app.screens.closeAll();
     app.screens.push(app.screens.results(r));
     setTimeout(() => { if (!app.session) audio.music('menu'); }, 2500);
-    if (r.stars >= 2 || r.record) { audio.cheer(1.2); audio.charge(); }
+    if (r.stars >= 2 || r.record) { audio.cheer(1.2); audio.charge(); confetti.rain({ n: r.stars >= 3 || r.record ? 200 : 120 }); }
   }, r.gameOver ? 1600 : 700);
 };
 
