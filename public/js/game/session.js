@@ -118,9 +118,7 @@ export class Session {
     hud.setProgress(this.events ? this.events.map(() => null) : null, 0);
     audio.startCrowd();
     const umpName = this.profile.name || 'Blue';
-    if (this.mode === 'career' || this.mode === 'camp') setTimeout(() => voices.gameIntro(this.cfg.title, umpName), 400);
-    else if (this.mode === 'blitz') setTimeout(() => voices.announce('Sixty seconds on the clock... GO!'), 300);
-    else setTimeout(() => voices.announce(`It's ${this.cfg.title}! Let's go, ${umpName}!`), 300);
+    setTimeout(() => voices.modeIntro(this.mode, this.cfg.title, umpName), this.mode === 'career' || this.mode === 'camp' ? 400 : 300);
     if (this.field.setTimeOfDay) this.field.setTimeOfDay(this.cfg.night ? 'night' : 'day');
     document.body.classList.add('ingame');
     this.next();

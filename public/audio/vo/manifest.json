@@ -1,0 +1,1289 @@
+{
+"u.strike": [
+{
+"f": "u/strike.mp3",
+"d": 0.64,
+"t": "Strike!"
+},
+{
+"f": "u/strike-2.mp3",
+"d": 0.71,
+"t": "Strike!"
+},
+{
+"f": "u/strike-3.mp3",
+"d": 0.993,
+"t": "Strike, right there!"
+}
+],
+"u.ball": [
+{
+"f": "u/ball.mp3",
+"d": 0.542,
+"t": "Ball."
+},
+{
+"f": "u/ball-2.mp3",
+"d": 0.568,
+"t": "Ball!"
+},
+{
+"f": "u/ball-3.mp3",
+"d": 0.818,
+"t": "That's a ball."
+}
+],
+"u.count.00": [
+{
+"f": "u/count-00.mp3",
+"d": 0.71,
+"t": "Oh and oh."
+}
+],
+"u.count.01": [
+{
+"f": "u/count-01.mp3",
+"d": 0.737,
+"t": "Oh and one."
+}
+],
+"u.count.02": [
+{
+"f": "u/count-02.mp3",
+"d": 0.795,
+"t": "Oh and two."
+}
+],
+"u.count.10": [
+{
+"f": "u/count-10.mp3",
+"d": 0.72,
+"t": "One and oh."
+}
+],
+"u.count.11": [
+{
+"f": "u/count-11.mp3",
+"d": 0.755,
+"t": "One and one."
+}
+],
+"u.count.12": [
+{
+"f": "u/count-12.mp3",
+"d": 0.784,
+"t": "One and two."
+}
+],
+"u.count.20": [
+{
+"f": "u/count-20.mp3",
+"d": 0.679,
+"t": "Two and oh."
+}
+],
+"u.count.21": [
+{
+"f": "u/count-21.mp3",
+"d": 0.745,
+"t": "Two and one."
+}
+],
+"u.count.22": [
+{
+"f": "u/count-22.mp3",
+"d": 0.808,
+"t": "Two and two."
+}
+],
+"u.count.30": [
+{
+"f": "u/count-30.mp3",
+"d": 0.734,
+"t": "Three and oh."
+}
+],
+"u.count.31": [
+{
+"f": "u/count-31.mp3",
+"d": 0.765,
+"t": "Three and one."
+}
+],
+"u.count.32": [
+{
+"f": "u/count-32.mp3",
+"d": 0.794,
+"t": "Three and two."
+}
+],
+"u.k": [
+{
+"f": "u/k.mp3",
+"d": 0.958,
+"t": "Strike three!"
+},
+{
+"f": "u/k-2.mp3",
+"d": 1.168,
+"t": "Strike three! You're out!"
+},
+{
+"f": "u/k-3.mp3",
+"d": 1.275,
+"t": "Strike three! Ring him up!"
+}
+],
+"u.bb": [
+{
+"f": "u/bb.mp3",
+"d": 1.45,
+"t": "Ball four! Take your base!"
+}
+],
+"u.out": [
+{
+"f": "u/out.mp3",
+"d": 0.678,
+"t": "He's out!"
+},
+{
+"f": "u/out-2.mp3",
+"d": 0.507,
+"t": "Out!"
+},
+{
+"f": "u/out-3.mp3",
+"d": 0.672,
+"t": "You're out!"
+}
+],
+"u.outClose": [
+{
+"f": "u/outclose.mp3",
+"d": 0.794,
+"t": "He's out!"
+},
+{
+"f": "u/outclose-2.mp3",
+"d": 0.892,
+"t": "Out! He is out!"
+},
+{
+"f": "u/outclose-3.mp3",
+"d": 0.805,
+"t": "Ohh, he's out!"
+}
+],
+"u.safe": [
+{
+"f": "u/safe.mp3",
+"d": 0.553,
+"t": "Safe!"
+},
+{
+"f": "u/safe-2.mp3",
+"d": 0.747,
+"t": "He's safe!"
+}
+],
+"u.safeClose": [
+{
+"f": "u/safeclose.mp3",
+"d": 0.835,
+"t": "Safe! Safe!"
+},
+{
+"f": "u/safeclose-2.mp3",
+"d": 0.856,
+"t": "He's safe!"
+},
+{
+"f": "u/safeclose-3.mp3",
+"d": 1.024,
+"t": "Safe, safe, safe!"
+}
+],
+"u.foul": [
+{
+"f": "u/foul.mp3",
+"d": 0.779,
+"t": "Foul ball!"
+},
+{
+"f": "u/foul-2.mp3",
+"d": 0.552,
+"t": "Foul!"
+}
+],
+"u.tip": [
+{
+"f": "u/tip.mp3",
+"d": 1.099,
+"t": "Foul tip! Strike!"
+},
+{
+"f": "u/tip-2.mp3",
+"d": 0.889,
+"t": "Tipped! Strike!"
+}
+],
+"u.hbp": [
+{
+"f": "u/hbp.mp3",
+"d": 1.142,
+"t": "Time! Take your base!"
+}
+],
+"u.iff": [
+{
+"f": "u/iff.mp3",
+"d": 1.546,
+"t": "Infield fly! Batter's out!"
+}
+],
+"u.nocatch": [
+{
+"f": "u/nocatch.mp3",
+"d": 1.213,
+"t": "No catch! No catch!"
+}
+],
+"u.play": [
+{
+"f": "u/play.mp3",
+"d": 0.748,
+"t": "Play ball!"
+},
+{
+"f": "u/play-2.mp3",
+"d": 0.786,
+"t": "Let's play!"
+}
+],
+"u.obstruction": [
+{
+"f": "u/obstruction.mp3",
+"d": 0.992,
+"t": "That's obstruction!"
+}
+],
+"u.timeObstruction": [
+{
+"f": "u/timeobstruction.mp3",
+"d": 1.238,
+"t": "Time! That's obstruction!"
+}
+],
+"u.catchOut": [
+{
+"f": "u/catchout.mp3",
+"d": 1.206,
+"t": "That's a catch! He's out!"
+}
+],
+"u.noCatch1": [
+{
+"f": "u/nocatch1.mp3",
+"d": 0.784,
+"t": "No catch!"
+}
+],
+"u.balk": [
+{
+"f": "u/balk.mp3",
+"d": 0.82,
+"t": "That's a balk!"
+}
+],
+"pa.nowBatting": [
+{
+"f": "pa/nowbatting.mp3",
+"d": 0.962,
+"t": "Now batting,"
+}
+],
+"pa.steppingIn": [
+{
+"f": "pa/steppingin.mp3",
+"d": 0.992,
+"t": "Stepping in,"
+}
+],
+"pa.upNext": [
+{
+"f": "pa/upnext.mp3",
+"d": 0.883,
+"t": "Up next,"
+}
+],
+"pa.num.1": [
+{
+"f": "pa/num-1.mp3",
+"d": 0.933,
+"t": "Number one."
+}
+],
+"pa.num.2": [
+{
+"f": "pa/num-2.mp3",
+"d": 1.053,
+"t": "Number two."
+}
+],
+"pa.num.3": [
+{
+"f": "pa/num-3.mp3",
+"d": 1.096,
+"t": "Number three."
+}
+],
+"pa.num.4": [
+{
+"f": "pa/num-4.mp3",
+"d": 1.045,
+"t": "Number four."
+}
+],
+"pa.num.5": [
+{
+"f": "pa/num-5.mp3",
+"d": 1.112,
+"t": "Number five."
+}
+],
+"pa.num.6": [
+{
+"f": "pa/num-6.mp3",
+"d": 1.064,
+"t": "Number six."
+}
+],
+"pa.num.7": [
+{
+"f": "pa/num-7.mp3",
+"d": 1.047,
+"t": "Number seven."
+}
+],
+"pa.num.8": [
+{
+"f": "pa/num-8.mp3",
+"d": 1.025,
+"t": "Number eight."
+}
+],
+"pa.num.9": [
+{
+"f": "pa/num-9.mp3",
+"d": 0.968,
+"t": "Number nine."
+}
+],
+"pa.num.10": [
+{
+"f": "pa/num-10.mp3",
+"d": 1.026,
+"t": "Number ten."
+}
+],
+"pa.num.11": [
+{
+"f": "pa/num-11.mp3",
+"d": 1.133,
+"t": "Number eleven."
+}
+],
+"pa.num.12": [
+{
+"f": "pa/num-12.mp3",
+"d": 1.155,
+"t": "Number twelve."
+}
+],
+"pa.num.13": [
+{
+"f": "pa/num-13.mp3",
+"d": 1.337,
+"t": "Number thirteen."
+}
+],
+"pa.num.14": [
+{
+"f": "pa/num-14.mp3",
+"d": 1.297,
+"t": "Number fourteen."
+}
+],
+"pa.num.15": [
+{
+"f": "pa/num-15.mp3",
+"d": 1.25,
+"t": "Number fifteen."
+}
+],
+"pa.num.16": [
+{
+"f": "pa/num-16.mp3",
+"d": 1.248,
+"t": "Number sixteen."
+}
+],
+"pa.num.17": [
+{
+"f": "pa/num-17.mp3",
+"d": 1.331,
+"t": "Number seventeen."
+}
+],
+"pa.num.18": [
+{
+"f": "pa/num-18.mp3",
+"d": 1.197,
+"t": "Number eighteen."
+}
+],
+"pa.num.19": [
+{
+"f": "pa/num-19.mp3",
+"d": 1.199,
+"t": "Number nineteen."
+}
+],
+"pa.num.20": [
+{
+"f": "pa/num-20.mp3",
+"d": 1.171,
+"t": "Number twenty."
+}
+],
+"pa.num.21": [
+{
+"f": "pa/num-21.mp3",
+"d": 1.286,
+"t": "Number twenty-one."
+}
+],
+"pa.num.22": [
+{
+"f": "pa/num-22.mp3",
+"d": 1.381,
+"t": "Number twenty-two."
+}
+],
+"pa.num.23": [
+{
+"f": "pa/num-23.mp3",
+"d": 1.39,
+"t": "Number twenty-three."
+}
+],
+"pa.num.24": [
+{
+"f": "pa/num-24.mp3",
+"d": 1.443,
+"t": "Number twenty-four."
+}
+],
+"pa.num.25": [
+{
+"f": "pa/num-25.mp3",
+"d": 1.491,
+"t": "Number twenty-five."
+}
+],
+"pa.num.26": [
+{
+"f": "pa/num-26.mp3",
+"d": 1.426,
+"t": "Number twenty-six."
+}
+],
+"pa.num.27": [
+{
+"f": "pa/num-27.mp3",
+"d": 1.485,
+"t": "Number twenty-seven."
+}
+],
+"pa.num.28": [
+{
+"f": "pa/num-28.mp3",
+"d": 1.374,
+"t": "Number twenty-eight."
+}
+],
+"pa.num.29": [
+{
+"f": "pa/num-29.mp3",
+"d": 1.395,
+"t": "Number twenty-nine."
+}
+],
+"pa.num.30": [
+{
+"f": "pa/num-30.mp3",
+"d": 1.162,
+"t": "Number thirty."
+}
+],
+"pa.num.31": [
+{
+"f": "pa/num-31.mp3",
+"d": 1.348,
+"t": "Number thirty-one."
+}
+],
+"pa.num.32": [
+{
+"f": "pa/num-32.mp3",
+"d": 1.41,
+"t": "Number thirty-two."
+}
+],
+"pa.num.33": [
+{
+"f": "pa/num-33.mp3",
+"d": 1.481,
+"t": "Number thirty-three."
+}
+],
+"pa.num.34": [
+{
+"f": "pa/num-34.mp3",
+"d": 1.467,
+"t": "Number thirty-four."
+}
+],
+"pa.num.35": [
+{
+"f": "pa/num-35.mp3",
+"d": 1.506,
+"t": "Number thirty-five."
+}
+],
+"pa.num.36": [
+{
+"f": "pa/num-36.mp3",
+"d": 1.463,
+"t": "Number thirty-six."
+}
+],
+"pa.num.37": [
+{
+"f": "pa/num-37.mp3",
+"d": 1.499,
+"t": "Number thirty-seven."
+}
+],
+"pa.num.38": [
+{
+"f": "pa/num-38.mp3",
+"d": 1.377,
+"t": "Number thirty-eight."
+}
+],
+"pa.num.39": [
+{
+"f": "pa/num-39.mp3",
+"d": 1.47,
+"t": "Number thirty-nine."
+}
+],
+"pa.num.40": [
+{
+"f": "pa/num-40.mp3",
+"d": 1.164,
+"t": "Number forty."
+}
+],
+"pa.num.41": [
+{
+"f": "pa/num-41.mp3",
+"d": 1.343,
+"t": "Number forty-one."
+}
+],
+"pa.num.42": [
+{
+"f": "pa/num-42.mp3",
+"d": 1.384,
+"t": "Number forty-two."
+}
+],
+"pa.first.Jayden": [
+{
+"f": "pa/first-jayden.mp3",
+"d": 0.763,
+"t": "Jayden"
+}
+],
+"pa.first.Maya": [
+{
+"f": "pa/first-maya.mp3",
+"d": 0.71,
+"t": "Maya"
+}
+],
+"pa.first.Luis": [
+{
+"f": "pa/first-luis.mp3",
+"d": 0.71,
+"t": "Luis"
+}
+],
+"pa.first.Ava": [
+{
+"f": "pa/first-ava.mp3",
+"d": 0.639,
+"t": "Ava"
+}
+],
+"pa.first.Marcus": [
+{
+"f": "pa/first-marcus.mp3",
+"d": 0.834,
+"t": "Marcus"
+}
+],
+"pa.first.Sofia": [
+{
+"f": "pa/first-sofia.mp3",
+"d": 0.86,
+"t": "Sofia"
+}
+],
+"pa.first.Tyler": [
+{
+"f": "pa/first-tyler.mp3",
+"d": 0.687,
+"t": "Tyler"
+}
+],
+"pa.first.Zoe": [
+{
+"f": "pa/first-zoe.mp3",
+"d": 0.698,
+"t": "Zoe"
+}
+],
+"pa.first.Diego": [
+{
+"f": "pa/first-diego.mp3",
+"d": 0.785,
+"t": "Diego"
+}
+],
+"pa.first.Emma": [
+{
+"f": "pa/first-emma.mp3",
+"d": 0.674,
+"t": "Emma"
+}
+],
+"pa.first.Caleb": [
+{
+"f": "pa/first-caleb.mp3",
+"d": 0.713,
+"t": "Caleb"
+}
+],
+"pa.first.Aaliyah": [
+{
+"f": "pa/first-aaliyah.mp3",
+"d": 0.761,
+"t": "Aaliyah"
+}
+],
+"pa.first.Ethan": [
+{
+"f": "pa/first-ethan.mp3",
+"d": 0.787,
+"t": "Ethan"
+}
+],
+"pa.first.Isabella": [
+{
+"f": "pa/first-isabella.mp3",
+"d": 0.924,
+"t": "Isabella"
+}
+],
+"pa.first.Noah": [
+{
+"f": "pa/first-noah.mp3",
+"d": 0.684,
+"t": "Noah"
+}
+],
+"pa.first.Mia": [
+{
+"f": "pa/first-mia.mp3",
+"d": 0.662,
+"t": "Mia"
+}
+],
+"pa.first.Jackson": [
+{
+"f": "pa/first-jackson.mp3",
+"d": 0.843,
+"t": "Jackson"
+}
+],
+"pa.first.Priya": [
+{
+"f": "pa/first-priya.mp3",
+"d": 0.731,
+"t": "Priya"
+}
+],
+"pa.first.Mateo": [
+{
+"f": "pa/first-mateo.mp3",
+"d": 0.914,
+"t": "Mateo"
+}
+],
+"pa.first.Harper": [
+{
+"f": "pa/first-harper.mp3",
+"d": 0.774,
+"t": "Harper"
+}
+],
+"pa.first.Darius": [
+{
+"f": "pa/first-darius.mp3",
+"d": 0.79,
+"t": "Darius"
+}
+],
+"pa.first.Lily": [
+{
+"f": "pa/first-lily.mp3",
+"d": 0.64,
+"t": "Lily"
+}
+],
+"pa.first.Kenji": [
+{
+"f": "pa/first-kenji.mp3",
+"d": 0.815,
+"t": "Kenji"
+}
+],
+"pa.first.Olivia": [
+{
+"f": "pa/first-olivia.mp3",
+"d": 0.801,
+"t": "Olivia"
+}
+],
+"pa.first.Brayden": [
+{
+"f": "pa/first-brayden.mp3",
+"d": 0.757,
+"t": "Brayden"
+}
+],
+"pa.first.Chloe": [
+{
+"f": "pa/first-chloe.mp3",
+"d": 0.714,
+"t": "Chloe"
+}
+],
+"pa.first.Andre": [
+{
+"f": "pa/first-andre.mp3",
+"d": 0.791,
+"t": "Andre"
+}
+],
+"pa.first.Grace": [
+{
+"f": "pa/first-grace.mp3",
+"d": 0.746,
+"t": "Grace"
+}
+],
+"pa.first.Owen": [
+{
+"f": "pa/first-owen.mp3",
+"d": 0.629,
+"t": "Owen"
+}
+],
+"pa.first.Leah": [
+{
+"f": "pa/first-leah.mp3",
+"d": 0.637,
+"t": "Leah"
+}
+],
+"pa.first.Javier": [
+{
+"f": "pa/first-javier.mp3",
+"d": 0.883,
+"t": "Javier"
+}
+],
+"pa.first.Nora": [
+{
+"f": "pa/first-nora.mp3",
+"d": 0.71,
+"t": "Nora"
+}
+],
+"pa.first.Malik": [
+{
+"f": "pa/first-malik.mp3",
+"d": 0.703,
+"t": "Malik"
+}
+],
+"pa.first.Ella": [
+{
+"f": "pa/first-ella.mp3",
+"d": 0.636,
+"t": "Ella"
+}
+],
+"pa.first.Ryan": [
+{
+"f": "pa/first-ryan.mp3",
+"d": 0.747,
+"t": "Ryan"
+}
+],
+"pa.first.Hana": [
+{
+"f": "pa/first-hana.mp3",
+"d": 0.65,
+"t": "Hana"
+}
+],
+"pa.last.Rivera": [
+{
+"f": "pa/last-rivera.mp3",
+"d": 0.867,
+"t": "Rivera!"
+}
+],
+"pa.last.Johnson": [
+{
+"f": "pa/last-johnson.mp3",
+"d": 0.885,
+"t": "Johnson!"
+}
+],
+"pa.last.Kim": [
+{
+"f": "pa/last-kim.mp3",
+"d": 0.665,
+"t": "Kim!"
+}
+],
+"pa.last.Okafor": [
+{
+"f": "pa/last-okafor.mp3",
+"d": 0.938,
+"t": "Okafor!"
+}
+],
+"pa.last.Smith": [
+{
+"f": "pa/last-smith.mp3",
+"d": 0.745,
+"t": "Smith!"
+}
+],
+"pa.last.Garcia": [
+{
+"f": "pa/last-garcia.mp3",
+"d": 0.962,
+"t": "Garcia!"
+}
+],
+"pa.last.Nguyen": [
+{
+"f": "pa/last-nguyen.mp3",
+"d": 0.788,
+"t": "Nguyen!"
+}
+],
+"pa.last.Brooks": [
+{
+"f": "pa/last-brooks.mp3",
+"d": 0.776,
+"t": "Brooks!"
+}
+],
+"pa.last.Patel": [
+{
+"f": "pa/last-patel.mp3",
+"d": 0.817,
+"t": "Patel!"
+}
+],
+"pa.last.Martinez": [
+{
+"f": "pa/last-martinez.mp3",
+"d": 1.105,
+"t": "Martinez!"
+}
+],
+"pa.last.Walker": [
+{
+"f": "pa/last-walker.mp3",
+"d": 0.809,
+"t": "Walker!"
+}
+],
+"pa.last.Chen": [
+{
+"f": "pa/last-chen.mp3",
+"d": 0.717,
+"t": "Chen!"
+}
+],
+"pa.last.Robinson": [
+{
+"f": "pa/last-robinson.mp3",
+"d": 0.941,
+"t": "Robinson!"
+}
+],
+"pa.last.Lopez": [
+{
+"f": "pa/last-lopez.mp3",
+"d": 0.903,
+"t": "Lopez!"
+}
+],
+"pa.last.Murphy": [
+{
+"f": "pa/last-murphy.mp3",
+"d": 0.802,
+"t": "Murphy!"
+}
+],
+"pa.last.Hughes": [
+{
+"f": "pa/last-hughes.mp3",
+"d": 0.831,
+"t": "Hughes!"
+}
+],
+"pa.last.Rossi": [
+{
+"f": "pa/last-rossi.mp3",
+"d": 0.848,
+"t": "Rossi!"
+}
+],
+"pa.last.Bennett": [
+{
+"f": "pa/last-bennett.mp3",
+"d": 0.767,
+"t": "Bennett!"
+}
+],
+"pa.last.Diaz": [
+{
+"f": "pa/last-diaz.mp3",
+"d": 0.834,
+"t": "Diaz!"
+}
+],
+"pa.last.Foster": [
+{
+"f": "pa/last-foster.mp3",
+"d": 0.879,
+"t": "Foster!"
+}
+],
+"pa.last.Silva": [
+{
+"f": "pa/last-silva.mp3",
+"d": 0.792,
+"t": "Silva!"
+}
+],
+"pa.last.Jensen": [
+{
+"f": "pa/last-jensen.mp3",
+"d": 0.849,
+"t": "Jensen!"
+}
+],
+"pa.last.Ortiz": [
+{
+"f": "pa/last-ortiz.mp3",
+"d": 0.952,
+"t": "Ortiz!"
+}
+],
+"pa.last.Carter": [
+{
+"f": "pa/last-carter.mp3",
+"d": 0.75,
+"t": "Carter!"
+}
+],
+"pa.last.Tanaka": [
+{
+"f": "pa/last-tanaka.mp3",
+"d": 0.915,
+"t": "Tanaka!"
+}
+],
+"pa.last.Reyes": [
+{
+"f": "pa/last-reyes.mp3",
+"d": 0.826,
+"t": "Reyes!"
+}
+],
+"pa.last.Coleman": [
+{
+"f": "pa/last-coleman.mp3",
+"d": 0.798,
+"t": "Coleman!"
+}
+],
+"pa.last.Park": [
+{
+"f": "pa/last-park.mp3",
+"d": 0.767,
+"t": "Park!"
+}
+],
+"pa.last.Sullivan": [
+{
+"f": "pa/last-sullivan.mp3",
+"d": 0.843,
+"t": "Sullivan!"
+}
+],
+"pa.last.Gomez": [
+{
+"f": "pa/last-gomez.mp3",
+"d": 0.874,
+"t": "Gomez!"
+}
+],
+"pa.welcome": [
+{
+"f": "pa/welcome.mp3",
+"d": 3.3,
+"t": "Ladies and gentlemen, welcome to the ballpark!"
+},
+{
+"f": "pa/welcome-2.mp3",
+"d": 3.766,
+"t": "Ladies and gentlemen, boys and girls, it's game time!"
+}
+],
+"pa.yourUmp": [
+{
+"f": "pa/yourump.mp3",
+"d": 2.741,
+"t": "Please welcome your umpire for today's game!"
+},
+{
+"f": "pa/yourump-2.mp3",
+"d": 1.944,
+"t": "Give it up for today's umpire!"
+}
+],
+"pa.camp": [
+{
+"f": "pa/camp.mp3",
+"d": 2.689,
+"t": "Welcome to Rookie Camp! Let's go, Blue!"
+}
+],
+"pa.blitz": [
+{
+"f": "pa/blitz.mp3",
+"d": 2.973,
+"t": "Sixty seconds on the clock. Ready? Go!"
+}
+],
+"pa.mode.plate": [
+{
+"f": "pa/mode-plate.mp3",
+"d": 2.506,
+"t": "It's Plate Survival! Let's go, Blue!"
+}
+],
+"pa.mode.bases": [
+{
+"f": "pa/mode-bases.mp3",
+"d": 2.215,
+"t": "It's Base Hustle! Let's go, Blue!"
+}
+],
+"pa.mode.rumble": [
+{
+"f": "pa/mode-rumble.mp3",
+"d": 2.48,
+"t": "It's Rulebook Rumble! Let's go, Blue!"
+}
+],
+"pa.letsGo": [
+{
+"f": "pa/letsgo.mp3",
+"d": 1.231,
+"t": "Let's go, Blue!"
+}
+],
+"c.bangGood": [
+{
+"f": "c/banggood.mp3",
+"d": 2.064,
+"t": "Bang-bang play, and the ump nails it!"
+},
+{
+"f": "c/banggood-2.mp3",
+"d": 0.651,
+"t": "What a call!"
+},
+{
+"f": "c/banggood-3.mp3",
+"d": 1.749,
+"t": "Perfect angle. Perfect call!"
+},
+{
+"f": "c/banggood-4.mp3",
+"d": 2.091,
+"t": "Oh, that was close, and the ump got it!"
+}
+],
+"c.painted": [
+{
+"f": "c/painted.mp3",
+"d": 1.591,
+"t": "Right on the black! Great eye!"
+},
+{
+"f": "c/painted-2.mp3",
+"d": 1.984,
+"t": "Painted corner, and the ump saw it!"
+},
+{
+"f": "c/painted-3.mp3",
+"d": 1.768,
+"t": "Ooh, nasty pitch. Great call!"
+}
+],
+"c.angle": [
+{
+"f": "c/angle.mp3",
+"d": 1.156,
+"t": "Look at that positioning!"
+},
+{
+"f": "c/angle-2.mp3",
+"d": 1.572,
+"t": "That ump was in the perfect spot!"
+}
+],
+"c.streak5": [
+{
+"f": "c/streak5.mp3",
+"d": 1.09,
+"t": "The ump is heating up!"
+},
+{
+"f": "c/streak5-2.mp3",
+"d": 0.867,
+"t": "Five in a row!"
+}
+],
+"c.streak10": [
+{
+"f": "c/streak10.mp3",
+"d": 1.104,
+"t": "This ump is on fire!"
+},
+{
+"f": "c/streak10-2.mp3",
+"d": 1.762,
+"t": "Somebody call the fire department!"
+}
+],
+"c.streak20": [
+{
+"f": "c/streak20.mp3",
+"d": 1.122,
+"t": "Is this ump a robot?"
+},
+{
+"f": "c/streak20-2.mp3",
+"d": 1.656,
+"t": "Unbelievable! Twenty straight!"
+}
+],
+"c.miss": [
+{
+"f": "c/miss.mp3",
+"d": 1.558,
+"t": "Ooh, the replay doesn't agree."
+},
+{
+"f": "c/miss-2.mp3",
+"d": 1.234,
+"t": "Everybody misses one!"
+},
+{
+"f": "c/miss-3.mp3",
+"d": 0.988,
+"t": "Shake it off, Blue!"
+},
+{
+"f": "c/miss-4.mp3",
+"d": 1.692,
+"t": "That one's going on the blooper reel!"
+}
+],
+"c.quick": [
+{
+"f": "c/quick.mp3",
+"d": 1.414,
+"t": "Whoa, too quick on the trigger!"
+},
+{
+"f": "c/quick-2.mp3",
+"d": 0.92,
+"t": "Patience, Blue!"
+}
+],
+"c.ouch": [
+{
+"f": "c/ouch.mp3",
+"d": 1.36,
+"t": "Ouch! Right in the lane!"
+},
+{
+"f": "c/ouch-2.mp3",
+"d": 0.939,
+"t": "That had to hurt!"
+}
+],
+"c.ejected": [
+{
+"f": "c/ejected.mp3",
+"d": 2.388,
+"t": "And that's an ejection! See you next time, Blue!"
+}
+],
+"c.champion": [
+{
+"f": "c/champion.mp3",
+"d": 1.786,
+"t": "World Series champion umpire!"
+}
+]
+}

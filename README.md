@@ -73,7 +73,9 @@ It deploys to `https://umpiremadness.<your-subdomain>.workers.dev`.
 | `public/js/render/*` | Game camera and constants, plus the 2D fallback renderer (used if WebGL is unavailable or with `?gl=0`) |
 | `public/vendor/three/` | Vendored three.js (MIT) |
 | `public/js/ui/*` | HUD and menus (gamepad-navigable), TV-style batter lower-third, confetti |
-| `public/js/audio.js` + `voice.js` | Synthesized sound and music; umpire calls, PA announcer and color commentary via the browser's speech voices |
+| `public/js/audio.js` + `voice.js` | Synthesized sound and music; umpire calls, PA announcer and TV commentary from pre-rendered voice clips (`public/audio/vo/`, made by `scripts/render-vo.py`) |
 | `public/js/data/*` | Divisions, rule cards, achievements, ump-life events |
 
-There are no build steps and no image or audio files. The 3D ballpark is built with three.js from procedurally painted textures, and all sound (bat crack, mitt pop, crowd, ballpark organ, menu theme) is synthesized with WebAudio.
+There are no build steps and no image files. The 3D ballpark is built with three.js from procedurally painted textures, and all sound effects (bat crack, mitt pop, crowd, ballpark organ, menu theme) are synthesized with WebAudio.
+
+The only recorded audio is the voice work in `public/audio/vo/`: umpire calls, PA announcer and TV commentary, rendered ahead of time with the open-source [Kokoro](https://github.com/hexgrad/kokoro) TTS model (Apache-2.0) by `scripts/render-vo.py` (setup steps are at the top of that script). Batter intros are stitched from pieces ("Now batting," + "Number 24." + first name + last name). To change a line, edit it in the script and re-render; use `--only u.,c.` to redo just some groups. Lines without a clip fall back to the browser's speech voice.

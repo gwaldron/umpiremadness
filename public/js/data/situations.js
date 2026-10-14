@@ -982,24 +982,43 @@ export const SITUATIONS = [
   {
     id: 'one-base', card: 'local-aa', title: 'Overthrow!', weight: 2, divs: ['AA', 'AAA', 'MAJ'],
     variant() { return {}; },
-    setup() { return { runners: [1], outs: 1, text: 'runner on 1st · 1 out' }; },
+    setup() { return { runners: [1], outs: 1, text: 'runner on 1st · 1 out · he\'s stealing on the pitch!' }; },
     build(tl) {
+      // A pitch the batter takes. The runner goes as the ball reaches the batter (no leads in LL).
       const tc = pitchHit(tl, { swing: false, catcher: true });
+      const go = tc - 0.08;
+      const tAt2 = tl.runTo('R1', go, ONBAG[2].x + 0.6, ONBAG[2].y - 0.8, 17.5, 'run');
+      // the shortstop covers second
+      tl.move('SS', tc + 0.05, tc + 1.3, -1.6, 83.8, 'ready');
+      tl.at(tc + 1.3, () => { tl.actors.SS.faceAt = { x: 0, y: 0 }; });
+      // the catcher's throw to second sails over the shortstop's glove...
       tl.hold(tc, tc + 0.8, 'C', 2.4);
-      slideTo(tl, 'R1', tc + 0.02, tc + 3.6, 2, { x: 0.4, y: -0.5 });
       tl.pose('C', tc + 0.5, 'throw', { dur: 0.4, facing: 1 });
-      tl.throwBall(tc + 0.8, tc + 2.3, { x: 0, y: -2, z: 4.6 }, { x: 3, y: 100, z: 8 });
-      tl.ground(tc + 2.3, tc + 3.5, { x: 3, y: 100 }, { x: 8, y: 132 });
-      tl.move('CF', tc, tc + 3.6, 8, 134, 'ready');
-      // runner pops up and heads for third
-      tl.runTo('R1', tc + 3.9, -38, 46, 16, 'stand');
-      return { pause: tc + 5.6, cam: (t) => ({ x: -6, y: 64, ext: 58 }) };
+      const over = { x: 0.6, y: 84.5, z: 9.4 };
+      const tOver = tl.throwBall(tc + 0.8, tc + 1.95, { x: 0, y: -2, z: 4.6 }, over);
+      tl.pose('SS', tOver - 0.25, 'catchHigh');
+      tl.pose('SS', tOver + 0.4, 'ready');
+      tl.at(tOver, () => audio.ooh());
+      // ...and skips into center field
+      tl.fly(tOver, tOver + 0.5, over, { x: 2.5, y: 103, z: 0 }, 0.5);
+      const tStop = tl.ground(tOver + 0.5, tOver + 1.7, { x: 2.5, y: 103 }, { x: 5, y: 124 });
+      tl.move('CF', tOver - 0.3, tStop, 5.5, 125.5, 'ready');
+      tl.hold(tStop, tOver + 2.3, 'CF', 3);
+      // the runner touches second and keeps going; the throw comes back in to second, too late
+      const tAt3 = tl.runTo('R1', tAt2, ONBAG[3].x, ONBAG[3].y, 17, 'stand');
+      const tBack = throwFrom(tl, 'CF', tOver + 2.3, { x: -1.2, y: 84.5, z: 3.4 }, 70);
+      tl.hold(tBack, tAt3 + 2, 'SS', 3);
+      tl.at(tBack, () => { tl.actors.SS.faceAt = { x: B3.x, y: B3.y }; });
+      return {
+        pause: tAt3 + 0.4,
+        cam: (t) => (t < tOver - 0.5 ? { x: 10, y: 40, ext: 56 } : t < tOver + 1.6 ? { x: 0, y: 92, ext: 58 } : { x: -14, y: 76, ext: 62 }),
+      };
     },
     steps(v, div) {
       const local = div.id === 'AA' || div.id === 'AAA';
       return [{
-        q: 'THE THROW SAILED INTO CENTER — HE TOOK THIRD!',
-        sub: `This is a ${div.full} game`,
+        q: 'OVERTHROW ON THE STEAL — HE TOOK THIRD!',
+        sub: `No swing: it was a steal · ${div.full} game`,
         options: [
           { btn: 'A', id: 'back', label: 'SEND HIM BACK TO SECOND', sub: 'One base per steal' },
           { btn: 'B', id: 'stay', label: 'HE STAYS AT THIRD', sub: 'Ball was live' },
@@ -1007,7 +1026,7 @@ export const SITUATIONS = [
         answer: local ? 'back' : 'stay',
         card: local ? (div.id === 'AA' ? 'local-aa' : 'local-aaa') : 'local-aaa',
         explain: local
-          ? `FXLL **${div.id} local rule**: a runner may advance **only one base per steal** — even if the throw goes into the outfield (or over the fence). Send him back to **second**.`
+          ? `FXLL **${div.id} local rule**: on a **steal**, a runner may advance **only one base** — even if the catcher's throw goes into the outfield (or over the fence). Send him back to **second**. (This is only for steals. On a **batted ball**, runners can take as many bases as they can.)`
           : 'In **Majors**, the one-base-per-steal local rule doesn\'t apply. The overthrow was a live ball, so he can advance at his own risk: **he stays at third**.',
       }];
     },

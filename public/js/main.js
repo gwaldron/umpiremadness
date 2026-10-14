@@ -87,6 +87,7 @@ function startSession(cfg) {
   app.screens.closeAll();
   if (app.session) app.session.quit();
   audio.unlock();
+  voices.warm();
   audio.stopMusic();
   app.session = new Session(app, cfg);
   app.session.start();
@@ -143,7 +144,7 @@ app.boot = () => {
 
 // ---------- input routing ----------
 input.attach(canvas);
-input.onUnlock(() => audio.unlock());
+input.onUnlock(() => { audio.unlock(); voices.warm(); });
 input.on((act) => {
   if (app.screens.open) {
     app.screens.handleAction(act);

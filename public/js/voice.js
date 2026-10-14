@@ -1,16 +1,46 @@
 // Voices: the umpire (you), the stadium PA announcer, and a hype TV commentator.
-// Uses the browser's speech engine, picking the most natural-sounding voices available
-// (Edge "Natural"/"Online" voices, Google voices, Apple enhanced voices, ...).
+// Lines are pre-rendered clips (scripts/render-vo.py, Kokoro neural TTS) played through WebAudio:
+// the umpire on the field, the PA through a horn speaker with stadium echo, the commentator "on TV".
+// Batter intros are stitched from pieces like real sports games. Anything without a clip falls back
+// to the browser's speech engine.
 import { audio } from './audio.js';
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const NUM = ['oh', 'one', 'two', 'three', 'four'];
+const VO = 'audio/vo/';
 
 const FIRST = ['Jayden', 'Maya', 'Luis', 'Ava', 'Marcus', 'Sofia', 'Tyler', 'Zoe', 'Diego', 'Emma', 'Caleb', 'Aaliyah', 'Ethan', 'Isabella', 'Noah', 'Mia', 'Jackson', 'Priya', 'Mateo', 'Harper', 'Darius', 'Lily', 'Kenji', 'Olivia', 'Brayden', 'Chloe', 'Andre', 'Grace', 'Owen', 'Leah', 'Javier', 'Nora', 'Malik', 'Ella', 'Ryan', 'Hana'];
 const LAST = ['Rivera', 'Johnson', 'Kim', 'Okafor', 'Smith', 'Garcia', 'Nguyen', 'Brooks', 'Patel', 'Martinez', 'Walker', 'Chen', 'Robinson', 'Lopez', 'Murphy', 'Hughes', 'Rossi', 'Bennett', 'Diaz', 'Foster', 'Silva', 'Jensen', 'Ortiz', 'Carter', 'Tanaka', 'Reyes', 'Coleman', 'Park', 'Sullivan', 'Gomez'];
 export function playerName() {
   return { first: pick(FIRST), last: pick(LAST) };
 }
+
+// Spoken situation rulings (situations.js "say") -> clip groups
+const SAY = {
+  "Infield fly! Batter's out!": 'u.iff',
+  "That's obstruction!": 'u.obstruction',
+  "Time! That's obstruction!": 'u.timeObstruction',
+  'Foul ball!': 'u.foul',
+  "That's a catch! He's out!": 'u.catchOut',
+  'No catch!': 'u.noCatch1',
+  "He's out!": 'u.out',
+  'Safe!': 'u.safe',
+  "That's a balk!": 'u.balk',
+};
+
+const COMMENTS = {
+  bangGood: ['Bang-bang play... and the ump NAILS it!', 'What a call!', 'Perfect angle. Perfect call!', 'Oh, that was close... and the ump got it!'],
+  painted: ['Right on the black! Great eye!', 'Painted corner, and the ump saw it!', 'Ooh, nasty pitch. Great call!'],
+  angle: ['Look at that positioning!', 'That ump was in the perfect spot!'],
+  streak5: ['The ump is heating up!', 'Five in a row!'],
+  streak10: ['This ump is ON FIRE!', 'Somebody call the fire department!'],
+  streak20: ['Is this ump a robot?!', 'Unbelievable! Twenty straight!'],
+  miss: ["Ooh, the replay doesn't agree...", 'Everybody misses one!', 'Shake it off, Blue!', "That one's going on the blooper reel!"],
+  quick: ['Whoa, too quick on the trigger!', 'Patience, Blue!'],
+  ouch: ['Ouch! Right in the lane!', 'That had to hurt!'],
+  ejected: ["And that's an ejection! See you next time, Blue!"],
+  champion: ['WORLD SERIES CHAMPION UMPIRE!'],
+};
 
 class Voices {
   constructor() {
@@ -19,11 +49,153 @@ class Voices {
     this.style = 'classic';
     this.lastComment = 0;
     this.cache = null;
+    this.man = null; // clip manifest
+    this.bufs = new Map(); // file -> AudioBuffer | Promise
+    this.playing = { u: [], pa: [], c: [] };
+    this.chains = null;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => { this.cache = null; };
     }
   }
 
+  // ---------- clips ----------
+  // Load the manifest and preload every clip in the background (umpire calls first).
+  warm() {
+    if (this._warm || typeof fetch === 'undefined') return this._warm;
+    this._warm = fetch(VO + 'manifest.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => {
+        this.man = m;
+        if (m && audio.ctx) {
+          const groups = Object.keys(m).sort((a, b) => (a[0] === 'u' ? -1 : 0) - (b[0] === 'u' ? -1 : 0));
+          (async () => {
+            for (const g of groups) for (const c of m[g]) { try { await this._load(c.f); } catch (e) { /* skip */ } }
+          })();
+        }
+        return m;
+      })
+      .catch(() => null);
+    return this._warm;
+  }
+
+  _load(f) {
+    let b = this.bufs.get(f);
+    if (!b) {
+      b = fetch(VO + f)
+        .then((r) => { if (!r.ok) throw new Error(f); return r.arrayBuffer(); })
+        .then((ab) => new Promise((res, rej) => audio.ctx.decodeAudioData(ab, res, rej)))
+        .then((buf) => { this.bufs.set(f, buf); return buf; });
+      b.catch(() => this.bufs.delete(f));
+      this.bufs.set(f, b);
+    }
+    return Promise.resolve(b);
+  }
+
+  // Effects chain per role, built once the audio context exists.
+  _chain(role) {
+    const ctx = audio.ctx;
+    if (!this.chains) this.chains = {};
+    if (this.chains[role]) return this.chains[role];
+    const input = ctx.createGain();
+    let tail = input;
+    const add = (node) => { tail.connect(node); tail = node; return node; };
+    if (role === 'pa') {
+      // horn-speaker tone, a touch of grit, then a stadium slapback echo
+      const hp = add(ctx.createBiquadFilter()); hp.type = 'highpass'; hp.frequency.value = 260;
+      const lp = add(ctx.createBiquadFilter()); lp.type = 'lowpass'; lp.frequency.value = 5200;
+      const pk = add(ctx.createBiquadFilter()); pk.type = 'peaking'; pk.frequency.value = 1900; pk.Q.value = 0.9; pk.gain.value = 6;
+      const sh = add(ctx.createWaveShaper());
+      const curve = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) { const x = (i / 1023) * 2 - 1; curve[i] = Math.tanh(x * 1.8) / Math.tanh(1.8); }
+      sh.curve = curve;
+      const out = add(ctx.createGain()); out.gain.value = 0.85;
+      out.connect(audio.master);
+      const dl = ctx.createDelay(1); dl.delayTime.value = 0.26;
+      const fb = ctx.createGain(); fb.gain.value = 0.3;
+      const dlv = ctx.createGain(); dlv.gain.value = 0.38;
+      out.connect(dl); dl.connect(fb).connect(dl); dl.connect(dlv).connect(audio.master);
+      const send = ctx.createGain(); send.gain.value = 0.75;
+      out.connect(send).connect(audio.reverbIn);
+    } else if (role === 'c') {
+      // TV: clean, tight and close — no stadium reverb
+      const hp = add(ctx.createBiquadFilter()); hp.type = 'highpass'; hp.frequency.value = 110;
+      const pk = add(ctx.createBiquadFilter()); pk.type = 'peaking'; pk.frequency.value = 3200; pk.gain.value = 3;
+      const comp = add(ctx.createDynamicsCompressor()); comp.threshold.value = -20; comp.ratio.value = 3;
+      const out = add(ctx.createGain()); out.gain.value = 0.95;
+      out.connect(audio.master);
+    } else {
+      // the umpire on the field: present, with a little ballpark air (the sfx bus has a reverb send)
+      const hp = add(ctx.createBiquadFilter()); hp.type = 'highpass'; hp.frequency.value = 90;
+      const pk = add(ctx.createBiquadFilter()); pk.type = 'peaking'; pk.frequency.value = 2800; pk.gain.value = 3.5;
+      const out = add(ctx.createGain()); out.gain.value = 1.15;
+      out.connect(audio.sfx);
+    }
+    this.chains[role] = input;
+    return input;
+  }
+
+  // Play a sequence of clip groups. seq: [group | { g: group, gap }]. Returns false if clips can't be used.
+  async _play(role, seq, { interrupt = true, rate = 1, robot = false } = {}) {
+    if (!audio.ctx || !this.man || !seq.length) return false;
+    const items = seq.map((s) => (typeof s === 'string' ? { g: s, gap: 0.06 } : s));
+    const chosen = [];
+    for (const it of items) {
+      const list = this.man[it.g];
+      if (!list) return false;
+      chosen.push({ c: pick(list), gap: it.gap ?? 0.06 });
+    }
+    let bufs;
+    try { bufs = await Promise.all(chosen.map((x) => this._load(x.c.f))); } catch (e) { return false; }
+    const ctx = audio.ctx;
+    if (interrupt) this.stop(role);
+    let dest = this._chain(role);
+    const rb = robot ? this._robot(dest) : null;
+    if (rb) dest = rb.ring;
+    let t = ctx.currentTime + 0.03;
+    const t0 = t;
+    for (let i = 0; i < bufs.length; i++) {
+      const src = ctx.createBufferSource();
+      src.buffer = bufs[i];
+      src.playbackRate.value = rate;
+      src.connect(dest);
+      src.start(t);
+      this.playing[role].push(src);
+      src.onended = () => { const p = this.playing[role]; const k = p.indexOf(src); if (k >= 0) p.splice(k, 1); };
+      t += bufs[i].duration / rate + chosen[i].gap;
+    }
+    if (rb) rb.osc.stop(t + 0.3);
+    if (role !== 'u') this._duck(t0, t);
+    return true;
+  }
+
+  stop(role) {
+    for (const s of this.playing[role]) { try { s.stop(); } catch (e) { /* already stopped */ } }
+    this.playing[role] = [];
+  }
+
+  // Robo-Ump: ring modulator
+  _robot(dest) {
+    const ctx = audio.ctx;
+    const ring = ctx.createGain();
+    ring.gain.value = 0;
+    const osc = ctx.createOscillator();
+    osc.frequency.value = 55;
+    osc.connect(ring.gain);
+    osc.start();
+    ring.connect(dest);
+    return { ring, osc };
+  }
+
+  // Lower the crowd under the PA and commentary
+  _duck(t0, t1) {
+    const g = audio.crowdBus && audio.crowdBus.gain;
+    if (!g) return;
+    g.cancelScheduledValues(t0);
+    g.setTargetAtTime(0.5, t0, 0.08);
+    g.setTargetAtTime(0.9, t1 + 0.1, 0.4);
+  }
+
+  // ---------- browser speech fallback ----------
   get ok() {
     return 'speechSynthesis' in window && audio.ctx && audio.sfxVol > 0;
   }
@@ -71,6 +243,21 @@ class Voices {
     } catch (e) { /* speech is optional */ }
   }
 
+  // Try clips first; fall back to the browser voice.
+  async _say(role, seq, fallback, opts = {}) {
+    this.warm();
+    if (this._warm) await this._warm;
+    const ok = await this._play(role, seq, opts).catch(() => false);
+    if (!ok && fallback) {
+      const tts = {
+        u: ['ump', { ...this._umpStyle(), interrupt: true }],
+        pa: ['announcer', { rate: 0.9, pitch: 0.8, volume: 0.95 }],
+        c: ['commentator', { rate: 1.12, pitch: 1.05, volume: 0.9 }],
+      }[role];
+      this._speak(fallback, tts[0], tts[1]);
+    }
+  }
+
   // ---------- the umpire (you) ----------
   _umpStyle() {
     return {
@@ -80,55 +267,70 @@ class Voices {
       hype: { rate: 1.25, pitch: 1.3 },
     }[this.style] || { rate: 1.05, pitch: 0.9 };
   }
+  _clipStyle(fast) {
+    const r = { classic: 1, bigleague: 0.88, hype: 1.1, robot: 1 }[this.style] || 1;
+    return { rate: r * (fast ? 1.05 : 1), robot: this.style === 'robot' };
+  }
   ump(text, opts = {}) {
-    const s = this._umpStyle();
-    this._speak(text, 'ump', { rate: s.rate * (opts.fast ? 1.12 : 1), pitch: s.pitch, interrupt: true });
+    if (!this.enabled || !text) return;
+    const g = SAY[text];
+    if (g) this._say('u', [g], text, this._clipStyle(opts.fast));
+    else this._speak(text, 'ump', { ...this._umpStyle(), interrupt: true });
   }
 
   // Context-aware calls. kind: strike | ball | k | bb | out | safe | foul | tip | hbp | iff | nocatch | play
   call(kind, ctx = {}) {
     if (!this.enabled) return;
-    const count = ctx.balls !== undefined ? `${NUM[ctx.balls] || ctx.balls} and ${NUM[ctx.strikes] || ctx.strikes}` : '';
-    const sayCount = count && Math.random() < 0.45;
-    let line;
-    switch (kind) {
-      case 'strike': line = pick(['Strike!', 'Steee-rike!', 'Strike!', 'Strike!']) + (sayCount ? ` ${count}.` : ''); break;
-      case 'ball': line = pick(['Ball.', 'Ball.', "That's a ball."]) + (sayCount ? ` ${count}.` : ''); break;
-      case 'k': line = pick(['Strike three!', 'Steee-rike three!', "Strike three! You're out!", 'Strike three! Ring him up!']); break;
-      case 'bb': line = 'Ball four! Take your base!'; break;
-      case 'out': line = ctx.close ? pick(["He's OUT!", 'OUT! He is out!', "Ohhh, he's out!"]) : pick(["He's out!", 'Out!', "Yer out!"]); break;
-      case 'safe': line = ctx.close ? pick(['Safe! Safe!', "He's SAFE!", 'Safe, safe, safe!']) : pick(['Safe!', "He's safe!"]); break;
-      case 'foul': line = 'Foul ball!'; break;
-      case 'tip': line = pick(['Foul tip! Strike!', 'Tipped! Strike!']); break;
-      case 'hbp': line = 'Time! Take your base!'; break;
-      case 'iff': line = "Infield fly! Batter's out!"; break;
-      case 'nocatch': line = 'No catch! No catch!'; break;
-      case 'play': line = pick(['Play ball!', "Let's play!", 'Play!']); break;
-      default: line = kind;
-    }
-    this.ump(line, { fast: ctx.close });
+    const hasCount = ctx.balls !== undefined;
+    const sayCount = hasCount && Math.random() < 0.45;
+    const countG = hasCount ? `u.count.${Math.min(3, ctx.balls)}${Math.min(2, ctx.strikes)}` : null;
+    const countTxt = hasCount ? ` ${NUM[ctx.balls] || ctx.balls} and ${NUM[ctx.strikes] || ctx.strikes}.` : '';
+    const map = {
+      strike: ['u.strike', 'Strike!', true],
+      ball: ['u.ball', 'Ball.', true],
+      k: ['u.k', 'Strike three!'],
+      bb: ['u.bb', 'Ball four! Take your base!'],
+      out: [ctx.close ? 'u.outClose' : 'u.out', "He's out!"],
+      safe: [ctx.close ? 'u.safeClose' : 'u.safe', 'Safe!'],
+      foul: ['u.foul', 'Foul ball!'],
+      tip: ['u.tip', 'Foul tip! Strike!'],
+      hbp: ['u.hbp', 'Time! Take your base!'],
+      iff: ['u.iff', "Infield fly! Batter's out!"],
+      nocatch: ['u.nocatch', 'No catch! No catch!'],
+      play: ['u.play', 'Play ball!'],
+    }[kind];
+    if (!map) { this.ump(kind, { fast: ctx.close }); return; }
+    const [g, txt, counts] = map;
+    const seq = [{ g, gap: 0.14 }];
+    if (counts && sayCount && countG) seq.push(countG);
+    this._say('u', seq, txt + (counts && sayCount ? countTxt : ''), this._clipStyle(ctx.close || ctx.fast));
   }
 
   // ---------- stadium PA ----------
-  announce(text, { chime = true } = {}) {
+  // seq: clip groups to stitch; text: what to say if there are no clips
+  announce(text, { chime = true, seq = null } = {}) {
     if (!this.enabled || !this.extras || !text) return;
     if (chime) audio.paChime();
-    setTimeout(() => this._speak(text, 'announcer', { rate: 0.9, pitch: 0.8, volume: 0.95 }), chime ? 650 : 0);
+    setTimeout(() => this._say('pa', seq || [], seq ? text : text), chime ? 650 : 0);
   }
   batter(b) {
     if (!b.name) return;
-    this.announce(pick([
-      `Now batting... number ${b.num}... ${b.name.first} ${b.name.last}!`,
-      `Stepping in... number ${b.num}, ${b.name.first} ${b.name.last}!`,
-      `Up next... ${b.name.first}... ${b.name.last}!`,
-    ]), { chime: Math.random() < 0.5 });
+    const intro = pick(['nowBatting', 'nowBatting', 'steppingIn', 'upNext']);
+    const seq = [{ g: 'pa.' + intro, gap: 0.22 }];
+    if (intro !== 'upNext') seq.push({ g: `pa.num.${b.num}`, gap: 0.32 });
+    seq.push({ g: `pa.first.${b.name.first}`, gap: 0.09 }, `pa.last.${b.name.last}`);
+    const text = intro === 'upNext' ? `Up next... ${b.name.first}... ${b.name.last}!` : `${intro === 'nowBatting' ? 'Now batting' : 'Stepping in'}... number ${b.num}... ${b.name.first} ${b.name.last}!`;
+    this.announce(text, { chime: Math.random() < 0.5, seq });
   }
-  gameIntro(title, umpName) {
-    this.announce(pick([
-      `Ladies and gentlemen... welcome to ${title}! Your umpire today... ${umpName}!`,
-      `It's ${title}! Give it up for your umpire... ${umpName}!`,
-    ]));
+  // Start-of-session PA intro. mode: career | camp | blitz | plate | bases | rumble | ...
+  modeIntro(mode, title, umpName) {
+    if (mode === 'career') this.announce(`Ladies and gentlemen... welcome to ${title}! Your umpire today... ${umpName}!`, { seq: [{ g: 'pa.welcome', gap: 0.45 }, 'pa.yourUmp'] });
+    else if (mode === 'camp') this.announce(`Welcome to ${title}! Let's go, ${umpName}!`, { seq: [{ g: 'pa.welcome', gap: 0.45 }, 'pa.camp'] });
+    else if (mode === 'blitz') this.announce('Sixty seconds on the clock... GO!', { seq: ['pa.blitz'] });
+    else if (['plate', 'bases', 'rumble'].includes(mode)) this.announce(`It's ${title}! Let's go, ${umpName}!`, { seq: [`pa.mode.${mode}`] });
+    else this.announce(`It's ${title}! Let's go, ${umpName}!`, { seq: ['pa.letsGo'] });
   }
+  gameIntro(title, umpName) { this.modeIntro('career', title, umpName); }
 
   // ---------- TV commentator (short hype lines, never spammy) ----------
   comment(kind, { force = false } = {}) {
@@ -136,22 +338,10 @@ class Voices {
     const now = performance.now();
     if (!force && now - this.lastComment < 9000) return;
     if (!force && Math.random() < 0.35) return;
-    const lines = {
-      bangGood: ['Bang-bang play... and the ump NAILS it!', 'What a call!', 'Perfect angle. Perfect call!', 'Oh, that was close... and the ump got it!'],
-      painted: ['Right on the black! Great eye!', 'Painted corner, and the ump saw it!', 'Ooh, nasty pitch. Great call!'],
-      angle: ['Look at that positioning!', 'That ump was in the perfect spot!'],
-      streak5: ['The ump is heating up!', 'Five in a row!'],
-      streak10: ['This ump is ON FIRE!', 'Somebody call the fire department!'],
-      streak20: ['Is this ump a robot?!', 'Unbelievable! Twenty straight!'],
-      miss: ["Ooh, the replay doesn't agree...", 'Everybody misses one!', 'Shake it off, Blue!', "That one's going on the blooper reel!"],
-      quick: ['Whoa, too quick on the trigger!', 'Patience, Blue!'],
-      ouch: ['Ouch! Right in the lane!', 'That had to hurt!'],
-      ejected: ["And that's an ejection! See you next time, Blue!"],
-      champion: ['WORLD SERIES CHAMPION UMPIRE!'],
-    }[kind];
+    const lines = COMMENTS[kind];
     if (!lines) return;
     this.lastComment = now;
-    setTimeout(() => this._speak(pick(lines), 'commentator', { rate: 1.12, pitch: 1.05, volume: 0.9 }), 450);
+    setTimeout(() => this._say('c', ['c.' + kind], pick(lines)), 450);
   }
 }
 

@@ -544,7 +544,7 @@ export class Screens {
     };
     seg('Volume', 'Sound effects and crowd', [[0, 'Off'], [0.4, 'Low'], [0.8, 'Med'], [1, 'Loud']], 'volume', () => audio.select());
     seg('Umpire voice', 'Your calls spoken out loud', [[true, 'On'], [false, 'Off']], 'voice', (v) => v && voices.call('strike'));
-    seg('Announcer & commentary', 'Stadium PA and TV color commentary', [[true, 'On'], [false, 'Off']], 'announcer', (v) => v && voices.announce('Now batting... number seven!'));
+    seg('Announcer & commentary', 'Stadium PA and TV color commentary', [[true, 'On'], [false, 'Off']], 'announcer', (v) => v && voices.announce('Now batting... number seven!', { seq: [{ g: 'pa.nowBatting', gap: 0.22 }, 'pa.num.7'] }));
     seg('Voice style', 'How your umpire sounds', [['classic', 'Classic'], ['bigleague', 'Big League'], ['hype', 'Hype'], ['robot', 'Robo-Ump']], 'voiceStyle', () => voices.call('k'));
     seg('Music & organ', 'Menu theme song and ballpark organ', [[true, 'On'], [false, 'Off']], 'music', (v) => v && audio.charge());
     seg('Hints', 'Zone box, ghost spots, coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
