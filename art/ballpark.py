@@ -598,6 +598,81 @@ trees = [leafy_tree(0, M['leaf0'], 1), leafy_tree(1, M['leaf1'], 2), leafy_tree(
 for k, t in enumerate(trees):  # park the templates out of sight; the game instances them
     t.location = (k * 40, -400, 0)
 
+
+# ---------------------------------------------------------------- ambient occlusion
+def bake_ao(rays=64, distance=6.0):
+    """Bake ambient occlusion into a per-corner float attribute _AO (exported as a custom glTF
+    attribute; the game darkens the sky light with it: under seats and roofs, inside the dugouts,
+    where walls and legs meet the ground).
+    Ray cast here rather than with Cycles: a vertex buried inside another part (a pole's end inside
+    its base, wall corners inside the next wall) would come out black, so rays pass through back
+    faces, and see-through chain-link doesn't block them. The ground is a big plane at z = 0.
+    Shared meshes (bleacher sections, towers, dugout bodies) are baked once, at their first placement."""
+    from mathutils.bvhtree import BVHTree
+    deps = bpy.context.evaluated_depsgraph_get()
+    verts, polys = [(-2000, -2000, 0), (2000, -2000, 0), (2000, 2000, 0), (-2000, 2000, 0)], [(0, 1, 2, 3)]
+    for o in coll.objects:
+        if o.type != 'MESH':
+            continue
+        me = o.evaluated_get(deps).to_mesh()
+        base, mw = len(verts), o.matrix_world
+        verts += [tuple(mw @ v.co) for v in me.vertices]
+        see = {i for i, m in enumerate(me.materials) if m and m.name == 'chainlink'}
+        polys += [tuple(base + i for i in p.vertices) for p in me.polygons if p.material_index not in see]
+        o.evaluated_get(deps).to_mesh_clear()
+    tree = BVHTree.FromPolygons(verts, polys)
+    # cosine-weighted directions on the +Z hemisphere (a Fibonacci spiral), turned onto each normal
+    golden = math.pi * (3 - math.sqrt(5))
+    dirs = []
+    for i in range(rays):
+        z = math.sqrt(1 - (i + 0.5) / rays)
+        r = math.sqrt(max(0.0, 1 - z * z))
+        dirs.append(Vector((math.cos(i * golden) * r, math.sin(i * golden) * r, z)))
+
+    def ao_at(p, n):
+        t = n.orthogonal().normalized()
+        b = n.cross(t)
+        spin = rng.random() * 2 * math.pi  # a different turn of the spiral at each point: no banding
+        cs, sn = math.cos(spin), math.sin(spin)
+        occ = 0.0
+        for d in dirs:
+            x, y = d.x * cs - d.y * sn, d.x * sn + d.y * cs
+            w = (t * x + b * y + n * d.z).normalized()
+            o, left = p + n * 0.02, distance
+            for _ in range(4):
+                loc, nrm, _i, dist = tree.ray_cast(o, w, left)
+                if loc is None:
+                    break
+                if nrm.dot(w) < 0:  # a front face: blocked (closer counts more)
+                    occ += 1 - (dist / distance) ** 2
+                    break
+                o, left = loc + w * 0.01, left - dist - 0.01  # inside a part: keep going
+        return 1 - occ / rays
+
+    seen, n = set(), 0
+    for o in list(coll.objects):
+        if o.type != 'MESH' or o.data.name in seen:
+            continue
+        seen.add(o.data.name)
+        me_eval = o.evaluated_get(deps).to_mesh()
+        mw, nm = o.matrix_world, o.matrix_world.to_3x3().inverted().transposed()
+        cn = me_eval.corner_normals
+        vals, cache = [], {}
+        for lp in me_eval.loops:
+            nr = cn[lp.index].vector
+            key = (lp.vertex_index, round(nr.x, 3), round(nr.y, 3), round(nr.z, 3))
+            if key not in cache:
+                cache[key] = ao_at(mw @ me_eval.vertices[lp.vertex_index].co, (nm @ nr).normalized())
+            vals.append(cache[key])
+        o.evaluated_get(deps).to_mesh_clear()
+        a = o.data.attributes.new('_AO', 'FLOAT', 'CORNER')
+        a.data.foreach_set('value', vals)
+        n += len(cache)
+    print('AO baked at', n, 'points on', len(seen), 'meshes')
+
+
+bake_ao()
+
 os.makedirs(os.path.dirname(OUT_GLB), exist_ok=True)
 os.makedirs(os.path.dirname(OUT_BLEND), exist_ok=True)
 bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
@@ -605,6 +680,7 @@ bpy.ops.export_scene.gltf(
     filepath=OUT_GLB, export_format='GLB', export_yup=False, export_apply=True,
     export_texcoords=True, export_normals=True, export_materials='EXPORT',
     export_extras=False, export_cameras=False, export_lights=False,
+    export_attributes=True,  # the baked _AO
 )
 stats = {o.data.name: len(o.data.polygons) for o in coll.objects if o.type == 'MESH'}  # each shared mesh once
 print('BALLPARK', os.path.getsize(OUT_GLB), sum(stats.values()), stats)

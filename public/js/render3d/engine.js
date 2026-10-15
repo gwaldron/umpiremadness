@@ -46,15 +46,22 @@ const SKY_FS = `
 uniform vec3 top;
 uniform vec3 horizon;
 uniform vec3 bottom;
+uniform vec3 band;
 uniform vec3 sunDir;
 uniform float sunAmt;
 varying vec3 vDir;
 void main() {
   vec3 d = normalize(vDir);
   float h = d.z;
-  vec3 col = h > 0.0 ? mix(horizon, top, pow(clamp(h, 0.0, 1.0), 0.5)) : mix(horizon, bottom, pow(clamp(-h, 0.0, 1.0), 0.35));
   float s = max(dot(d, normalize(sunDir)), 0.0);
+  // the horizon is a little brighter and warmer on the sun's side of the sky
+  vec3 hor = horizon + vec3(0.1, 0.06, 0.0) * pow(s, 3.0) * sunAmt;
+  vec3 col = h > 0.0 ? mix(hor, top, pow(clamp(h, 0.0, 1.0), 0.55)) : mix(hor, bottom, pow(clamp(-h, 0.0, 1.0), 0.35));
+  // a thin band of haze (or, at night, the town's glow) sitting on the horizon
+  col += band * exp(-abs(h) * 14.0);
   col += vec3(1.0, 0.92, 0.75) * (pow(s, 600.0) * 3.0 + pow(s, 24.0) * 0.35 + pow(s, 4.0) * 0.08) * sunAmt;
+  // dither: a smooth gradient on an 8-bit screen otherwise shows bands
+  col += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -91,8 +98,9 @@ export class Engine {
 
     const scene = new THREE.Scene();
     this.scene = scene;
+    // aerial haze: barely touches the field, softens the tree line, and lets the hills fade into the sky
     this.fogColor = new THREE.Color('#cfe4f5');
-    scene.fog = new THREE.Fog(this.fogColor, 420, 1500);
+    scene.fog = new THREE.Fog(this.fogColor, 200, 1650);
 
     const camera = new THREE.PerspectiveCamera(50, 1, 0.25, 4000);
     camera.up.set(0, 0, 1);
@@ -122,6 +130,7 @@ export class Engine {
       top: { value: new THREE.Color('#2f7fd6') },
       horizon: { value: new THREE.Color('#cfe4f5') },
       bottom: { value: new THREE.Color('#9fb7a0') },
+      band: { value: new THREE.Color('#504d45') },
       sunDir: { value: this.sunDir.clone() },
       sunAmt: { value: 1 },
     };
@@ -282,7 +291,7 @@ export class Engine {
   setTimeOfDay(mode = 'day') {
     const u = this.skyUniforms;
     if (mode === 'night') {
-      u.top.value.set('#060b1e'); u.horizon.value.set('#28305a'); u.bottom.value.set('#1a2230'); u.sunAmt.value = 0;
+      u.top.value.set('#060b1e'); u.horizon.value.set('#28305a'); u.bottom.value.set('#1a2230'); u.band.value.set('#302919'); u.sunAmt.value = 0;
       this.hemi.color.set('#9fb2ff'); this.hemi.groundColor.set('#22301e'); this.hemi.intensity = 0.9;
       this.sun.color.set('#e8f0ff'); this.sun.intensity = 1.9;
       this.sun.position.set(30, -60, 300);
@@ -290,7 +299,7 @@ export class Engine {
       if (this.bloom) { this.bloom.strength = 0.85; this.bloom.threshold = 0.62; this.bloom.radius = 0.6; }
     } else {
       if (this.bloom) { this.bloom.strength = 0.16; this.bloom.threshold = 0.96; this.bloom.radius = 0.45; }
-      u.top.value.set('#2f7fd6'); u.horizon.value.set('#cfe4f5'); u.bottom.value.set('#9fb7a0'); u.sunAmt.value = 1;
+      u.top.value.set('#2f7fd6'); u.horizon.value.set('#cfe4f5'); u.bottom.value.set('#9fb7a0'); u.band.value.set('#504d45'); u.sunAmt.value = 1;
       this.hemi.color.set('#d7ecff'); this.hemi.groundColor.set('#5d7d43'); this.hemi.intensity = 1.25;
       this.sun.color.set('#fff1d9'); this.sun.intensity = 2.6;
       this.sun.position.copy(this.sunDir).multiplyScalar(400).add(new THREE.Vector3(0, 60, 0));

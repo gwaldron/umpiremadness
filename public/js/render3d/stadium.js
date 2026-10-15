@@ -1,7 +1,7 @@
 // The ballpark: everything that doesn't move (plus the crowd, which cheers).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { paintField, wallTexture, chainLinkTexture, scoreboardCanvas, paintScoreboard, cloudTexture, glowTexture, groundDetailTexture, addGroundDetail, flagTexture } from './textures.js';
+import { paintField, moundTexture, circleTexture, wallTexture, chainLinkTexture, scoreboardCanvas, paintScoreboard, cloudTexture, glowTexture, groundDetailTexture, addGroundDetail, flagTexture } from './textures.js';
 
 const R2 = Math.SQRT1_2;
 const B = 60 * R2;
@@ -45,6 +45,35 @@ function wallStrip(p0, p1, z0, z1) {
   return g;
 }
 
+// The kit's ambient occlusion, baked per vertex in Blender (art/ballpark.py), arrives as _ao. The shader
+// reads it as `ao` (every kit mesh gets one; 1 = open sky).
+function kitAO(geo) {
+  if (geo.attributes.ao) return;
+  const src = geo.attributes._ao, n = geo.attributes.position.count;
+  const a = new Float32Array(n);
+  for (let i = 0; i < n; i++) a[i] = src ? src.getX(i) : 1;
+  geo.setAttribute('ao', new THREE.BufferAttribute(a, 1));
+  if (src) geo.deleteAttribute('_ao');
+}
+// It shades the sky light fully (under seats and roofs, in the dugouts, where parts meet the ground)
+// and the sunlight a little, so the stands still sit on the ground when shadows are off.
+function withKitAO(mat) {
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = 'attribute float ao;\nvarying float vAO;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vAO = ao;');
+    shader.fragmentShader = 'varying float vAO;\n' + shader.fragmentShader.replace(
+      '#include <aomap_fragment>',
+      `#include <aomap_fragment>
+  {
+    float kao = mix(0.3, 1.0, vAO);
+    reflectedLight.indirectDiffuse *= kao;
+    reflectedLight.directDiffuse *= mix(1.0, kao, 0.45);
+  }`
+    );
+  };
+  mat.customProgramCacheKey = () => 'kit-ao';
+  return mat;
+}
+
 function box(w, d, h, mat, x, y, z, rotZ = 0) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), mat);
   m.position.set(x, y, z + h / 2);
@@ -74,26 +103,17 @@ export class Stadium {
 
     const detail = groundDetailTexture();
     detail.anisotropy = aniso;
-    this.fieldPlanes = [];
-    const plane = (region, ppf, z, order) => {
-      const tex = paintField(region, ppf);
-      tex.anisotropy = aniso;
-      const w = region.x1 - region.x0, h = region.y1 - region.y0;
-      const mat = addGroundDetail(new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -order, polygonOffsetUnits: -order * 4 }), detail);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-      m.position.set(region.x0 + w / 2, region.y0 + h / 2, z);
-      m.receiveShadow = true;
-      m.renderOrder = order;
-      group.add(m);
-      this.fieldPlanes.push({ m, region, ppf });
-      return m;
-    };
-    plane({ x0: -256, x1: 256, y0: -110, y1: 300 }, 4, 0, 1);
-    plane({ x0: -64, x1: 64, y0: -24, y1: 104 }, 16, 0.01, 2);
-    plane({ x0: -8, x1: 8, y0: -8, y1: 8 }, 64, 0.02, 3);
+    this.detail = detail;
+    // phones and safe mode paint the ground at 3/4 resolution (about half the memory)
+    this.lite = engine.safe || matchMedia('(pointer: coarse)').matches;
+    this.fieldPlanes = []; // painted at the end, once the trees are placed (they shade the grass)
 
     // ---- Mound, rubber, bases, plate ----
-    const mound = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 5.6, 0.5, 40), addGroundDetail(lam('#c48246'), detail));
+    // the mound's texture is planar (11.2 ft across), so its holes and drag rings lie flat on it
+    const moundGeo = new THREE.CylinderGeometry(1.6, 5.6, 0.5, 40);
+    const mp = moundGeo.attributes.position, muv = moundGeo.attributes.uv;
+    for (let i = 0; i < mp.count; i++) muv.setXY(i, mp.getX(i) / 11.2 + 0.5, -mp.getZ(i) / 11.2 + 0.5);
+    const mound = new THREE.Mesh(moundGeo, addGroundDetail(lam('#ffffff', { map: this._upload(moundTexture()) }), detail));
     mound.rotation.x = Math.PI / 2;
     mound.position.set(0, 46, 0.25);
     mound.receiveShadow = true;
@@ -104,7 +124,7 @@ export class Stadium {
     group.add(this.moundRubber);
     // Softball: a flat dirt circle, 16 ft across, chalked, with the pitcher's plate at its center
     const circle = new THREE.Group();
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(8.7, 48), addGroundDetail(lam('#c98a50', { polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 }), detail));
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(8.7, 48), addGroundDetail(lam('#ffffff', { map: this._upload(circleTexture()), alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 }), detail));
     disc.position.z = 0.03;
     disc.receiveShadow = true;
     disc.renderOrder = 4;
@@ -316,6 +336,15 @@ export class Stadium {
       const e = trunks.instanceMatrix.array, o = i * 16;
       this.treeSpots.push({ x: e[o + 12], y: e[o + 13], h: Math.hypot(e[o + 4], e[o + 5], e[o + 6]) / 0.4 });
     }
+
+    // ---- The painted ground: the whole park, the infield sharper, home plate sharpest ----
+    // Each plane skips the fine work a sharper plane covers. The sharpest is drawn first (lowest
+    // renderOrder, biggest polygon offset), so the ones underneath fail the depth test there.
+    const k = this.lite ? 0.75 : 1;
+    const R_HOME = { x0: -8, x1: 8, y0: -8, y1: 8 }, R_INF = { x0: -64, x1: 64, y0: -24, y1: 104 };
+    this._plane({ x0: -256, x1: 256, y0: -110, y1: 300 }, 4 * k, 0, 1, { inner: R_INF, trees: this.treeSpots });
+    this._plane(R_INF, 16 * k, 0.01, 2, { inner: R_HOME }, true);
+    this._plane(R_HOME, 64 * k, 0.02, 3, {});
     const hillGeo = new THREE.CylinderGeometry(900, 900, 1, 64, 1, true);
     const hp2 = hillGeo.attributes.position;
     for (let i = 0; i < hp2.count; i++) {
@@ -439,6 +468,31 @@ export class Stadium {
     }
   }
 
+  // One painted ground plane. lift: polygon offset level (higher draws on top).
+  // ownsMound: the plane that shows the mound area, repainted when the sport changes.
+  _plane(region, ppf, z, lift, opts, ownsMound = false) {
+    const tex = this._upload(paintField(region, ppf, opts));
+    const w = region.x1 - region.x0, h = region.y1 - region.y0;
+    const mat = addGroundDetail(new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -lift, polygonOffsetUnits: -lift * 4 }), this.detail, { chalk: true });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    m.position.set(region.x0 + w / 2, region.y0 + h / 2, z);
+    m.receiveShadow = true;
+    m.renderOrder = 4 - lift;
+    this.group.add(m);
+    this.fieldPlanes.push({ m, region, ppf, opts, ownsMound });
+  }
+
+  // Send a painted canvas to the GPU now, then let go of the canvas: the ground canvases are tens of
+  // megabytes, and keeping a second copy around hurts on phones.
+  _upload(tex) {
+    tex.anisotropy = this.engine.maxAniso;
+    try {
+      this.engine.renderer.initTexture(tex);
+      tex.image.width = tex.image.height = 1;
+    } catch (e) { /* keep the canvas; three uploads it on first use */ }
+    return tex;
+  }
+
   // ---- The Blender-built ballpark kit (art/ballpark.py -> models/ballpark.glb) ----
   // Loads in the background; until it arrives (or if it can't), the procedural stand-ins stay.
   loadKit(url = 'models/ballpark.glb') {
@@ -512,6 +566,7 @@ export class Stadium {
       // aluminum and steel: a soft sheen without needing an environment map
       out = new THREE.MeshPhongMaterial({ color: m.color, specular: new THREE.Color('#8a929c'), shininess: 38 });
     } else out = new THREE.MeshLambertMaterial({ color: m.color });
+    if (!out.isMeshBasicMaterial) withKitAO(out);
     out.name = m.name;
     cache.set(m.name, out);
     return out;
@@ -526,6 +581,7 @@ export class Stadium {
       if (node.name.startsWith('tree_')) { templates.push(node); continue; }
       node.traverse((o) => {
         if (!o.isMesh) return;
+        kitAO(o.geometry);
         o.material = this._kitMaterial(o.material, cache);
         const flat = o.material.isMeshBasicMaterial, see = o.material.name === 'chainlink';
         o.castShadow = !flat && !see;
@@ -555,6 +611,7 @@ export class Stadium {
         const inv = new THREE.Matrix4().copy(tpl.matrixWorld).invert();
         tpl.traverse((o) => {
           if (!o.isMesh) return;
+          kitAO(o.geometry);
           const local = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
           const im = new THREE.InstancedMesh(o.geometry, this._kitMaterial(o.material, cache), mine.length);
           mine.forEach((sp, i) => {
@@ -578,14 +635,12 @@ export class Stadium {
     this.circle.position.set(0, rubber, 0);
     if (this.sport === id) return;
     this.sport = id;
-    // repaint the ground where the mound was (the home plate close-up doesn't reach it)
+    // repaint the ground where the mound was (only the infield plane shows it)
     for (const fp of this.fieldPlanes) {
-      if (fp.region.y1 < 40) continue;
+      if (!fp.ownsMound) continue;
+      fp.opts.softball = sb;
       const old = fp.m.material.map;
-      const tex = paintField(fp.region, fp.ppf, 1, { softball: sb });
-      tex.anisotropy = old.anisotropy;
-      fp.m.material.map = tex;
-      fp.m.material.needsUpdate = true;
+      fp.m.material.map = this._upload(paintField(fp.region, fp.ppf, fp.opts));
       old.dispose();
     }
   }
