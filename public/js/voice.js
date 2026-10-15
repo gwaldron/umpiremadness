@@ -67,7 +67,9 @@ class Voices {
       .then((m) => {
         this.man = m;
         if (m && audio.ctx) {
-          const groups = Object.keys(m).sort((a, b) => (a[0] === 'u' ? -1 : 0) - (b[0] === 'u' ? -1 : 0));
+          // umpire calls first, then the crowd's cheers and groans, then everything else
+          const rank = (g) => (g[0] === 'u' ? 0 : g === 'crowd.cheer' || g === 'crowd.groan' ? 1 : 2);
+          const groups = Object.keys(m).sort((a, b) => rank(a) - rank(b));
           (async () => {
             for (const g of groups) for (const c of m[g]) { try { await this._load(c.f); } catch (e) { /* skip */ } }
           })();
@@ -331,6 +333,70 @@ class Voices {
     else this.announce(`It's ${title}! Let's go, ${umpName}!`, { seq: ['pa.letsGo'] });
   }
   gameIntro(title, umpName) { this.modeIntro('career', title, umpName); }
+
+  // ---------- the crowd ----------
+  // Pre-rendered fan shouts layered with random timing, pitch (some kids) and pan into a crowd in the
+  // stands, through a little air and the stadium reverb. Returns how many shouts actually played.
+  _crowdIn() {
+    if (this._crowdNode) return this._crowdNode;
+    const ctx = audio.ctx;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 4200;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 160;
+    lp.connect(hp).connect(audio.crowdBus);
+    this._crowdNode = lp;
+    return lp;
+  }
+  crowd(group, { n = 6, spread = 0.5, gain = 0.5, rate = [0.95, 1.3], when = 0 } = {}) {
+    if (!audio.ctx || !audio.ok || !this.man || !this.man[group]) return 0;
+    const ctx = audio.ctx;
+    const list = this.man[group];
+    const dest = this._crowdIn();
+    const t0 = ctx.currentTime + 0.02 + when;
+    let played = 0;
+    for (let i = 0; i < n; i++) {
+      const c = list[Math.floor(Math.random() * list.length)];
+      const buf = this.bufs.get(c.f);
+      if (!(buf instanceof AudioBuffer)) { this._load(c.f).catch(() => {}); continue; }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = rate[0] + Math.random() * (rate[1] - rate[0]);
+      const g = ctx.createGain();
+      g.gain.value = gain * (0.45 + Math.random() * 0.55);
+      src.connect(g);
+      if (ctx.createStereoPanner) {
+        const pan = ctx.createStereoPanner();
+        pan.pan.value = Math.random() * 1.6 - 0.8;
+        g.connect(pan).connect(dest);
+      } else g.connect(dest);
+      src.start(t0 + Math.random() * spread);
+      played++;
+    }
+    return played;
+  }
+  // a cheer for a good call (k: 0.3 small, 1 big, 1.3 huge)
+  cheer(k = 1) {
+    return this.crowd('crowd.cheer', { n: Math.round(4 + 9 * k), gain: 0.3 + 0.22 * k, spread: 0.35 + 0.3 * k, rate: [1.0, 1.35] });
+  }
+  groan(k = 1) {
+    return this.crowd('crowd.groan', { n: Math.round(3 + 6 * k), gain: 0.34, spread: 0.45, rate: [0.95, 1.25] });
+  }
+  // Little League chatter from the stands while the game is on ("Hey batter batter!")
+  startChatter(active = () => true) {
+    if (this._chatter) return;
+    const tick = () => {
+      this._chatter = setTimeout(tick, 1400 + Math.random() * 2600);
+      if (active() && Math.random() < 0.8) this.crowd('crowd.chatter', { n: Math.random() < 0.25 ? 2 : 1, gain: 0.2, spread: 0.6, rate: [0.97, 1.3] });
+    };
+    this._chatter = setTimeout(tick, 1500);
+  }
+  stopChatter() {
+    clearTimeout(this._chatter);
+    this._chatter = null;
+  }
 
   // ---------- TV commentator (short hype lines, never spammy) ----------
   comment(kind, { force = false } = {}) {

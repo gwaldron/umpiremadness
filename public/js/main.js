@@ -205,7 +205,7 @@ app.showResults = (r) => {
     app.screens.closeAll();
     app.screens.push(app.screens.results(r));
     setTimeout(() => { if (!app.session) audio.music('menu'); }, 2500);
-    if (r.stars >= 2 || r.record) { audio.cheer(1.2); audio.charge(); confetti.rain({ n: r.stars >= 3 || r.record ? 200 : 120 }); }
+    if (r.stars >= 2 || r.record) { const fans = voices.cheer(1.4); audio.cheer(1.2, { voices: !fans }); audio.charge(); confetti.rain({ n: r.stars >= 3 || r.record ? 200 : 120 }); }
   }, r.gameOver ? 1600 : 700);
 };
 

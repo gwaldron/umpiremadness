@@ -1285,5 +1285,551 @@
 "d": 1.786,
 "t": "World Series champion umpire!"
 }
+],
+"crowd.cheer": [
+{
+"f": "crowd/cheer.mp3",
+"d": 0.406,
+"t": "Yeah!"
+},
+{
+"f": "crowd/cheer-2.mp3",
+"d": 0.682,
+"t": "Yeah!"
+},
+{
+"f": "crowd/cheer-3.mp3",
+"d": 0.582,
+"t": "Yeah!"
+},
+{
+"f": "crowd/cheer-4.mp3",
+"d": 0.561,
+"t": "Yes!"
+},
+{
+"f": "crowd/cheer-5.mp3",
+"d": 0.533,
+"t": "Yes!"
+},
+{
+"f": "crowd/cheer-6.mp3",
+"d": 0.561,
+"t": "Yes!"
+},
+{
+"f": "crowd/cheer-7.mp3",
+"d": 0.832,
+"t": "Alright!"
+},
+{
+"f": "crowd/cheer-8.mp3",
+"d": 0.816,
+"t": "Alright!"
+},
+{
+"f": "crowd/cheer-9.mp3",
+"d": 0.603,
+"t": "Alright!"
+},
+{
+"f": "crowd/cheer-10.mp3",
+"d": 0.973,
+"t": "Nice call!"
+},
+{
+"f": "crowd/cheer-11.mp3",
+"d": 0.866,
+"t": "Nice call!"
+},
+{
+"f": "crowd/cheer-12.mp3",
+"d": 0.744,
+"t": "Nice call!"
+},
+{
+"f": "crowd/cheer-13.mp3",
+"d": 0.856,
+"t": "Good call, Blue!"
+},
+{
+"f": "crowd/cheer-14.mp3",
+"d": 1.042,
+"t": "Good call, Blue!"
+},
+{
+"f": "crowd/cheer-15.mp3",
+"d": 1.079,
+"t": "Good call, Blue!"
+},
+{
+"f": "crowd/cheer-16.mp3",
+"d": 0.899,
+"t": "Way to go, Blue!"
+},
+{
+"f": "crowd/cheer-17.mp3",
+"d": 1.206,
+"t": "Way to go, Blue!"
+},
+{
+"f": "crowd/cheer-18.mp3",
+"d": 1.293,
+"t": "Way to go, Blue!"
+},
+{
+"f": "crowd/cheer-19.mp3",
+"d": 0.7,
+"t": "Woo hoo!"
+},
+{
+"f": "crowd/cheer-20.mp3",
+"d": 0.586,
+"t": "Woo hoo!"
+},
+{
+"f": "crowd/cheer-21.mp3",
+"d": 0.557,
+"t": "Woo hoo!"
+},
+{
+"f": "crowd/cheer-22.mp3",
+"d": 0.876,
+"t": "Let's go!"
+},
+{
+"f": "crowd/cheer-23.mp3",
+"d": 0.757,
+"t": "Let's go!"
+},
+{
+"f": "crowd/cheer-24.mp3",
+"d": 0.719,
+"t": "Let's go!"
+},
+{
+"f": "crowd/cheer-25.mp3",
+"d": 0.708,
+"t": "That's right!"
+},
+{
+"f": "crowd/cheer-26.mp3",
+"d": 0.716,
+"t": "That's right!"
+},
+{
+"f": "crowd/cheer-27.mp3",
+"d": 0.771,
+"t": "That's right!"
+},
+{
+"f": "crowd/cheer-28.mp3",
+"d": 0.863,
+"t": "Great call!"
+},
+{
+"f": "crowd/cheer-29.mp3",
+"d": 0.672,
+"t": "Great call!"
+},
+{
+"f": "crowd/cheer-30.mp3",
+"d": 0.916,
+"t": "Great call!"
+},
+{
+"f": "crowd/cheer-31.mp3",
+"d": 0.729,
+"t": "Yeah, Blue!"
+},
+{
+"f": "crowd/cheer-32.mp3",
+"d": 0.643,
+"t": "Yeah, Blue!"
+},
+{
+"f": "crowd/cheer-33.mp3",
+"d": 0.707,
+"t": "Yeah, Blue!"
+},
+{
+"f": "crowd/cheer-34.mp3",
+"d": 0.648,
+"t": "Nice!"
+},
+{
+"f": "crowd/cheer-35.mp3",
+"d": 0.697,
+"t": "Nice!"
+},
+{
+"f": "crowd/cheer-36.mp3",
+"d": 0.666,
+"t": "Nice!"
+},
+{
+"f": "crowd/cheer-37.mp3",
+"d": 0.637,
+"t": "Awesome!"
+},
+{
+"f": "crowd/cheer-38.mp3",
+"d": 0.73,
+"t": "Awesome!"
+},
+{
+"f": "crowd/cheer-39.mp3",
+"d": 0.666,
+"t": "Awesome!"
+},
+{
+"f": "crowd/cheer-40.mp3",
+"d": 0.631,
+"t": "Atta way!"
+},
+{
+"f": "crowd/cheer-41.mp3",
+"d": 0.616,
+"t": "Atta way!"
+},
+{
+"f": "crowd/cheer-42.mp3",
+"d": 0.756,
+"t": "Atta way!"
+}
+],
+"crowd.groan": [
+{
+"f": "crowd/groan.mp3",
+"d": 0.675,
+"t": "Aww!"
+},
+{
+"f": "crowd/groan-2.mp3",
+"d": 0.525,
+"t": "Aww!"
+},
+{
+"f": "crowd/groan-3.mp3",
+"d": 0.599,
+"t": "Aww!"
+},
+{
+"f": "crowd/groan-4.mp3",
+"d": 0.71,
+"t": "Oh no!"
+},
+{
+"f": "crowd/groan-5.mp3",
+"d": 0.758,
+"t": "Oh no!"
+},
+{
+"f": "crowd/groan-6.mp3",
+"d": 0.634,
+"t": "Oh no!"
+},
+{
+"f": "crowd/groan-7.mp3",
+"d": 0.804,
+"t": "Come on, Blue!"
+},
+{
+"f": "crowd/groan-8.mp3",
+"d": 1.167,
+"t": "Come on, Blue!"
+},
+{
+"f": "crowd/groan-9.mp3",
+"d": 1.041,
+"t": "Come on, Blue!"
+},
+{
+"f": "crowd/groan-10.mp3",
+"d": 0.572,
+"t": "What?"
+},
+{
+"f": "crowd/groan-11.mp3",
+"d": 0.521,
+"t": "What?"
+},
+{
+"f": "crowd/groan-12.mp3",
+"d": 0.559,
+"t": "What?"
+},
+{
+"f": "crowd/groan-13.mp3",
+"d": 1.193,
+"t": "Are you kidding me?"
+},
+{
+"f": "crowd/groan-14.mp3",
+"d": 1.183,
+"t": "Are you kidding me?"
+},
+{
+"f": "crowd/groan-15.mp3",
+"d": 0.824,
+"t": "Are you kidding me?"
+},
+{
+"f": "crowd/groan-16.mp3",
+"d": 0.722,
+"t": "Boo!"
+},
+{
+"f": "crowd/groan-17.mp3",
+"d": 0.488,
+"t": "Boo!"
+},
+{
+"f": "crowd/groan-18.mp3",
+"d": 0.568,
+"t": "Boo!"
+},
+{
+"f": "crowd/groan-19.mp3",
+"d": 0.759,
+"t": "Oh, come on!"
+},
+{
+"f": "crowd/groan-20.mp3",
+"d": 1.093,
+"t": "Oh, come on!"
+},
+{
+"f": "crowd/groan-21.mp3",
+"d": 0.959,
+"t": "Oh, come on!"
+},
+{
+"f": "crowd/groan-22.mp3",
+"d": 0.665,
+"t": "No way!"
+},
+{
+"f": "crowd/groan-23.mp3",
+"d": 0.817,
+"t": "No way!"
+},
+{
+"f": "crowd/groan-24.mp3",
+"d": 0.822,
+"t": "No way!"
+},
+{
+"f": "crowd/groan-25.mp3",
+"d": 0.631,
+"t": "Ugh!"
+},
+{
+"f": "crowd/groan-26.mp3",
+"d": 0.481,
+"t": "Ugh!"
+},
+{
+"f": "crowd/groan-27.mp3",
+"d": 0.508,
+"t": "Ugh!"
+},
+{
+"f": "crowd/groan-28.mp3",
+"d": 1.252,
+"t": "You missed it, Blue!"
+},
+{
+"f": "crowd/groan-29.mp3",
+"d": 1.119,
+"t": "You missed it, Blue!"
+},
+{
+"f": "crowd/groan-30.mp3",
+"d": 0.973,
+"t": "You missed it, Blue!"
+}
+],
+"crowd.chatter": [
+{
+"f": "crowd/chatter.mp3",
+"d": 1.057,
+"t": "Let's go, batter!"
+},
+{
+"f": "crowd/chatter-2.mp3",
+"d": 1.075,
+"t": "Let's go, batter!"
+},
+{
+"f": "crowd/chatter-3.mp3",
+"d": 1.147,
+"t": "Hey batter batter!"
+},
+{
+"f": "crowd/chatter-4.mp3",
+"d": 0.82,
+"t": "Hey batter batter!"
+},
+{
+"f": "crowd/chatter-5.mp3",
+"d": 0.942,
+"t": "Swing, batter!"
+},
+{
+"f": "crowd/chatter-6.mp3",
+"d": 0.881,
+"t": "Swing, batter!"
+},
+{
+"f": "crowd/chatter-7.mp3",
+"d": 0.93,
+"t": "You got this!"
+},
+{
+"f": "crowd/chatter-8.mp3",
+"d": 1.0,
+"t": "You got this!"
+},
+{
+"f": "crowd/chatter-9.mp3",
+"d": 0.666,
+"t": "Good eye!"
+},
+{
+"f": "crowd/chatter-10.mp3",
+"d": 0.697,
+"t": "Good eye!"
+},
+{
+"f": "crowd/chatter-11.mp3",
+"d": 0.837,
+"t": "Throw strikes!"
+},
+{
+"f": "crowd/chatter-12.mp3",
+"d": 0.834,
+"t": "Throw strikes!"
+},
+{
+"f": "crowd/chatter-13.mp3",
+"d": 1.198,
+"t": "Let's go, defense!"
+},
+{
+"f": "crowd/chatter-14.mp3",
+"d": 1.003,
+"t": "Let's go, defense!"
+},
+{
+"f": "crowd/chatter-15.mp3",
+"d": 0.991,
+"t": "Come on, buddy!"
+},
+{
+"f": "crowd/chatter-16.mp3",
+"d": 1.082,
+"t": "Come on, buddy!"
+},
+{
+"f": "crowd/chatter-17.mp3",
+"d": 0.721,
+"t": "Here we go!"
+},
+{
+"f": "crowd/chatter-18.mp3",
+"d": 0.959,
+"t": "Here we go!"
+},
+{
+"f": "crowd/chatter-19.mp3",
+"d": 0.909,
+"t": "Two more outs!"
+},
+{
+"f": "crowd/chatter-20.mp3",
+"d": 0.869,
+"t": "Two more outs!"
+},
+{
+"f": "crowd/chatter-21.mp3",
+"d": 1.108,
+"t": "Nice and easy!"
+},
+{
+"f": "crowd/chatter-22.mp3",
+"d": 1.19,
+"t": "Nice and easy!"
+},
+{
+"f": "crowd/chatter-23.mp3",
+"d": 1.316,
+"t": "Let's go, Hawks!"
+},
+{
+"f": "crowd/chatter-24.mp3",
+"d": 1.193,
+"t": "Let's go, Hawks!"
+},
+{
+"f": "crowd/chatter-25.mp3",
+"d": 1.017,
+"t": "Let's go, Titans!"
+},
+{
+"f": "crowd/chatter-26.mp3",
+"d": 1.424,
+"t": "Let's go, Titans!"
+},
+{
+"f": "crowd/chatter-27.mp3",
+"d": 0.739,
+"t": "Good hustle!"
+},
+{
+"f": "crowd/chatter-28.mp3",
+"d": 0.862,
+"t": "Good hustle!"
+},
+{
+"f": "crowd/chatter-29.mp3",
+"d": 0.966,
+"t": "Eye on the ball!"
+},
+{
+"f": "crowd/chatter-30.mp3",
+"d": 0.821,
+"t": "Eye on the ball!"
+},
+{
+"f": "crowd/chatter-31.mp3",
+"d": 0.898,
+"t": "Be a hitter!"
+},
+{
+"f": "crowd/chatter-32.mp3",
+"d": 0.787,
+"t": "Be a hitter!"
+},
+{
+"f": "crowd/chatter-33.mp3",
+"d": 0.975,
+"t": "Stay focused!"
+},
+{
+"f": "crowd/chatter-34.mp3",
+"d": 1.0,
+"t": "Stay focused!"
+},
+{
+"f": "crowd/chatter-35.mp3",
+"d": 1.313,
+"t": "Make him pitch to you!"
+},
+{
+"f": "crowd/chatter-36.mp3",
+"d": 1.002,
+"t": "Make him pitch to you!"
+}
 ]
 }

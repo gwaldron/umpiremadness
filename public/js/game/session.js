@@ -117,6 +117,7 @@ export class Session {
     else hud.setLives(null);
     hud.setProgress(this.events ? this.events.map(() => null) : null, 0);
     audio.startCrowd();
+    voices.startChatter(() => !this.paused && !this.ended);
     const umpName = this.profile.name || 'Blue';
     setTimeout(() => voices.modeIntro(this.mode, this.cfg.title, umpName), this.mode === 'career' || this.mode === 'camp' ? 400 : 300);
     if (this.field.setTimeOfDay) this.field.setTimeOfDay(this.cfg.night ? 'night' : 'day');
@@ -295,6 +296,11 @@ export class Session {
     }
     if (res.correct) {
       this.field.cheer(res.kind === 'pitch' ? (res.strikeThree ? 0.9 : 0.3) : 0.85);
+      // the crowd cheers every right call: a little for a ball or strike, big for strikeouts, base
+      // calls and rulings, huge for bang-bang plays and streaks
+      const ck = res.bangBang || (this.streak > 0 && this.streak % 5 === 0) ? 1.3 : res.kind === 'pitch' ? (res.strikeThree ? 0.9 : 0.35) : 0.9;
+      const fans = voices.cheer(ck);
+      audio.cheer(ck * 0.7, { voices: !fans });
       // confetti for the big moments
       if (this.streak > 0 && this.streak % 5 === 0) confetti.burst({ x: 0.5, y: 0.42, n: 70 + Math.min(80, this.streak * 3), power: 1.1 });
       else if (res.bangBang) confetti.burst({ x: 0.5, y: 0.45, n: 70 });
@@ -303,12 +309,12 @@ export class Session {
       if (this.streak > 0 && this.streak % 5 === 0) {
         audio.streak(this.streak / 5);
         if (this.streak === 5 || this.streak === 15) audio.rally();
-        if (this.streak === 10) { audio.charge(); hud.stamp('ON FIRE!', 'gold'); audio.cheer(1); }
+        if (this.streak === 10) { audio.charge(); hud.stamp('ON FIRE!', 'gold'); }
       }
     } else {
       input.rumble(0.8, 0.4, 220);
       this.shake(8);
-      setTimeout(() => (Math.random() < 0.65 ? audio.aww() : audio.boo()), 350);
+      setTimeout(() => { if (!voices.groan(0.7)) (Math.random() < 0.65 ? audio.aww() : audio.boo()); }, 350);
     }
     // Lives / blitz
     if (!res.correct && this.lives !== null) {
@@ -345,9 +351,11 @@ export class Session {
     if (res.correct) {
       this.field.cheer(0.5);
       confetti.burst({ x: 0.5, y: 0.45, n: 28, power: 0.7 });
+      const fans = voices.cheer(0.4);
+      audio.cheer(0.3, { voices: !fans });
     } else {
       input.rumble(0.5, 0.3, 160);
-      setTimeout(() => audio.aww(), 300);
+      setTimeout(() => { if (!voices.groan(0.4)) audio.aww(); }, 300);
     }
     return { items: [{ label: 'Practice replay — no points', pts: 0 }], points: 0, mult: 1, correct: res.correct, newCard: false, practice: true };
   }
@@ -410,6 +418,7 @@ export class Session {
     setRng(null); // back to plain randomness outside a session
     if (this.field.setTimeOfDay) this.field.setTimeOfDay('day');
     audio.stopCrowd();
+    voices.stopChatter();
     input.stickEnabled = false;
     this.hud.hide();
     document.body.classList.remove('ingame');

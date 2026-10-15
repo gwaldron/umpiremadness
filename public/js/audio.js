@@ -346,12 +346,13 @@ class AudioEngine {
       this._noise({ when: w, dur: 0.018, type: 'bandpass', freq: 1200 + Math.random() * 1600, q: 1.2, peak: peak * (0.4 + Math.random() * 0.6), attack: 0.0008, out: this.crowdBus });
     }
   }
-  cheer(intensity = 1) {
+  // voices: false when real fan shouts (voice.js) are layered on top instead of synthesized ones
+  cheer(intensity = 1, { voices = true } = {}) {
     if (!this.ok) return;
     const k = Math.min(1.5, intensity);
     this._noise({ dur: 1.6 * k, type: 'bandpass', freq: 900, q: 0.6, peak: 0.28 * k, attack: 0.2, pink: true, out: this.crowdBus });
     this._noise({ dur: 1.3 * k, type: 'bandpass', freq: 2200, q: 0.9, peak: 0.12 * k, attack: 0.15, out: this.crowdBus });
-    this._crowdVoices({ dur: 1.4 * k, base: 260, formants: [[700, 3], [1200, 4]], peak: 0.12 * k, glide: 1.12, attack: 0.15 });
+    if (voices) this._crowdVoices({ dur: 1.4 * k, base: 260, formants: [[700, 3], [1200, 4]], peak: 0.12 * k, glide: 1.12, attack: 0.15 });
     this._claps(Math.round(40 * k), 1.6 * k, 0.1, 0.3);
     if (Math.random() < 0.7) this._whistle(0.3 + Math.random() * 0.4);
   }
@@ -374,7 +375,7 @@ class AudioEngine {
     if (!this.ok || this.crowd) return;
     const ctx = this.ctx;
     const layers = [];
-    for (const [freq, q, vol, rate] of [[350, 0.6, 0.05, 0.11], [800, 0.8, 0.035, 0.17], [1600, 1.0, 0.015, 0.23]]) {
+    for (const [freq, q, vol, rate] of [[350, 0.6, 0.07, 0.11], [800, 0.8, 0.05, 0.17], [1600, 1.0, 0.02, 0.23]]) {
       const src = ctx.createBufferSource();
       src.buffer = this._pink;
       src.loop = true;

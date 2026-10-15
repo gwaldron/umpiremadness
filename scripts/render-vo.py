@@ -33,7 +33,12 @@ ROLES = {
     'u': ('am_fenrir', 1.0),   # the umpire (you)
     'pa': ('am_michael', 0.9),  # stadium PA announcer
     'c': ('af_bella', 1.08),    # TV color commentator
+    'crowd': ('am_adam', 1.05),  # fans in the stands (each line picks its own voice)
 }
+
+# Fans: lots of different voices, layered in the game into a crowd (pitched up a bit for kids)
+FANS = ['af_bella', 'af_nicole', 'af_sky', 'af_sarah', 'af_nova', 'af_river', 'af_jessica', 'af_kore',
+        'am_adam', 'am_echo', 'am_eric', 'am_liam', 'am_puck', 'am_michael', 'am_onyx', 'am_fenrir']
 
 ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
         'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
@@ -66,6 +71,7 @@ def lines():
     u = lambda g, t, sp=1.0: L.append(('u.' + g, 'u', t, sp))
     pa = lambda g, t, sp=1.0: L.append(('pa.' + g, 'pa', t, sp))
     c = lambda g, t, sp=1.0: L.append(('c.' + g, 'c', t, sp))
+    fan = lambda g, t, v, sp=1.05: L.append(('crowd.' + g, 'crowd', t, sp, v))
 
     # --- umpire calls ---
     u('strike', 'Strike!'); u('strike', 'Strike!', 0.86); u('strike', 'Strike, right there!', 1.05)
@@ -127,6 +133,27 @@ def lines():
     }.items():
         for t in ts:
             c(g, t)
+    # --- the crowd: cheers for a good call, groans for a miss, Little League chatter in between ---
+    k = 0
+    def fans(n):
+        nonlocal k
+        out = [FANS[(k + i * 5) % len(FANS)] for i in range(n)]
+        k += 3
+        return out
+    for t in ['Yeah!', 'Yes!', 'Alright!', 'Nice call!', 'Good call, Blue!', 'Way to go, Blue!', 'Woo hoo!',
+              "Let's go!", "That's right!", 'Great call!', 'Yeah, Blue!', 'Nice!', 'Awesome!', 'Atta way!']:
+        for v in fans(3):
+            fan('cheer', t, v, 1.1)
+    for t in ['Aww!', 'Oh no!', 'Come on, Blue!', 'What?', 'Are you kidding me?', 'Boo!', 'Oh, come on!',
+              'No way!', 'Ugh!', 'You missed it, Blue!']:
+        for v in fans(3):
+            fan('groan', t, v, 1.0)
+    for t in ["Let's go, batter!", 'Hey batter batter!', 'Swing, batter!', 'You got this!', 'Good eye!',
+              'Throw strikes!', "Let's go, defense!", 'Come on, buddy!', 'Here we go!', 'Two more outs!',
+              'Nice and easy!', "Let's go, Hawks!", "Let's go, Titans!", 'Good hustle!', 'Eye on the ball!',
+              'Be a hitter!', 'Stay focused!', 'Make him pitch to you!']:
+        for v in fans(2):
+            fan('chatter', t, v, 1.05)
     return L
 
 
@@ -166,8 +193,10 @@ def main():
 
     counts = {}
     todo = [l for l in lines() if not only or any(l[0].startswith(p) for p in only)]
-    for i, (group, role, text, sp) in enumerate(todo):
+    for i, (group, role, text, sp, *rest) in enumerate(todo):
         voice, base = ROLES[role]
+        if rest:
+            voice = rest[0]
         samples, sr = k.create(text, voice=voice, speed=base * sp, lang='en-us')
         y = polish(samples, sr)
         counts[group] = counts.get(group, 0) + 1
