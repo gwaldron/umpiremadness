@@ -1,10 +1,17 @@
 // Keyframed play animation: actors move between keys; the ball follows segments.
-import { KITS, SKINS } from '../render/figures.js';
+import { KITS, SKINS, THROW_RELEASE } from '../render/figures.js';
 import { POS, BASES, UMP_SPOTS } from '../render/field.js';
 import { lerp, clamp, easeOut, pick, dist, shuffle } from '../util.js';
 
 export const BASE_XY = { 0: BASES.home, 1: BASES.first, 2: BASES.second, 3: BASES.third, 4: BASES.home };
-export const STRIDE = 5.2; // feet per run cycle
+export const STRIDE = 6.8; // feet per run cycle (the run pose's planted foot stays put at the 3D scale)
+
+// Poses whose phase runs on the clock: 0..1 over `dur` seconds (the key's, else these) from when the pose
+// started. Other poses take their phase from the running stride.
+const TIMED = { pitch: 0.6, throw: 0.6, out: 0.6, safe: 0.6, fall: 0.6, slide: 0.3, dive: 0.45, tag: 0.5, field: 0.7, catchHigh: 0.3, reach: 0.3 };
+// Seconds to ease out of the previous pose into a new one (default 0.16), and longer to get up off the dirt
+const EASE = { run: 0.2, slide: 0.1, dive: 0.1, throw: 0.08, fall: 0.06, pitch: 0.15 };
+const GET_UP = { slide: 0.45, dive: 0.5, fall: 0.55 };
 
 export class Timeline {
   constructor() {
@@ -44,7 +51,7 @@ export class Timeline {
   // Move to (x, y) arriving at t1 (starting at t0 from the last key position). pose = 'run' while moving.
   move(id, t0, t1, x, y, endPose = null, runPose = 'run') {
     const l = this.last(id);
-    if (t0 > l.t) this.actors[id].keys.push({ t: t0, x: l.x, y: l.y, pose: l.pose });
+    if (t0 > l.t) this.actors[id].keys.push({ t: t0, x: l.x, y: l.y, pose: l.pose, cont: true });
     this.actors[id].keys.push({ t: t1, x, y, pose: endPose || l.pose, movePose: runPose });
     return t1;
   }
@@ -111,16 +118,88 @@ export class Timeline {
     }
     const step = Math.hypot(a.x - px, a.y - py);
     if (step < 20) a.dist += step;
-    a.phase = (a.dist / STRIDE) % 1;
-    if (a.pose === 'pitch' || a.pose === 'throw' || a.pose === 'out' || a.pose === 'safe' || a.pose === 'fall') {
-      const k = a.keys.filter((kk) => kk.t <= t && kk.pose === a.pose).pop();
-      a.phase = k ? clamp((t - k.t) / (k.dur || 0.6), 0, 1) : 1;
+    const stride = (a.dist / STRIDE) % 1;
+    const swung = (tt) => (a.swingAt !== undefined && tt > a.swingAt ? clamp((tt - a.swingAt) / 0.35, 0, 1) : 0);
+    const j = this._poseStart(keys, i, a.pose);
+    a.phase = TIMED[a.pose] !== undefined ? this._timedPhase(keys, j, a.pose, t) : a.pose === 'bat' ? swung(t) : stride;
+    // a thrower turns to the target; a first baseman stretches toward the throw
+    const ball = a.pose === 'throw' ? this._ballFor(keys[j], true) : a.pose === 'reach' ? this._ballFor(keys[j], false) : null;
+    a.aim = ball ? (a.pose === 'throw' ? ball.to : ball.from) : null;
+    // ease out of the pose shown before this one
+    a.blendFrom = null;
+    const t0 = keys[j].t;
+    if (j > 0 && t - t0 < 0.6) {
+      const m = this._segBefore(keys, j);
+      const prev = this._shown(keys, m);
+      const ease = Math.max(EASE[a.pose] ?? 0.16, GET_UP[prev] || 0);
+      if (prev !== a.pose && t - t0 < ease) {
+        const ph = TIMED[prev] !== undefined ? this._timedPhase(keys, this._poseStart(keys, m, prev), prev, t0) : prev === 'bat' ? swung(t0) : stride;
+        a.blendFrom = { pose: prev, phase: ph, k: clamp((t - t0) / ease, 0, 1) };
+      }
     }
-    if (a.pose === 'bat') a.phase = a.swingAt !== undefined && t > a.swingAt ? clamp((t - a.swingAt) / 0.35, 0, 1) : 0;
+  }
+
+  // The pose shown while going from key m to key m + 1
+  _shown(keys, m) {
+    const k0 = keys[m], k1 = keys[m + 1];
+    if (!k1 || k1.t <= k0.t) return k0.pose;
+    return Math.hypot(k1.x - k0.x, k1.y - k0.y) > 0.2 ? k1.movePose || 'run' : k0.pose;
+  }
+
+  // The last stretch with some length before key j
+  _segBefore(keys, j) {
+    let m = j - 1;
+    while (m > 0 && keys[m + 1].t - keys[m].t <= 1e-6) m--;
+    return m;
+  }
+
+  // Index of the key where the current stretch of `pose` began (the actor is between keys i and i + 1).
+  // It carries on through a move's start key and through the end of a move made in the same pose (a
+  // slide reaching the bag), but a key that sets the pose again restarts it.
+  _poseStart(keys, i, pose) {
+    let j = i;
+    while (j > 0) {
+      const m = this._segBefore(keys, j);
+      if (this._shown(keys, m) !== pose || !(keys[j].cont || keys[j].movePose === pose)) break;
+      j = m;
+    }
+    return j;
+  }
+
+  // Phase of a clock-driven pose that began at key j, at time t
+  _timedPhase(keys, j, pose, t) {
+    const k = keys[j], k1 = keys[j + 1];
+    const moving = k1 && k1.t > k.t && Math.hypot(k1.x - k.x, k1.y - k.y) > 0.2 && k1.movePose === pose;
+    const dur = (moving ? k1.dur : k.dur) || TIMED[pose];
+    if (pose === 'throw') {
+      // land the release on the moment the ball leaves, then follow through
+      const s = this._ballFor(k, true);
+      if (s && s.t0 - k.t > 0.05) {
+        if (t < s.t0) return THROW_RELEASE * clamp((t - k.t) / (s.t0 - k.t), 0, 1);
+        return clamp(THROW_RELEASE + ((t - s.t0) / 0.28) * (1 - THROW_RELEASE), 0, 1);
+      }
+    }
+    return clamp((t - k.t) / dur, 0, 1);
+  }
+
+  // The thrown ball that leaves from (out) or arrives at (in) the spot of key k around its time
+  _ballFor(k, out) {
+    const tag = out ? '_out' : '_in';
+    if (k[tag] !== undefined) return k[tag];
+    let best = null;
+    for (const s of this.segs) {
+      if (s.k !== 'fly') continue;
+      const p = out ? s.from : s.to, ts = out ? s.t0 : s.t1;
+      if (ts < k.t - 0.1 || ts > k.t + 1.5 || Math.hypot(p.x - k.x, p.y - k.y) > 6) continue;
+      if (!best || ts < (out ? best.t0 : best.t1)) best = s;
+    }
+    k[tag] = best;
+    return best;
   }
 
   sampleBall(t) {
     const b = this.ball;
+    b.holder = null;
     let seg = null;
     for (const s of this.segs) if (t >= s.t0 && t <= s.t1) seg = s;
     if (!seg) {
@@ -138,6 +217,7 @@ export class Timeline {
       case 'hold': {
         const a = this.actors[seg.actorId];
         p = { x: a.x + 0.6, y: a.y - 0.4, z: seg.z };
+        b.holder = seg.actorId; // the 3D view puts it in the thrower's hand
         break;
       }
       case 'rest': p = { ...seg.p, z: seg.p.z ?? 0.12 }; break;

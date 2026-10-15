@@ -20,16 +20,212 @@ export const UMP_CAPS = { black: '#141414', navy: '#16224a', red: '#9e1b28', gol
 
 const TAU = Math.PI * 2;
 
-function legIK(hip, a1, a2, L1 = 1.1, L2 = 1.35) {
-  const knee = [hip[0] + Math.sin(a1) * L1, hip[1] - Math.cos(a1) * L1];
-  const foot = [knee[0] + Math.sin(a2) * L2, knee[1] - Math.cos(a2) * L2];
-  return [knee, foot];
+// ---- 3D pose helpers ----
+// A joint is [x, z] or [x, z, w]. In side poses x is forward and w is toward the player's left; in front
+// poses x is the player's left (screen-right) and w is forward. The flat 2D renderer ignores w; the 3D
+// field view uses it, plus J.twist (shoulders turned left of the hips, radians), J.shF / J.shB (shoulders)
+// and J.yawF / J.yawB (which way each foot points, radians left of forward).
+const UA = 0.78, FA = 0.74, TH = 1.1, SHIN = 1.33; // upper arm, forearm, thigh, shin
+const P3 = (p) => [p[0], p[1], p[2] || 0];
+const vadd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const vsub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const vmul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const vdot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const vlen = (a) => Math.hypot(a[0], a[1], a[2]);
+
+// Elbow or knee of a two-bone limb from root toward end, bending toward `pole` (a direction). An end
+// out of reach is pulled in along the limb. Returns [middle, end].
+function bend(root, end, l1, l2, pole) {
+  const d0 = vsub(end, root);
+  const d1 = vlen(d0) || 1e-6;
+  const dir = vmul(d0, 1 / d1);
+  const d = Math.min(Math.max(d1, Math.abs(l1 - l2) + 0.02), (l1 + l2) * 0.998);
+  const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+  let q = vsub(pole, vmul(dir, vdot(pole, dir)));
+  const ql = vlen(q);
+  q = ql > 1e-6 ? vmul(q, 1 / ql) : [0, 0, 0];
+  return [vadd(vadd(root, vmul(dir, a)), vmul(q, h)), vadd(root, vmul(dir, d))];
 }
-function armIK(sh, a1, a2, L1 = 0.75, L2 = 0.7) {
-  const elbow = [sh[0] + Math.sin(a1) * L1, sh[1] - Math.cos(a1) * L1];
-  const hand = [elbow[0] + Math.sin(a2) * L2, elbow[1] - Math.cos(a2) * L2];
-  return [elbow, hand];
+
+// Shoulders of a side pose: the neck, turned by the twist
+function shoulders(neck, tw = 0) {
+  const n = P3(neck), s = Math.sin(tw), c = Math.cos(tw);
+  return [[n[0] - 0.42 * s, n[1] - 0.12, n[2] + 0.42 * c], [n[0] + 0.42 * s, n[1] - 0.12, n[2] - 0.42 * c]];
 }
+
+// Finish a side pose: add the shoulders, then re-solve elbows and knees so arms and legs keep their
+// length (a keyed elbow or knee only says which way the limb bends).
+function limbs(J) {
+  [J.shF, J.shB] = shoulders(J.neck, J.twist);
+  const h = P3(J.hip);
+  for (const s of ['F', 'B']) {
+    const side = s === 'F' ? 1 : -1;
+    const sh = J['sh' + s], hand = P3(J['hand' + s]);
+    const el = J['elbow' + s] ? P3(J['elbow' + s]) : vadd(sh, [-0.3, -1, 0.3 * side]);
+    [J['elbow' + s], J['hand' + s]] = bend(sh, hand, UA, FA, vsub(el, vmul(vadd(sh, hand), 0.5)));
+    const hs = [h[0], h[1] - 0.05, h[2] + 0.2 * side], foot = P3(J['foot' + s]);
+    const kn = J['knee' + s] ? P3(J['knee' + s]) : vadd(hs, [1, -1, 0]);
+    [J['knee' + s], J['foot' + s]] = bend(hs, foot, TH, SHIN, vsub(kn, vmul(vadd(hs, foot), 0.5)));
+  }
+  return J;
+}
+// Front poses are keyed as [left, z, forward]: swap to side axes to finish them, then back.
+const swapW = (J) => {
+  const O = {};
+  for (const k in J) O[k] = Array.isArray(J[k]) ? [J[k][2] || 0, J[k][1], J[k][0]] : J[k];
+  return O;
+};
+const limbsFront = (J) => swapW(limbs(swapW(J)));
+
+// Smooth path through keyframes [{ p, joint: [..], scalar: n }], easing in and out at the ends.
+function keyed(keys, p) {
+  const n = keys.length;
+  p = Math.max(keys[0].p, Math.min(keys[n - 1].p, p));
+  let i = 0;
+  while (i < n - 2 && p > keys[i + 1].p) i++;
+  const k0 = keys[i], k1 = keys[i + 1], km = keys[i - 1], kp = keys[i + 2];
+  const dt = k1.p - k0.p, u = dt > 0 ? (p - k0.p) / dt : 1;
+  const u2 = u * u, u3 = u2 * u;
+  const h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = 3 * u2 - 2 * u3, h11 = u3 - u2;
+  const val = (a, b, ta, tb) => (ta === undefined || tb === undefined ? 0 : ((b - a) / (tb - ta)) * dt);
+  const f = (v0, v1, vm, vp) => h00 * v0 + h10 * val(vm, v1, km && km.p, k1.p) + h01 * v1 + h11 * val(v0, vp, k0.p, kp && kp.p);
+  const J = {};
+  for (const j in k1) {
+    if (j === 'p') continue;
+    const a = k0[j], b = k1[j];
+    if (typeof b === 'number') J[j] = f(a, b, km && km[j], kp && kp[j]);
+    else J[j] = b.map((_, c) => f(a[c] || 0, b[c] || 0, km && (km[j][c] || 0), kp && (kp[j][c] || 0)));
+  }
+  return J;
+}
+
+// Catmull-Rom through [u, ...values] points (u ascending), for one value at u
+function spline(pts, u) {
+  let i = 1;
+  while (i < pts.length - 3 && u > pts[i + 1][0]) i++;
+  const a = pts[i - 1], b = pts[i], c = pts[i + 1], d = pts[i + 2];
+  const dt = c[0] - b[0], t = Math.max(0, Math.min(1, (u - b[0]) / dt));
+  const t2 = t * t, t3 = t2 * t;
+  return b.slice(1).map((_, k) => {
+    const m0 = ((c[k + 1] - a[k + 1]) / (c[0] - a[0])) * dt, m1 = ((d[k + 1] - b[k + 1]) / (d[0] - b[0])) * dt;
+    return (2 * t3 - 3 * t2 + 1) * b[k + 1] + (t3 - 2 * t2 + t) * m0 + (3 * t2 - 2 * t3) * c[k + 1] + (t3 - t2) * m1;
+  });
+}
+
+// ---- Run cycle ----
+// Each leg's phase q: foot strike at 0, planted (moving back under the body) until RUN_ST, then the swing:
+// the heel kicks up, the knee drives through, the leg reaches out and paws back down.
+// One cycle covers (RUN_XC - RUN_XO) / RUN_ST = 6.0 ft; timeline STRIDE matches it at the 3D scale.
+const RUN_ST = 0.32, RUN_XC = 0.78, RUN_XO = -1.14;
+const RUN_SWING = [ // [u, forward, height]
+  [-0.15, RUN_XO + 0.6, 0.06], [0, RUN_XO, 0.3], [0.2, -1.22, 0.95], [0.42, -0.66, 1.3], [0.62, 0.42, 0.68],
+  [0.8, 1.04, 0.36], [0.93, 0.98, 0.12], [1, RUN_XC, 0], [1.15, RUN_XC - 0.6, 0],
+];
+function runFoot(q, w) {
+  if (q < RUN_ST) {
+    const u = q / RUN_ST;
+    return [RUN_XC + (RUN_XO - RUN_XC) * u, 0.3 * Math.max(0, (u - 0.72) / 0.28) ** 2, w];
+  }
+  const [x, z] = spline(RUN_SWING, (q - RUN_ST) / (1 - RUN_ST));
+  return [x, Math.max(0, z), w];
+}
+
+// ---- Keyframed action poses (see keyed) ----
+export const THROW_RELEASE = 0.6;
+const THROW_KEYS = [
+  { p: 0, hip: [0, 2.15, 0], neck: [0.05, 3.62, 0], head: [0.14, 4.1, 0], twist: -1.0, yawF: -0.4, yawB: -1.3, // hands together at the chest
+    handF: [0.5, 3.0, 0.05], elbowF: [0.3, 2.75, 0.5], handB: [0.45, 3.05, -0.1], elbowB: [0.15, 2.8, -0.5],
+    footF: [0.45, 0, 0.3], kneeF: [0.6, 1.2, 0.4], footB: [-0.45, 0, -0.3], kneeB: [-0.2, 1.2, -0.45] },
+  { p: 0.3, hip: [-0.05, 2.05, 0], neck: [-0.22, 3.55, 0], head: [-0.08, 4.03, 0], twist: -1.45, yawF: -0.5, yawB: -1.35, // stride, glove at the target, arm cocked
+    handF: [1.55, 3.75, 0.1], elbowF: [0.92, 3.6, 0.2], handB: [-1.15, 4.3, -0.35], elbowB: [-1.2, 3.55, -0.5],
+    footF: [1.05, 0.22, 0.12], kneeF: [0.8, 1.3, 0.2], footB: [-0.6, 0, -0.3], kneeB: [-0.2, 1.15, -0.45] },
+  { p: 0.48, hip: [0.2, 1.95, 0], neck: [0.38, 3.44, 0], head: [0.55, 3.9, 0], twist: -0.45, yawF: -0.15, yawB: -1.1, // plant, hips open, elbow up
+    handF: [0.8, 3.25, 0.25], elbowF: [0.65, 2.95, 0.6], handB: [-0.2, 4.3, -0.95], elbowB: [0.0, 3.6, -1.05],
+    footF: [1.35, 0, 0.12], kneeF: [1.15, 1.15, 0.2], footB: [-0.62, 0.06, -0.3], kneeB: [-0.1, 1.0, -0.4] },
+  { p: THROW_RELEASE, hip: [0.42, 1.95, 0], neck: [0.78, 3.4, 0], head: [0.98, 3.82, 0], twist: 0.25, yawF: 0, yawB: -0.6, // release out front
+    handF: [0.75, 2.75, 0.2], elbowF: [0.25, 2.75, 0.8], handB: [1.85, 4.25, -0.15], elbowB: [1.15, 3.7, -0.5],
+    footF: [1.35, 0, 0.12], kneeF: [1.3, 1.15, 0.15], footB: [-0.5, 0.25, -0.25], kneeB: [0.05, 0.95, -0.3] },
+  { p: 0.8, hip: [0.55, 1.85, 0], neck: [1.15, 3.07, 0], head: [1.42, 3.42, 0], twist: 0.75, yawF: 0, yawB: -0.2, // follow through across the body
+    handF: [0.6, 2.4, 0.55], elbowF: [0.3, 2.65, 0.8], handB: [1.25, 1.75, 0.45], elbowB: [1.4, 2.5, 0.05],
+    footF: [1.35, 0, 0.12], kneeF: [1.45, 1.1, 0.15], footB: [-0.1, 0.75, -0.2], kneeB: [0.45, 1.3, -0.25] },
+  { p: 1, hip: [0.5, 2.1, 0], neck: [0.9, 3.55, 0], head: [1.05, 4.03, 0], twist: 0.3, yawF: 0, yawB: 0, // back foot comes around
+    handF: [0.95, 2.75, 0.45], elbowF: [0.7, 3.0, 0.65], handB: [1.05, 2.55, -0.05], elbowB: [0.85, 3.0, -0.4],
+    footF: [1.35, 0, 0.3], kneeF: [1.5, 1.2, 0.3], footB: [0.85, 0, -0.45], kneeB: [1.0, 1.2, -0.45] },
+];
+const SLIDE_KEYS = [
+  { p: 0, hip: [0, 2.1, 0], neck: [-0.12, 3.6, 0], head: [-0.02, 4.08, 0], twist: 0,
+    handF: [0.35, 3.15, 0.55], elbowF: [0, 2.95, 0.65], handB: [-0.25, 3.2, -0.55], elbowB: [-0.5, 3.0, -0.65],
+    footF: [0.75, 0.35, 0.1], kneeF: [0.7, 1.25, 0.15], footB: [-0.65, 0.12, -0.1], kneeB: [0, 1.05, -0.2] },
+  { p: 0.5, hip: [0.15, 1.15, 0], neck: [-0.62, 2.43, 0], head: [-0.5, 2.92, 0], twist: 0,
+    handF: [-0.3, 3.05, 0.6], elbowF: [-0.6, 2.45, 0.7], handB: [-0.3, 3.05, -0.6], elbowB: [-0.6, 2.45, -0.7],
+    footF: [1.9, 0.45, 0.1], kneeF: [1.1, 1.05, 0.15], footB: [0.35, 0.18, -0.1], kneeB: [0.8, 0.65, -0.45] },
+  { p: 1, hip: [0.1, 0.45, 0], neck: [-0.95, 1.52, 0], head: [-0.78, 1.99, 0], twist: 0,
+    handF: [-0.5, 2.75, 0.7], elbowF: [-0.95, 2.2, 0.75], handB: [-0.5, 2.75, -0.7], elbowB: [-0.95, 2.2, -0.75],
+    footF: [2.3, 0.28, 0.12], kneeF: [1.2, 0.6, 0.15], footB: [1.0, 0.1, 0.05], kneeB: [0.75, 0.55, -0.6] },
+];
+const DIVE_KEYS = [
+  { p: 0, hip: [0, 2.15, 0], neck: [0.48, 3.57, 0], head: [0.68, 4.03, 0], twist: 0,
+    handF: [0.55, 2.75, 0.5], elbowF: [0.1, 2.95, 0.6], handB: [0.4, 2.7, -0.5], elbowB: [0, 2.9, -0.6],
+    footF: [0.45, 0, 0.12], kneeF: [0.75, 1.15, 0.2], footB: [-0.95, 0.4, -0.12], kneeB: [-0.2, 1.1, -0.2] },
+  { p: 0.35, hip: [-0.55, 1.45, 0], neck: [0.88, 1.55, 0], head: [1.3, 1.82, 0], twist: 0,
+    handF: [2.1, 1.55, 0.38], elbowF: [1.55, 1.75, 0.5], handB: [2.0, 1.5, -0.38], elbowB: [1.45, 1.7, -0.5],
+    footF: [-2.15, 0.85, 0.15], kneeF: [-1.3, 1.0, 0.2], footB: [-2.4, 1.25, -0.15], kneeB: [-1.45, 1.3, -0.2] },
+  { p: 1, hip: [-1.3, 0.5, 0], neck: [0.15, 0.62, 0], head: [0.6, 0.86, 0], twist: 0,
+    handF: [1.45, 0.38, 0.4], elbowF: [0.88, 0.55, 0.5], handB: [1.35, 0.36, -0.4], elbowB: [0.8, 0.55, -0.5],
+    footF: [-3.55, 0.4, 0.25], kneeF: [-2.45, 0.3, 0.25], footB: [-3.45, 0.55, -0.25], kneeB: [-2.4, 0.32, -0.25] },
+];
+const REACH_KEYS = [
+  { p: 0, hip: [0, 2.0, 0], neck: [0.25, 3.48, 0], head: [0.36, 3.97, 0], twist: 0,
+    handF: [0.75, 3.0, 0.3], elbowF: [0.35, 2.75, 0.65], handB: [0.6, 2.9, -0.3], elbowB: [0.25, 2.7, -0.65],
+    footF: [0.3, 0, 0.45], kneeF: [0.55, 1.05, 0.5], footB: [-0.35, 0, -0.45], kneeB: [0, 1.05, -0.55] },
+  // the base plays catch the throw about a foot in front of the fielder, so the stretch is mostly a lunge
+  { p: 1, hip: [-0.3, 1.8, 0], neck: [0.25, 3.2, 0], head: [0.42, 3.67, 0], twist: 0.2,
+    handF: [1.15, 3.1, 0.15], elbowF: [0.7, 3.0, 0.45], handB: [0.55, 2.75, -0.4], elbowB: [0.2, 2.75, -0.65],
+    footF: [1.15, 0, 0.2], kneeF: [1.05, 1.0, 0.25], footB: [-1.0, 0, -0.2], kneeB: [-0.5, 0.95, -0.3] },
+];
+const TAG_KEYS = [
+  { p: 0, hip: [0, 1.95, 0], neck: [0.32, 3.42, 0], head: [0.45, 3.9, 0], twist: 0,
+    handF: [0.95, 3.0, 0.15], elbowF: [0.55, 2.75, 0.6], handB: [0.85, 2.85, -0.12], elbowB: [0.45, 2.65, -0.6],
+    footF: [0.25, 0, 0.75], kneeF: [0.55, 1.05, 0.8], footB: [-0.25, 0, -0.75], kneeB: [0.1, 1.05, -0.85] },
+  { p: 0.4, hip: [-0.15, 1.05, 0], neck: [0.92, 2.1, 0], head: [1.32, 2.36, 0], twist: 0.12,
+    handF: [1.45, 0.45, 0.05], elbowF: [1.0, 1.0, 0.45], handB: [1.35, 0.8, -0.12], elbowB: [0.95, 1.35, -0.5],
+    footF: [0.25, 0, 0.75], kneeF: [0.75, 0.75, 0.9], footB: [-0.25, 0, -0.75], kneeB: [0.3, 0.7, -0.95] },
+  { p: 1, hip: [-0.05, 1.72, 0], neck: [0.3, 3.18, 0], head: [0.42, 3.66, 0], twist: 0.35,
+    handF: [0.55, 2.75, 0.8], elbowF: [0.3, 2.35, 0.8], handB: [0.45, 2.5, -0.35], elbowB: [0.15, 2.4, -0.62],
+    footF: [0.25, 0, 0.75], kneeF: [0.6, 1.0, 0.8], footB: [-0.25, 0, -0.75], kneeB: [0.15, 1.0, -0.85] },
+];
+// front poses: [left, z, forward]
+const FIELD_KEYS = [
+  { p: 0, hip: [0, 1.85, -0.25], neck: [0, 3.18, 0.45], head: [0, 3.66, 0.62],
+    handF: [0.35, 1.7, 1.2], elbowF: [0.75, 2.3, 0.75], handB: [-0.35, 1.75, 1.15], elbowB: [-0.75, 2.3, 0.7],
+    footF: [0.95, 0, 0.15], kneeF: [0.92, 1.0, 0.55], footB: [-0.95, 0, -0.05], kneeB: [-0.92, 1.0, 0.4] },
+  { p: 0.28, hip: [0, 1.25, -0.45], neck: [0, 2.0, 0.85], head: [0, 2.2, 1.32], // butt down, back flat, glove on the dirt
+    handF: [0.15, 0.4, 1.45], elbowF: [0.55, 0.95, 1.05], handB: [-0.08, 0.75, 1.4], elbowB: [-0.55, 1.25, 1.0],
+    footF: [1.0, 0, 0.3], kneeF: [1.1, 0.8, 0.55], footB: [-1.0, 0, -0.1], kneeB: [-1.1, 0.8, 0.3] },
+  { p: 0.5, hip: [0, 1.25, -0.45], neck: [0, 2.0, 0.85], head: [0, 2.2, 1.32], // bare hand covers the ball
+    handF: [0.12, 0.45, 1.35], elbowF: [0.55, 0.95, 1.0], handB: [-0.05, 0.6, 1.33], elbowB: [-0.55, 1.2, 0.95],
+    footF: [1.0, 0, 0.3], kneeF: [1.1, 0.8, 0.55], footB: [-1.0, 0, -0.1], kneeB: [-1.1, 0.8, 0.3] },
+  { p: 0.78, hip: [0, 1.62, -0.3], neck: [0, 2.95, 0.42], head: [0, 3.43, 0.55], // funnel it to the belly
+    handF: [0.12, 2.35, 0.75], elbowF: [0.62, 2.3, 0.4], handB: [-0.08, 2.42, 0.7], elbowB: [-0.62, 2.3, 0.35],
+    footF: [1.0, 0, 0.3], kneeF: [1.0, 0.95, 0.6], footB: [-1.0, 0, -0.1], kneeB: [-1.0, 0.95, 0.3] },
+  { p: 1, hip: [0, 1.95, -0.15], neck: [0, 3.42, 0.15], head: [0, 3.92, 0.22], // coming up to throw
+    handF: [0.12, 2.95, 0.6], elbowF: [0.6, 2.7, 0.3], handB: [-0.06, 3.0, 0.55], elbowB: [-0.6, 2.7, 0.25],
+    footF: [0.95, 0, 0.3], kneeF: [0.95, 1.1, 0.5], footB: [-0.95, 0, -0.1], kneeB: [-0.95, 1.1, 0.2] },
+];
+const CATCH_KEYS = [
+  { p: 0, hip: [0, 2.3, -0.05], neck: [0, 3.8, 0.12], head: [0, 4.3, 0.18],
+    handF: [0.38, 3.25, 0.65], elbowF: [0.72, 3.0, 0.3], handB: [-0.38, 3.25, 0.65], elbowB: [-0.72, 3.0, 0.3],
+    footF: [0.5, 0, 0.15], kneeF: [0.52, 1.3, 0.3], footB: [-0.45, 0, -0.15], kneeB: [-0.48, 1.3, 0.1] },
+  { p: 1, hip: [0, 2.4, -0.1], neck: [0, 3.9, -0.08], head: [0, 4.38, -0.2], // glove up over the head, eyes up
+    handF: [0.28, 5.2, 0.4], elbowF: [0.62, 4.5, 0.3], handB: [-0.12, 5.05, 0.42], elbowB: [-0.55, 4.4, 0.3],
+    footF: [0.45, 0, 0.3], kneeF: [0.48, 1.35, 0.35], footB: [-0.45, 0, -0.25], kneeB: [-0.45, 1.33, -0.1] },
+];
+const READY = limbsFront({ // athletic crouch: feet wide, knees bent, chest over the knees, glove out front
+  hip: [0, 1.9, -0.25], neck: [0, 3.25, 0.42], head: [0, 3.75, 0.6],
+  handF: [0.35, 1.95, 1.2], elbowF: [0.75, 2.45, 0.75], handB: [-0.35, 1.95, 1.15], elbowB: [-0.75, 2.45, 0.7],
+  footF: [0.95, 0, 0.05], kneeF: [0.9, 1.05, 0.45], footB: [-0.95, 0, 0], kneeB: [-0.9, 1.05, 0.4],
+});
 
 // ---- Side-view poses (x is "forward") ----
 const SIDE = {
@@ -37,21 +233,37 @@ const SIDE = {
     const hip = [0, 2.45], neck = [0.05, 3.95];
     return { hip, neck, head: [0.1, 4.45], kneeF: [0.12, 1.35], footF: [0.25, 0], kneeB: [-0.1, 1.35], footB: [-0.2, 0], elbowF: [0.2, 3.2], handF: [0.3, 2.5], elbowB: [-0.15, 3.2], handB: [-0.1, 2.5] };
   },
+  // p: 0..1 through one stride (left foot strikes at 0, right at 0.5). Leaning in, knees driving, heels
+  // kicking up, arms pumping opposite the legs with the elbows bent; the shoulders counter-turn a little.
   run(p) {
-    const s = Math.sin(p * TAU), c = Math.cos(p * TAU);
-    const hip = [0, 2.3 + 0.1 * Math.abs(c)];
-    const neck = [0.45, 3.75 + 0.1 * Math.abs(c)];
-    const [kneeF, footF] = legIK(hip, 0.8 * s, 0.8 * s - 0.4 - 0.9 * Math.max(0, -s));
-    const [kneeB, footB] = legIK(hip, -0.8 * s, -0.8 * s - 0.4 - 0.9 * Math.max(0, s));
-    const [elbowF, handF] = armIK(neck, -0.9 * s, -0.9 * s + 1.5);
-    const [elbowB, handB] = armIK(neck, 0.9 * s, 0.9 * s + 1.5);
-    const low = Math.min(footF[1], footB[1]);
-    const J = { hip, neck, head: [0.6, 4.22 + 0.1 * Math.abs(c)], kneeF, footF, kneeB, footB, elbowF, handF, elbowB, handB };
-    if (low < 0) for (const k in J) J[k] = [J[k][0], J[k][1] - low];
-    return J;
+    p = ((p % 1) + 1) % 1;
+    const half = (p * 2) % 1, st = RUN_ST * 2;
+    // the body sinks onto the planted leg and floats up between steps
+    const hz = half < st ? 2.24 - 0.12 * Math.sin((Math.PI * half) / st) : 2.24 + 0.09 * Math.sin((Math.PI * (half - st)) / (1 - st));
+    const hip = [0, hz, 0];
+    const neck = [0.36, hz + 1.455, 0];
+    // the arm on the right side swings forward as the left knee drives (left knee is highest near p = 0.8)
+    const sw = Math.cos(TAU * (p - 0.84));
+    const twist = 0.2 * sw;
+    const [shF, shB] = shoulders(neck, twist);
+    const arm = (sh, s, side) => {
+      const fwd = Math.max(0, s);
+      const a = 0.14 + 0.78 * s, fl = 1.45 + 0.28 * s; // upper arm angle off vertical, elbow bend
+      const el = vadd(sh, vmul([Math.sin(a), -Math.cos(a), 0.12 * side], UA));
+      const hd = vadd(el, vmul([Math.sin(a + fl), -Math.cos(a + fl), -side * (0.2 + 0.25 * fwd)], FA));
+      return [el, hd];
+    };
+    const [elbowF, handF] = arm(shF, -sw, 1);
+    const [elbowB, handB] = arm(shB, sw, -1);
+    return limbs({
+      hip, neck, head: [0.5, hz + 1.94, 0], twist, elbowF, handF, elbowB, handB,
+      footF: runFoot(p, 0.1), footB: runFoot((p + 0.5) % 1, -0.1), kneeF: [1.4, hz - 0.3, 0.2], kneeB: [1.4, hz - 0.3, -0.2],
+    });
   },
-  slide() {
-    return { hip: [0, 0.55], neck: [-1.35, 1.25], head: [-1.7, 1.6], kneeF: [0.95, 0.5], footF: [2.0, 0.25], kneeB: [0.6, 0.2], footB: [-0.1, 0.15], elbowF: [-1.0, 1.8], handF: [-0.7, 2.4], elbowB: [-1.6, 1.8], handB: [-1.3, 2.4] };
+  // Feet-first bent-leg slide (p: 0..1 drops from the run onto the seat): lead leg straight at the bag,
+  // the other folded under it, leaning back with the hands up
+  slide(p = 1) {
+    return limbs(keyed(SLIDE_KEYS, p));
   },
   // Knocked down in a collision: stumble back with the arms flung up, then land on the seat of the
   // pants, legs out and hands behind (p: 0..1 through the fall)
@@ -68,21 +280,25 @@ const SIDE = {
     for (const j in b) J[j] = [a[j][0] + (b[j][0] - a[j][0]) * k, a[j][1] + (b[j][1] - a[j][1]) * k];
     return J;
   },
-  dive() {
-    return { hip: [0, 0.55], neck: [1.35, 0.65], head: [1.8, 0.75], kneeF: [-1.0, 0.45], footF: [-2.0, 0.5], kneeB: [-0.95, 0.3], footB: [-1.9, 0.25], elbowF: [2.0, 0.65], handF: [2.6, 0.55], elbowB: [1.9, 0.75], handB: [2.5, 0.7] };
+  // Head-first: launch out of the run, arms reaching, and land flat on the chest (p: 0..1). The hands end
+  // up just ahead of the player's spot (where the bag or the ball is) with the body stretched out behind.
+  dive(p = 1) {
+    return limbs(keyed(DIVE_KEYS, p));
   },
-  reach() {
-    return { hip: [0.35, 1.9], neck: [1.25, 3.0], head: [1.6, 3.35], kneeF: [1.15, 0.95], footF: [1.75, 0], kneeB: [-0.25, 1.1], footB: [-0.75, 0], elbowF: [1.95, 3.0], handF: [2.65, 3.0], elbowB: [1.7, 2.6], handB: [2.1, 2.3] };
+  // First baseman's stretch (p: 0..1): back foot on the bag, front leg lunging at the throw, glove out
+  reach(p = 1) {
+    return limbs(keyed(REACH_KEYS, p));
   },
-  tag() {
-    return { hip: [-0.15, 1.6], neck: [0.65, 2.85], head: [0.95, 3.2], kneeF: [0.55, 0.9], footF: [0.55, 0], kneeB: [-0.6, 0.85], footB: [-0.75, 0], elbowF: [1.0, 1.6], handF: [1.35, 0.55], elbowB: [0.95, 2.0], handB: [1.1, 1.2] };
+  // Sweep tag (p: 0..1): take the throw straddling the bag, drop the glove to the ground in front of it,
+  // then sweep it up and away
+  tag(p = 1) {
+    return limbs(keyed(TAG_KEYS, p));
   },
+  // Overhand throw toward +x by a righty (p: 0..1, the ball leaves the hand at THROW_RELEASE): break the
+  // hands, stride at the target with the shoulders closed and the arm cocked high, plant, turn the hips and
+  // chest through, release out front, then follow through across the body as the back leg comes around.
   throw(p) {
-    const t = Math.min(1, p);
-    const a = -2.6 + t * 4.2;
-    const neck = [0.1 + 0.4 * t, 3.85];
-    const [elbowB, handB] = armIK(neck, a, a + 0.3 * (1 - t));
-    return { hip: [0.1 * t, 2.3], neck, head: [0.2 + 0.4 * t, 4.33], kneeF: [0.7, 1.1], footF: [1.2, 0], kneeB: [-0.6, 1.2], footB: [-1.0, 0], elbowF: [0.9, 3.6], handF: [1.1, 3.0], elbowB, handB };
+    return limbs(keyed(THROW_KEYS, p));
   },
   bat(p = 0) {
     // p: 0 stance, 0..1 swing
@@ -98,7 +314,12 @@ const FRONT = {
     return { hip: [0, 2.45], neck: [0, 3.95], head: [0, 4.45], kneeF: [0.3, 1.35], footF: [0.38, 0], kneeB: [-0.3, 1.35], footB: [-0.38, 0], elbowF: [0.62, 3.2], handF: [0.7, 2.5], elbowB: [-0.62, 3.2], handB: [-0.7, 2.5] };
   },
   ready() {
-    return { hip: [0, 1.95], neck: [0, 3.35], head: [0, 3.85], kneeF: [0.75, 1.1], footF: [0.85, 0], kneeB: [-0.75, 1.1], footB: [-0.85, 0], elbowF: [0.6, 2.4], handF: [0.35, 1.6], elbowB: [-0.6, 2.4], handB: [-0.35, 1.6] };
+    return { ...READY };
+  },
+  // Fielding a grounder (p: 0..1): get down with the glove on the dirt out front and the bare hand above
+  // it, then funnel the ball up to the belly and come up ready to throw
+  field(p = 1) {
+    return limbsFront(keyed(FIELD_KEYS, p));
   },
   set() {
     // Umpire set: hands on thighs
@@ -122,8 +343,9 @@ const FRONT = {
   pointL() {
     return { ...FRONT.stand(), elbowB: [-1.1, 3.95], handB: [-1.85, 4.0] };
   },
-  catchHigh() {
-    return { ...FRONT.stand(), elbowF: [0.55, 4.6], handF: [0.35, 5.35], elbowB: [-0.55, 4.6], handB: [-0.25, 5.25] };
+  // Catch over the head (p: 0..1 raises the glove), bare hand beside it, looking up
+  catchHigh(p = 1) {
+    return limbsFront(keyed(CATCH_KEYS, p));
   },
   catcher() {
     return { hip: [0, 1.2], neck: [0, 2.6], head: [0, 3.05], kneeF: [0.85, 1.15], footF: [0.75, 0], kneeB: [-0.85, 1.15], footB: [-0.75, 0], elbowF: [0.55, 2.0], handF: [0.3, 2.1], elbowB: [-0.75, 1.9], handB: [-0.7, 1.4] };

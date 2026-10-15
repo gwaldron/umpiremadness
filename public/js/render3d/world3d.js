@@ -8,9 +8,10 @@ import { People, vec3 } from './people.js';
 import { drawHero } from './hero.js';
 import { ballTexture, labelTexture, glowTexture } from './textures.js';
 import { ballColor } from '../sport.js';
+import { THROW_RELEASE } from '../render/figures.js';
 import { Dust, onDirt } from './dust.js';
 
-const { V } = vec3;
+const { V, lerp3 } = vec3;
 
 export class Field3D {
   constructor(canvas, opts = {}) {
@@ -336,11 +337,18 @@ export class Field3D {
     P.begin(camera, focal);
     const markers = [...(world.markers || [])];
     this.rig.begin();
+    let held = null;
     for (const a of world.actors || []) {
       if (a.hidden) continue;
       const W = P.applyIK(P.jointsFor(a), a.ik);
       P.drawBody(W, this.rig.draw(W, a, 'toon') ? { ...a, bodyless: true } : a);
       if (a.ring) markers.push({ x: a.x, y: a.y, r: 2.4, color: a.ring === true ? '#ffd34d' : a.ring, pulse: true });
+      // a held ball rides in the throwing hand through the windup, and in the glove after a grounder,
+      // a dive or a catch over the head (tags and stretches are left to the base plays, which drop it)
+      if (world.ball && world.ball.holder === a.id) {
+        if (a.pose === 'throw' && (a.phase || 0) < THROW_RELEASE) held = W.handB;
+        else if (a.pose === 'field' || a.pose === 'dive' || a.pose === 'catchHigh') held = lerp3(W.handF, W.handB, a.pose === 'field' ? 0.3 : 0.15);
+      }
     }
     for (const body of world.bodies || []) {
       if (body.hero) drawHero(P, body.W, this.rig.draw(body.W, body.o) ? { ...body.o, bodyless: true } : body.o);
@@ -351,7 +359,7 @@ export class Field3D {
     P.end();
     this._markers(markers, t);
     this._scuffs(world.scuffs);
-    this._ball(world.ball, camera.position);
+    this._ball(held ? { ...world.ball, x: held.x, y: held.y, z: held.z } : world.ball, camera.position);
     if (world.zone) {
       const z = world.zone;
       this.zone.visible = true;

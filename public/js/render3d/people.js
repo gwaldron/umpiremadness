@@ -60,7 +60,9 @@ export function groundZ(x, y) {
   return 0.5 * Math.min(1, (5.6 - d) / 4.0);
 }
 
-const FRONT_POSES = new Set(['stand', 'ready', 'set', 'out', 'safe', 'time', 'pointR', 'pointL', 'catchHigh', 'catcher', 'pitch']);
+const FRONT_POSES = new Set(['stand', 'ready', 'field', 'set', 'out', 'safe', 'time', 'pointR', 'pointL', 'catchHigh', 'catcher', 'pitch']);
+const JOINTS = ['hip', 'neck', 'head', 'shF', 'shB', 'elF', 'elB', 'handF', 'handB', 'kneeF', 'kneeB', 'footF', 'footB'];
+const LIMBS = [['shF', 'elF', 'handF'], ['shB', 'elB', 'handB'], ['hip', 'kneeF', 'footF'], ['hip', 'kneeB', 'footB']];
 
 export class People {
   // opts.safe: GPUs that struggled get simpler (Lambert) shading for the realistic players
@@ -276,6 +278,7 @@ export class People {
     let want;
     if (a.faceAt) want = Math.atan2(a.faceAt.y - a.y, a.faceAt.x - a.x);
     else if (a.heading !== undefined) want = a.heading;
+    else if (a.aim && Math.hypot(a.aim.x - a.x, a.aim.y - a.y) > 1) want = Math.atan2(a.aim.y - a.y, a.aim.x - a.x); // throw target
     else if (!front && Math.hypot(vx, vy) > 0.02) want = Math.atan2(vy, vx);
     else if (a.pose === 'catcher' || a.mask) want = Math.PI / 2;
     else if (!front) want = st.h ?? ((a.facing || 1) > 0 ? 0 : Math.PI);
@@ -288,21 +291,49 @@ export class People {
     return st.h;
   }
 
-  // Convert one of the 2D poses (figures.js) into world joints.
+  // Convert one of the 2D poses (figures.js) into world joints, easing in from the pose before it.
+  // Timeline actors say what they're easing out of (a.blendFrom); anyone else is tracked here.
   jointsFor(a) {
-    const { J, front } = poseJoints(a.pose || 'stand', a.phase || 0);
-    const S = ((a.height || 5) / 5) * (a.vis ?? 1.12);
     const hd = this.heading(a);
+    const pose = a.pose || 'stand', phase = a.phase || 0;
+    let from = a.blendFrom;
+    if (from === undefined) {
+      const st = this.state.get(a), now = performance.now() / 1000;
+      if (st.pose !== undefined && st.pose !== pose) st.from = { pose: st.pose, phase: st.phase, t0: now };
+      st.pose = pose; st.phase = phase;
+      from = st.from && now - st.from.t0 < 0.16 ? { ...st.from, k: (now - st.from.t0) / 0.16 } : null;
+    }
+    const W = this._place(a, pose, phase, hd);
+    if (!from || from.k >= 1 || W.batTip) return W;
+    const k = from.k * from.k * (3 - 2 * from.k);
+    return this._mix(this._place(a, from.pose, from.phase, hd), W, k);
+  }
+
+  // Blend two sets of world joints. Elbows and knees are re-bent so limbs keep their length mid-blend.
+  _mix(A, B, k) {
+    const W = { ...B };
+    for (const j of JOINTS) W[j] = lerp3(A[j], B[j], k);
+    for (const [r, m, e] of LIMBS) {
+      const pole = sub(W[m], lerp3(W[r], W[e], 0.5));
+      W[m] = solveIK(W[r], W[e], len(sub(B[m], B[r])), len(sub(B[e], B[m])), pole);
+    }
+    return W;
+  }
+
+  _place(a, pose, phase, hd) {
+    const { J, front } = poseJoints(pose, phase);
+    const S = ((a.height || 5) / 5) * (a.vis ?? 1.12);
     const f = V(Math.cos(hd), Math.sin(hd), 0);
     const L = V(-f.y, f.x, 0); // character's left
     const base = V(a.x, a.y, (a.z || 0) + groundZ(a.x, a.y));
     const mir = a.mirror ? -1 : 1;
+    // a pose's third coordinate (sideways in side poses, forward in front poses) beats these defaults
     const P = (p, lat = 0, depth = 0) => {
-      if (front) return add(base, add(add(mul(L, p[0] * S * mir), mul(UP, p[1] * S)), mul(f, depth * S)));
-      return add(base, add(add(mul(f, p[0] * S), mul(UP, p[1] * S)), mul(L, lat * S)));
+      if (front) return add(base, add(add(mul(L, p[0] * S * mir), mul(UP, p[1] * S)), mul(f, (p[2] ?? depth) * S)));
+      return add(base, add(add(mul(f, p[0] * S), mul(UP, p[1] * S)), mul(L, (p[2] ?? lat) * S)));
     };
     const squat = front && J.hip[1] - J.kneeF[1] < 0.95;
-    const hands = a.pose === 'out' || a.pose === 'safe' || a.pose === 'time' || a.pose === 'pointR' || a.pose === 'pointL' || a.pose === 'catchHigh' ? 0.15 : 0.45;
+    const hands = pose === 'out' || pose === 'safe' || pose === 'time' || pose === 'pointR' || pose === 'pointL' || pose === 'catchHigh' ? 0.15 : 0.45;
     const W = {
       f, L, S,
       hip: P(J.hip),
@@ -313,13 +344,20 @@ export class People {
       elF: P(J.elbowF, 0.5, hands * 0.6), handF: P(J.handF, 0.42, hands),
       elB: P(J.elbowB, -0.5, hands * 0.6), handB: P(J.handB, -0.42, hands),
     };
-    if (!front) {
+    if (J.shF) {
+      // the pose placed (and maybe turned) the shoulders itself
+      W.shF = P(J.shF);
+      W.shB = P(J.shB);
+    } else if (!front) {
       W.shF = add(W.neck, add(mul(L, 0.42 * S), mul(UP, -0.12 * S)));
       W.shB = add(W.neck, add(mul(L, -0.42 * S), mul(UP, -0.12 * S)));
     } else {
       W.shF = add(W.neck, add(mul(L, 0.46 * S * mir), mul(UP, -0.12 * S)));
       W.shB = add(W.neck, add(mul(L, -0.46 * S * mir), mul(UP, -0.12 * S)));
     }
+    // feet turned off the facing (a thrower's back foot points sideways)
+    if (J.yawF !== undefined) W.footDirF = add(mul(f, Math.cos(J.yawF)), mul(L, Math.sin(J.yawF)));
+    if (J.yawB !== undefined) W.footDirB = add(mul(f, Math.cos(J.yawB)), mul(L, Math.sin(J.yawB)));
     if (J.bat) {
       // Batting stance, the way hitters are taught: hands out in front near the back shoulder, the bat
       // about 50 degrees up and tilted back over the helmet toward the catcher. The swing (batP 0..1) brings the hands

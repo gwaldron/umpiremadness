@@ -221,6 +221,8 @@ export class PlayerRig {
       let fwd = v3(W.f.x, W.f.y, 0);
       const fx = foot.clone().sub(J['kn' + s]);
       if (o.feetAlong !== false && Math.hypot(fx.x, fx.y) > 0.45 * S) fwd = v3(fx.x, fx.y, 0);
+      const fd = W['footDir' + s]; // the pose turned this foot
+      if (fd) fwd = v3(fd.x, fd.y, 0);
       if (o.footDir) fwd = v3(o.footDir.x, o.footDir.y, 0);
       fwd.normalize();
       J['toe' + s] = foot.clone().addScaledVector(fwd, 0.48 * S).addScaledVector(UPV, 0.07 * S);

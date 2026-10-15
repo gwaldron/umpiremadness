@@ -43,6 +43,11 @@ function throwFrom(tl, id, t, to, speed = 65, z = 4.5) {
   tl.pose(id, t + 0.35, 'ready');
   return t1;
 }
+// Run to a ground ball and get down on it a beat before it gets there at tBall (the 'field' pose)
+function fieldAt(tl, id, t0, tBall, x, y) {
+  tl.move(id, t0, Math.max(t0 + 0.2, tBall - 0.3), x, y, 'field');
+  lastKey(tl, id).dur = 0.6;
+}
 function batterRuns(tl, t, speed = 16, to = ONBAG[1]) {
   tl.pose('BAT', t, 'stand');
   return tl.runTo('BAT', t + 0.05, to.x, to.y, speed, 'stand');
@@ -156,7 +161,8 @@ export const SITUATIONS = [
         return { pause: th + 0.25 };
       }
       // grounder gets past the shortstop, then hits the runner behind him
-      tl.move('SS', tc, tc + 0.7, -14, 63, 'tag');
+      tl.move('SS', tc, tc + 0.7, -14, 63, 'field');
+      lastKey(tl, 'SS').dur = 1.0;
       const through = { x: -18, y: 74 };
       const th = tc + 1.25;
       tl.ground(tc, th, { x: 0, y: 2 }, through);
@@ -190,7 +196,8 @@ export const SITUATIONS = [
     build(tl, v) {
       const tc = pitchHit(tl);
       const spot = { x: -15, y: 68 };
-      tl.move('SS', tc, tc + 0.55, spot.x, spot.y, v.fielding ? 'tag' : 'ready');
+      tl.move('SS', tc, tc + 0.55, spot.x, spot.y, v.fielding ? 'field' : 'ready');
+      if (v.fielding) lastKey(tl, 'SS').dur = 0.6;
       if (v.fielding) {
         // ground ball right at the shortstop in the runner's path
         tl.ground(tc, tc + 1.0, { x: 0, y: 2 }, { x: spot.x + 1, y: spot.y - 1 });
@@ -207,7 +214,7 @@ export const SITUATIONS = [
       tl.move('R2', tc + 0.1, tc + 1.15, spot.x - 0.5, spot.y + 0.6, 'stand');
       tl.at(tc + 1.15, () => { audio.thud(); });
       tl.pose('R2', tc + 1.15, 'fall', { dur: 0.32 }); // the runner bounces off him and goes down
-      tl.move('LF', tc + 0.2, tc + 1.6, -40, 118, 'ready');
+      fieldAt(tl, 'LF', tc + 0.2, tc + 1.6, -40, 118);
       batterRuns(tl, tc + 0.3, 16);
       return { pause: tc + 1.5 };
     },
@@ -236,7 +243,7 @@ export const SITUATIONS = [
       const tc = pitchHit(tl);
       tl.fly(tc, tc + 2.0, { x: 0, y: 1.5, z: 3 }, { x: 70, y: 150, z: 0.5 }, 22);
       tl.ground(tc + 2.0, tc + 3.4, { x: 70, y: 150 }, { x: 80, y: 168 });
-      tl.move('RF', tc + 0.2, tc + 3.4, 79, 165, 'ready');
+      fieldAt(tl, 'RF', tc + 0.2, tc + 3.4, 79, 165);
       tl.move('1B', tc, tc + 0.9, B1.x + 2.5, B1.y + 5, 'stand');
       tl.pose('BAT', tc + 0.05, 'stand');
       tl.runTo('BAT', tc + 0.15, B1.x - 0.5, B1.y - 1, 17, 'run');
@@ -270,7 +277,7 @@ export const SITUATIONS = [
       const tc = pitchHit(tl);
       // ground ball to the pitcher, runner from third gets caught in a rundown
       tl.ground(tc, tc + 0.6, { x: 0, y: 2 }, { x: -3, y: 36 });
-      tl.move('P', tc, tc + 0.55, -3, 37, 'ready');
+      fieldAt(tl, 'P', tc, tc + 0.6, -3, 37);
       const tOff = tl.runTo('R3', tc + 0.05, -24, 24, 13.5, 'run');
       tl.hold(tc + 0.6, tc + 1.4, 'P', 3.4);
       tl.move('3B', tc, tc + 1.2, -38, 40, 'ready');
@@ -314,7 +321,7 @@ export const SITUATIONS = [
       const tc = pitchHit(tl);
       tl.fly(tc, tc + 1.6, { x: 0, y: 1.5, z: 3 }, { x: -60, y: 120, z: 0.6 }, 18);
       tl.ground(tc + 1.6, tc + 2.6, { x: -60, y: 120 }, { x: -64, y: 128 });
-      tl.move('LF', tc + 0.2, tc + 2.6, -63, 126, 'ready');
+      fieldAt(tl, 'LF', tc + 0.2, tc + 2.6, -63, 126);
       tl.pose('BAT', tc + 0.05, 'stand');
       tl.runTo('BAT', tc + 0.15, B1.x - 0.5, B1.y - 0.5, 16, 'stand');
       // runner from third heads home; catcher sets up in the baseline without the ball
@@ -350,7 +357,7 @@ export const SITUATIONS = [
     build(tl, v) {
       const tc = pitchHit(tl);
       tl.ground(tc, tc + 1.4, { x: 0, y: 2 }, { x: 46, y: 118 });
-      tl.move('RF', tc + 0.1, tc + 1.4, 47, 116, 'ready');
+      fieldAt(tl, 'RF', tc + 0.1, tc + 1.4, 47, 116);
       batterRuns(tl, tc + 0.3, 15);
       // runner from 2nd rounds 3rd and heads home
       tl.runPath('R2', tc + 0.05, [{ x: -40, y: 46 }, { x: -12, y: 12 }], 17.5, 'run');
@@ -399,7 +406,7 @@ export const SITUATIONS = [
       tl.at(tc - 0.03, () => { audio.tick(); });
       tl.move('C', 0, tc - 0.1, 0, -1.6, 'catcher');
       tl.ground(tc, tc + 0.9, { x: 0, y: 2 }, { x: -18, y: 66 });
-      tl.move('SS', tc, tc + 0.85, -18, 67, 'ready');
+      fieldAt(tl, 'SS', tc, tc + 0.9, -18, 67);
       tl.hold(tc + 0.9, tc + 1.4, 'SS', 3.4);
       const tb = throwFrom(tl, 'SS', tc + 1.4, { x: B1.x - 1.2, y: B1.y + 1, z: 3.2 }, 70);
       tl.move('1B', tc, tc + 1.0, B1.x - 0.6, B1.y + 0.9, 'ready');
@@ -468,7 +475,7 @@ export const SITUATIONS = [
     build(tl, v) {
       const tc = pitchHit(tl, { bunt: true });
       tl.ground(tc, tc + 0.9, { x: 0, y: 2 }, { x: 4, y: 12 });
-      tl.move('C', tc + 0.1, tc + 0.85, 3.5, 11, 'tag');
+      fieldAt(tl, 'C', tc + 0.1, tc + 0.9, 3.5, 11);
       tl.hold(tc + 0.9, tc + 1.3, 'C', 2.6);
       tl.move('1B', tc, tc + 1.1, B1.x - 0.6, B1.y + 0.9, 'ready');
       tl.pose('BAT', tc + 0.1, 'stand');
@@ -478,6 +485,8 @@ export const SITUATIONS = [
       // throw from the catcher hits the runner in the back
       const tThrow = tc + 1.3;
       const hitT = tAt;
+      tl.pose('C', tThrow - 0.25, 'throw', { dur: 0.4 });
+      tl.pose('C', tThrow + 0.4, 'ready');
       tl.throwBall(tThrow, hitT, { x: 4, y: 12, z: 4 }, { x: lanePt.x, y: lanePt.y, z: 3.5 });
       tl.at(hitT, () => { audio.thud(); audio.ouch(); });
       tl.ground(hitT, hitT + 1, { x: lanePt.x, y: lanePt.y }, { x: lanePt.x + 10, y: lanePt.y - 3 });
@@ -511,7 +520,7 @@ export const SITUATIONS = [
       if (v.dodge) {
         // grounder to second baseman who tries to tag the runner going by
         tl.ground(tc, tc + 0.7, { x: 0, y: 2 }, { x: 26, y: 62 });
-        tl.move('2B', tc, tc + 0.65, 26, 63, 'ready');
+        fieldAt(tl, '2B', tc, tc + 0.7, 26, 63);
         tl.hold(tc + 0.7, tc + 5, '2B', 3);
         tl.runTo('R1', tc + 0.05, 30, 57, 16, 'run');
         tl.move('2B', tc + 0.75, tc + 1.15, 28, 61, 'tag');
@@ -522,7 +531,7 @@ export const SITUATIONS = [
       }
       // wide turn at first on a clean single, no tag attempt
       tl.ground(tc, tc + 1.4, { x: 0, y: 2 }, { x: 30, y: 120 });
-      tl.move('RF', tc, tc + 1.4, 34, 122, 'ready');
+      fieldAt(tl, 'RF', tc, tc + 1.4, 34, 122);
       tl.pose('BAT', tc + 0.05, 'stand');
       tl.runPath('BAT', tc + 0.15, [{ x: 30, y: 26 }, { x: 46, y: 34 }, { x: B1.x - 0.4, y: B1.y - 0.2 }, { x: 46, y: 54 }], 16.5, 'stand');
       const t = lastKey(tl, 'BAT').t;
@@ -588,7 +597,7 @@ export const SITUATIONS = [
           // slow roller up the first-base line, pitcher touches it while the ball is in foul ground
           const a = R(26, 1.6);
           tl.ground(tc, T(1.6), { x: 0.6, y: 1.5 }, a);
-          tl.move('P', tc, T(1.5), a.x - 2.3, a.y + 1.4, 'tag', 'run');
+          tl.move('P', tc, T(1.5), a.x - 2.3, a.y + 1.4, 'field', 'run');
           tl.hold(T(1.6), T(6), 'P', 0.7);
           tl.at(T(1.6), () => audio.pop());
           return { pause: T(1.8), cam: () => ({ x: 18, y: 20, ext: 22 }) };
@@ -764,7 +773,7 @@ export const SITUATIONS = [
       const tc = pitchHit(tl);
       tl.fly(tc, tc + 2.0, { x: 0, y: 1.5, z: 3 }, { x: 80, y: 160, z: 0.4 }, 25);
       tl.ground(tc + 2.0, tc + 3.2, { x: 80, y: 160 }, { x: 88, y: 178 });
-      tl.move('RF', tc, tc + 3.2, 86, 175, 'ready');
+      fieldAt(tl, 'RF', tc, tc + 3.2, 86, 175);
       tl.hold(tc + 3.2, tc + 3.5, 'RF', 4);
       const tIn = throwFrom(tl, 'RF', tc + 3.5, { x: 14, y: 78, z: 4 }, 72);
       tl.move('2B', tc, tc + 2.5, 15, 78, 'ready');
@@ -818,7 +827,7 @@ export const SITUATIONS = [
       if (v.k === 'force') {
         // slow grounder; runner scores; force at second is the third out
         tl.ground(tc, tc + 1.3, { x: 0, y: 2 }, { x: 22, y: 60 });
-        tl.move('2B', tc, tc + 1.25, 22, 61, 'ready');
+        fieldAt(tl, '2B', tc, tc + 1.3, 22, 61);
         tl.hold(tc + 1.3, tc + 1.7, '2B', 3.3);
         const tScore = tl.runTo('R3', tc + 0.02, 0.6, 1.2, 17, 'stand');
         tl.move('SS', tc, tc + 1.4, 1.5, 83.5, 'ready');
@@ -831,7 +840,7 @@ export const SITUATIONS = [
       }
       if (v.k === 'batter') {
         tl.ground(tc, tc + 0.9, { x: 0, y: 2 }, { x: -20, y: 64 });
-        tl.move('SS', tc, tc + 0.85, -20, 65, 'ready');
+        fieldAt(tl, 'SS', tc, tc + 0.9, -20, 65);
         tl.hold(tc + 0.9, tc + 1.4, 'SS', 3.3);
         const tScore = tl.runTo('R3', tc + 0.02, 0.6, 1.2, 17, 'stand');
         tl.runTo('R1', tc + 0.05, 8, 76, 15, 'stand');
@@ -853,10 +862,11 @@ export const SITUATIONS = [
       const flight = Math.hypot(rf.x - (B3.x + 1.2), rf.y - (B3.y + 1)) / 78;
       const tThrow = tb - flight;
       tl.ground(tc, tc + 1.4, { x: 0, y: 2 }, { x: 52, y: 118 });
-      tl.move('RF', tc, tc + 1.4, rf.x, rf.y, 'ready');
+      fieldAt(tl, 'RF', tc, tc + 1.4, rf.x, rf.y);
       tl.hold(tc + 1.4, tc + 1.55, 'RF', 3);
       tl.rest(tc + 1.55, tThrow - 0.6, { x: rf.x + 3, y: rf.y + 4, z: 0.12 });
-      tl.move('RF', tc + 1.6, tThrow - 0.65, rf.x + 2.5, rf.y + 3.5, 'tag');
+      tl.move('RF', tc + 1.6, tThrow - 0.65, rf.x + 2.5, rf.y + 3.5, 'field');
+      lastKey(tl, 'RF').dur = 0.4;
       tl.hold(tThrow - 0.6, tThrow, 'RF', 3.5);
       throwFrom(tl, 'RF', tThrow, { x: B3.x + 1.2, y: B3.y + 1.0, z: 2.8 }, 78);
       tl.move('3B', tc, tc + 1.5, B3.x + 1.5, B3.y + 1.2, 'ready');
@@ -937,7 +947,7 @@ export const SITUATIONS = [
     build(tl, v) {
       const tc = pitchHit(tl);
       tl.ground(tc, tc + 1.3, { x: 0, y: 2 }, { x: 40, y: 110 });
-      tl.move('RF', tc, tc + 1.3, 41, 108, 'ready');
+      fieldAt(tl, 'RF', tc, tc + 1.3, 41, 108);
       tl.hold(tc + 1.3, tc + 1.6, 'RF', 4);
       const tIn = throwFrom(tl, 'RF', tc + 1.6, { x: 0.5, y: POS.P.y, z: 4 }, 70);
       tl.hold(tIn, tIn + 9, 'P', 4);

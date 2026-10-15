@@ -6,7 +6,7 @@ import { input } from '../input.js';
 import { clamp, lerp, rand, randInt, pick, chance, weighted, dist, norm, sub, add, mul, dot, segDist, mini } from '../util.js';
 import { KITS, SKINS } from '../render/figures.js';
 import { BASES, UMP_SPOTS, POS } from '../render/field.js';
-import { Timeline, setupDefense, setupRunners, setupBatter, BASE_XY } from './timeline.js';
+import { Timeline, setupDefense, setupRunners, setupBatter, BASE_XY, STRIDE } from './timeline.js';
 import { UmpCam, UmpCam3D } from './umpcam.js';
 import { releasePt, holdZ } from '../sport.js';
 
@@ -221,8 +221,9 @@ export class BasePlayEvent {
       tg = tThrow - rand(0.5, 0.8);
       vg = Math.hypot(fp.x, fp.y) / (tg - tPlate);
     }
-    // Fielder fields it and throws
-    tl.move(fielder, tPlate, tg - 0.05, fp.x, fp.y, 'ready');
+    // Fielder gets down on it a beat early, fields it and throws
+    tl.move(fielder, tPlate, Math.max(tPlate + 0.25, tg - 0.3), fp.x, fp.y, 'field');
+    tl.last(fielder).dur = 0.6;
     tl.ground(tPlate, tg, { x: 0, y: 2 }, fp);
     tl.hold(tg, tThrow, fielder, 3.4);
     tl.pose(fielder, tThrow - 0.25, 'throw');
@@ -389,7 +390,8 @@ export class BasePlayEvent {
       tThrow = tb - ft; tField = tThrow - rand(0.35, 0.5);
     }
     tl.ground(tLand, tField, land, field);
-    tl.move(S.of, tPlate + 0.1, tField - 0.05, field.x, field.y, 'ready');
+    tl.move(S.of, tPlate + 0.1, Math.max(tPlate + 0.4, tField - 0.25), field.x, field.y, 'field');
+    tl.last(S.of).dur = 0.55;
     tl.hold(tField, tThrow, S.of, 3.4);
     tl.pose(S.of, tThrow - 0.3, 'throw', { facing: gloveAt.x > field.x ? 1 : -1 });
     tl.actors[S.of].keys[tl.actors[S.of].keys.length - 1].dur = 0.4;
@@ -445,7 +447,9 @@ export class BasePlayEvent {
     const dt = this._fitDt(this._bang(), tt, tFree + dd / 16);
     const tr = tt + dt;
     const tReact = Math.max(tFree, tr - dd / 10);
-    tl.move('R1', tReact, tr, back.x, back.y, 'dive', 'run');
+    const tDive = lerp(tReact, tr, 0.55);
+    tl.move('R1', tReact, tDive, lerp(off.x, back.x, 0.55), lerp(off.y, back.y, 0.55), 'run');
+    tl.move('R1', tDive, tr, back.x, back.y, 'dive', 'dive');
     tl.pose('R1', tr + 1, 'stand');
     tl.pose('1B', tt + 0.7, 'stand');
     const missed = chance(0.08);
@@ -470,7 +474,8 @@ export class BasePlayEvent {
     const fp = { x: F.x + rand(-4, 4), y: F.y - rand(3, 7) };
     const vg = rand(55, 70);
     const tg = tPlate + Math.hypot(fp.x, fp.y) / vg;
-    tl.move(fielder, tPlate, tg - 0.05, fp.x, fp.y, 'ready');
+    tl.move(fielder, tPlate, Math.max(tPlate + 0.25, tg - 0.3), fp.x, fp.y, 'field');
+    tl.last(fielder).dur = 0.6;
     tl.ground(tPlate, tg, { x: 0, y: 2 }, fp);
     const pivotSpot = six ? { x: B2.x + 1.3, y: B2.y - 0.8 } : { x: B2.x - 1.3, y: B2.y - 0.8 };
     const glove1 = { x: pivotSpot.x + (fp.x - pivotSpot.x) * 0.05, y: pivotSpot.y - 0.4, z: 3.3 };
@@ -703,7 +708,7 @@ export class BasePlayEvent {
     const ua = this.umpActor;
     ua.x = this.ump.x; ua.y = this.ump.y;
     if (!this.signalPose) {
-      if (speed > 2) { ua.pose = 'run'; ua.dist = (ua.dist || 0) + speed * step; ua.phase = (ua.dist / 5.2) % 1; if (Math.abs(this.ump.vx) > 1) ua.facing = this.ump.vx > 0 ? 1 : -1; }
+      if (speed > 2) { ua.pose = 'run'; ua.dist = (ua.dist || 0) + speed * step; ua.phase = (ua.dist / STRIDE) % 1; if (Math.abs(this.ump.vx) > 1) ua.facing = this.ump.vx > 0 ? 1 : -1; }
       else ua.pose = this.ump.still > 0.25 ? 'set' : 'stand';
     }
 
