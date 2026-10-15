@@ -19,7 +19,7 @@ export const ACHIEVEMENTS = [
   { id: 'jumped', icon: '🐇', name: 'Jumped the Gun', desc: 'Call a pitch before it reaches the glove. (Oops.)', hidden: true, check: (p) => S(p).early >= 1 },
   { id: 'bangbang', icon: '💥', name: 'Bang-Bang!', desc: 'Get a bang-bang play right (decided by less than 0.16 seconds).', check: (p) => S(p).bangBang >= 1 },
   { id: 'bangbang10', icon: '🎆', name: 'No Such Thing as a Tie', desc: 'Get 10 bang-bang plays right.', check: (p) => S(p).bangBang >= 10 },
-  { id: 'angle', icon: '📐', name: 'Angle Master', desc: 'Earn an A position grade on 10 base plays.', check: (p) => S(p).angleA >= 10 },
+  { id: 'angle', icon: '👀', name: 'Seen It All', desc: 'Get 25 calls right on the bases.', check: (p) => S(p).baseOk >= 25 },
   { id: 'abc', icon: '🔤', name: 'Easy as A-B-C', desc: 'Start in the correct A, B, or C spot 15 times.', check: (p) => S(p).startOk >= 15 },
   { id: 'ouch', icon: '🤕', name: 'Human Backstop', desc: 'Get drilled by a throw while standing in the lane. Ouch!', hidden: true, check: (p) => S(p).ouch >= 1 },
   { id: 'dp', icon: '✌️', name: 'Double Trouble', desc: 'Get both calls right on a double play.', check: (p) => S(p).dpBoth >= 1 },

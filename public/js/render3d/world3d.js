@@ -75,6 +75,7 @@ export class Field3D {
     const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineDashedMaterial({ color: '#ffd34d', dashSize: 0.12, gapSize: 0.08, transparent: true, opacity: 0.9 }));
     edge.computeLineDistances();
     this.zone.add(edge);
+    this.zoneMats = [[zf.material, 0.07], [edge.material, 0.9]];
     this.zone.visible = false;
     this.scene.add(this.zone);
 
@@ -288,6 +289,7 @@ export class Field3D {
       this.zone.visible = true;
       this.zone.position.set(0, z.y ?? 0.708, (z.bot + z.top) / 2);
       this.zone.scale.set(1.416, z.depth ?? 1.416, z.top - z.bot);
+      for (const [m, o] of this.zoneMats) m.opacity = o * (z.alpha ?? 1);
     } else this.zone.visible = false;
     const im = world.imprint;
     this.imprint.visible = !!im;

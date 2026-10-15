@@ -9,7 +9,9 @@ An arcade-style training game for young **Little League baseball** umpires. It's
 
 - **Behind the plate**: a first-person view through your mask. Get into the slot (the catcher's helmet really
   does block your view if you don't) and adjust any time during the at-bat; the slot is judged as each pitch
-  reaches the plate. Track the pitch into the glove, then call **strike** or **ball**.
+  reaches the plate. Track the pitch into the glove, then call **strike** or **ball**. The strike zone box over the plate
+  is **Smart** by default (Settings → Strike zone box): miss a pitch and it pops up, then it fades away as you nail
+  3 calls in a row. Rookie levels start with it on. It can also be set to Always or Never.
   The K-Zone replay shows exactly where it crossed. There are checked swings, foul tips, two-strike foul bunts,
   hit-by-pitch rulings (hands, swinging, in the zone, leaning in) and uncaught third strikes too.
 - **On the bases**: you control the base umpire. Start in **A, B or C**, move for an angle as the play develops,

@@ -429,6 +429,11 @@ export class AtBatEvent {
     this.state = 'pre';
     this.t = 0;
     this.s.hud.prompt('', '');
+    // Smart zone box news: back on after a miss, or earned away with right calls
+    this.zoneNews = this.s.zoneNews;
+    this.s.zoneNews = null;
+    if (this.zoneNews === 'on') this.s.hud.prompt('🎯 ZONE BOX ON', 'You missed one. It goes away when you nail 3 in a row!');
+    if (this.zoneNews === 'off') this.s.hud.prompt('🔥 ZONE BOX OFF', "Three right in a row. You don't need it!");
     this.s.hud.options(null);
     this.armAnim = -1;
   }
@@ -573,7 +578,7 @@ export class AtBatEvent {
     this.eye.z = clamp(this.eye.z + m.y * dt * 1.3, 2.9, 4.9);
     const si = this.slotInfo();
     // between pitches a small badge shows where you stand; it goes away once the ball is hit or called
-    hud.slotChip(this.state === 'setup' || this.finished || !this.pk || this.pk.called || this._following() ? null : si);
+    hud.slotChip(this.state === 'setup' || this.zoneNews || this.finished || !this.pk || this.pk.called || this._following() ? null : si);
     if (this.state === 'setup') {
       hud.promptSub(`${si.ok ? '✅' : '⚠️'} ${si.msg}`);
       // the slot tip gets out of the way once you start moving (or after a few seconds)
@@ -598,6 +603,7 @@ export class AtBatEvent {
       this.pitcher.phase = clamp((t * 0.8) / pk.tRelease, 0, 1);
       if (!pk.released && t >= pk.tRelease) {
         pk.released = true;
+        if (this.zoneNews) { this.zoneNews = null; hud.prompt('', ''); }
         audio.whoosh(Math.max(0.25, pk.tGlove - pk.tRelease));
         if (live && !pk.called && this._isZoneCall()) {
           hud.options(this._optsFor(), (id) => this._call(id));
@@ -728,6 +734,7 @@ export class AtBatEvent {
     else if (k === 'hbp') truth = pk.sub === 'swungHit' || pk.sub === 'inZone' ? 'strike' : pk.sub === 'leanIn' ? 'ball' : 'hbp';
     else if (k === 'u3k') truth = (this.div.u3k && (!this.runners.includes(1) || this.outs === 2)) ? 'run' : 'out';
     correct = id === truth;
+    if (k === 'take' && !this.spec.exam) this.s.zoneCall(correct);
 
     if (this._isZoneCall()) {
       const since = pk.called === 'none' ? 99 : t - pk.tGlove;
@@ -969,13 +976,17 @@ export class AtBatEvent {
     return { x: at.x, y: ay, z: at.z, color };
   }
 
+  // How strongly to draw the strike zone box right now: 0 hidden, 1 full
   _zoneShown() {
     // after a called pitch, the zone stays up with the imprint so the field matches the K-Zone
     const review = !!(this.pk && this.pk.called && this.pk.kind === 'take' && (this.state === 'signal' || this.state === 'wait'));
-    if (this.spec.exam) return review;
+    if (this.spec.exam || review) return review ? 1 : 0;
     // once the ball is hit, the zone is no longer the point (and the view may turn to follow it)
-    if (this.pk && this.pk.contactT && this.pk.kind !== 'take' && this.pk.t > this.pk.contactT && this.state !== 'setup') return false;
-    return review || (this.s.zoneHelper && (this.state === 'setup' || this.state === 'pre' || this.state === 'pitch')) || (this.state === 'setup' && this.s.hints);
+    if (this.pk && this.pk.contactT && this.pk.kind !== 'take' && this.pk.t > this.pk.contactT && this.state !== 'setup') return 0;
+    const lvl = this.state === 'setup' || this.state === 'pre' || this.state === 'pitch' ? this.s.zoneBoxLevel() : 0;
+    // setting up in the slot with hints on, the box shows what you need to see
+    if (this.state === 'setup' && this.s.hints && this.s.profile.settings.zoneBox !== 'off') return Math.max(lvl, 0.7);
+    return lvl;
   }
 
   // ---------- 3D rendering ----------
@@ -988,11 +999,11 @@ export class AtBatEvent {
       actors: this.bg.filter((a) => a !== this.pitcher),
       bodies,
       ball: ball ? { ...ball, scale: 1.15, halo: 0.45, trail: this.trail.filter(Boolean) } : null,
-      zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 0.708, depth: 1.416 } : null,
+      zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 0.708, depth: 1.416, alpha: showZone } : null,
       imprint: this._imprint(),
       extra: (P) => this._arm3d(P, cam),
       overlay: (gg) => {
-        if (showZone) this._zoneLabels(gg, cam);
+        if (showZone) this._zoneLabels(gg, cam, showZone);
         this._drawMask(gg, cam);
       },
     });
@@ -1098,8 +1109,10 @@ export class AtBatEvent {
     P.useFamily('toon');
   }
 
-  _zoneLabels(g, cam) {
+  _zoneLabels(g, cam, alpha = 1) {
     const z = this.zone;
+    g.save();
+    g.globalAlpha = alpha;
     const b = this.batter;
     const lab = (txt, zz) => {
       const p = cam.project(-b.side * (HALF + 0.12), 1.0, zz);
@@ -1115,6 +1128,7 @@ export class AtBatEvent {
     };
     lab('ARMPITS', z.top);
     lab('TOP OF KNEES', z.bot);
+    g.restore();
   }
 
   _drawZoneHelper(g, cam) {
@@ -1123,6 +1137,7 @@ export class AtBatEvent {
     const z = this.zone;
     const y = 1.416;
     g.save();
+    g.globalAlpha = show;
     // the zone is a box over the whole plate: back face, then front face
     for (const [yy, fill] of [[0, 0.05], [y, 0.08]]) {
       const pts = [[-HALF, yy, z.bot], [HALF, yy, z.bot], [HALF, yy, z.top], [-HALF, yy, z.top]];

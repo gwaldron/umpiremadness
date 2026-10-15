@@ -158,12 +158,6 @@ export class UmpCam {
     g.fillStyle = '#ffd34d';
     const sp = this.ct >= this.t1 ? 'REPLAY DONE' : `SLOW-MO ${this.speed.toFixed(1)}x`;
     g.fillText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
-    if (this.o.gradeLabel && !this.callLabel) {
-      g.textAlign = 'left';
-      g.textBaseline = 'bottom';
-      g.fillStyle = this.o.gradeColor || '#fff';
-      g.fillText(this.o.gradeLabel, rect.x + fs * 0.6, rect.y + rect.h - fs * 0.4);
-    }
     // timeline scrubber
     const k = (this.ct - this.t0) / (this.t1 - this.t0);
     g.fillStyle = 'rgba(255,255,255,0.25)';
@@ -490,13 +484,6 @@ export class UmpCam3D extends UmpCam {
     const sp = this.callLabel ? 'LIVE' : this.ct >= this.t1 ? 'REPLAY DONE' : `SLOW-MO ${this.speed.toFixed(1)}x`;
     g.strokeText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
     g.fillText(sp, rect.x + rect.w - fs * 0.6, rect.y + fs * 0.5);
-    if (this.o.gradeLabel && !this.callLabel) {
-      g.textAlign = 'left';
-      g.textBaseline = 'bottom';
-      g.fillStyle = this.o.gradeColor || '#fff';
-      g.strokeText(this.o.gradeLabel, rect.x + fs * 0.6, rect.y + rect.h - fs * 0.4);
-      g.fillText(this.o.gradeLabel, rect.x + fs * 0.6, rect.y + rect.h - fs * 0.4);
-    }
     const k = (this.ct - this.t0) / (this.t1 - this.t0);
     g.fillStyle = 'rgba(255,255,255,0.3)';
     g.fillRect(rect.x + rect.w * 0.55, rect.y + rect.h - fs * 0.9, rect.w * 0.4, 4 * dpr);

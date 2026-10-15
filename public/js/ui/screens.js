@@ -313,7 +313,7 @@ export class Screens {
       stat(s.perfectGames, 'Perfect games'),
       stat(s.painted, 'Painted corners'),
       stat(s.bangBang, 'Bang-bang plays nailed'),
-      stat(s.angleA, 'A-grade angles'),
+      stat(s.startOk, 'Right starting spots'),
       stat(s.perfectTiming, 'Perfectly timed calls'),
       stat(s.early, 'Quick triggers 😬'),
       stat(s.dayStreak || 0, 'Day streak'),
@@ -510,7 +510,7 @@ export class Screens {
       c('🧑‍⚖️ Behind the plate', 'Move into <b>the slot</b> before the pitch. Watch the ball <b>into the glove</b>, pause, then call it. Calling while the ball is still flying = <b>Quick trigger</b> penalty. The K-Zone shows exactly where it crossed.'),
       c('🏃 On the bases', 'Run to <b>A, B or C</b> before the pitch. When the ball is hit, move for a <b>90° angle</b> to the throw (force) or the slide (tag) and <b>stop</b> before the play. Better angle = clearer UMP CAM.'),
       c('📕 Rule situations', 'Some plays freeze and ask for the ruling. You collect a <b>rule card</b> for each — and every card links to its Umpire Bootcamp lesson.'),
-      c('🔥 Streaks & scoring', 'Right calls build a streak: x2 at 5, x3 at 10, x4 at 15. Bonuses for perfect timing, painted corners, A-grade angles, and bang-bang plays.'),
+      c('🔥 Streaks & scoring', 'Right calls build a streak: x2 at 5, x3 at 10, x4 at 15. Bonuses for perfect timing, painted corners, the right starting spot, and bang-bang plays.'),
       c('🏆 Career', 'Earn stars to unlock divisions: AA → AAA → Majors → All-Stars → Williamsport. AA and AAA use the FXLL local rules from Bootcamp — no infield fly, no dropped third strike!'),
     );
     wrapEl.append(g);
@@ -547,7 +547,8 @@ export class Screens {
     seg('Announcer & commentary', 'Stadium PA and TV color commentary', [[true, 'On'], [false, 'Off']], 'announcer', (v) => v && voices.announce('Now batting... number seven!', { seq: [{ g: 'pa.nowBatting', gap: 0.22 }, 'pa.num.7'] }));
     seg('Voice style', 'How your umpire sounds', [['classic', 'Classic'], ['bigleague', 'Big League'], ['hype', 'Hype'], ['robot', 'Robo-Ump']], 'voiceStyle', () => voices.call('k'));
     seg('Music & organ', 'Menu theme song and ballpark organ', [[true, 'On'], [false, 'Off']], 'music', (v) => v && audio.charge());
-    seg('Hints', 'Zone box, ghost spots, coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
+    seg('Hints', 'Ghost spots and coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
+    seg('Strike zone box', 'Smart: pops up after a miss, then fades away', [['smart', 'Smart'], ['on', 'Always'], ['off', 'Never']], 'zoneBox');
     seg('Screen shake', 'Big-moment camera shake', [[true, 'On'], [false, 'Off']], 'shake');
     {
       // Graphics: 3D quality levels, or classic 2D. Switching between 3D and 2D reloads the page.

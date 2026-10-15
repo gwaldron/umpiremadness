@@ -16,6 +16,9 @@ import { LifeEvent } from '../scenes/life.js';
 import { KITS, SKINS, UMP_SHIRTS, UMP_CAPS } from '../render/figures.js';
 import { POS, UMP_SPOTS } from '../render/field.js';
 
+// Smart zone box: right calls in a row it takes to earn the box away again
+const ZONE_ASSIST = 3;
+
 export class GameState {
   constructor() {
     this.inning = 1;
@@ -101,8 +104,29 @@ export class Session {
     const hs = this.profile.settings.hints;
     this.tutorial = this.mode === 'camp';
     this.hints = hs === 'on' || (hs === 'auto' && (this.div.hints || this.tutorial));
-    this.zoneHelper = hs !== 'off' && (this.div.zoneHelper || this.tutorial);
+    // rookies start with the zone box on; a missed pitch brings it back, right calls fade it out
+    this.zoneAssist = this.div.zoneHelper || this.tutorial ? ZONE_ASSIST : 0;
+    this.zoneNews = null;
     this._idle = null;
+  }
+
+  // How strongly to draw the strike zone box behind the plate: 0 hidden, 1 full. Settings: Smart
+  // (the default), Always or Never; read live so a change in the pause menu applies right away.
+  zoneBoxLevel() {
+    const z = this.profile.settings.zoneBox;
+    if (z === 'on') return 1;
+    if (z === 'off') return 0;
+    return [0, 0.45, 0.7, 1][this.zoneAssist] ?? 1;
+  }
+
+  // A called pitch: missing it turns the Smart zone box on, and each right call fades it until it's gone.
+  zoneCall(correct) {
+    const z = this.profile.settings.zoneBox;
+    if (z === 'on' || z === 'off') return;
+    if (!correct) {
+      if (!this.zoneAssist) this.zoneNews = 'on';
+      this.zoneAssist = ZONE_ASSIST;
+    } else if (this.zoneAssist > 0 && --this.zoneAssist === 0) this.zoneNews = 'off';
   }
 
   start() {
@@ -257,7 +281,6 @@ export class Session {
     if (res.painted) st.painted++;
     if (res.framedFoiled) st.framedFoiled++;
     if (res.bangBang) st.bangBang++;
-    if (res.grade === 'A') st.angleA++;
     if (res.startOk === true) st.startOk++;
     if (res.kind === 'pitch' && res.slotOk) st.slotOk++;
     if (res.strikeThree && res.correct) st.strikeThrees++;
@@ -288,7 +311,6 @@ export class Session {
     if (res.correct) {
       if (res.bangBang) voices.comment('bangGood', { force: true });
       else if (res.painted) voices.comment('painted');
-      else if (res.grade === 'A') voices.comment('angle');
       if (this.streak === 5) voices.comment('streak5', { force: true });
       if (this.streak === 10) voices.comment('streak10', { force: true });
       if (this.streak === 20) voices.comment('streak20', { force: true });
@@ -305,7 +327,6 @@ export class Session {
       // confetti for the big moments
       if (this.streak > 0 && this.streak % 5 === 0) confetti.burst({ x: 0.5, y: 0.42, n: 70 + Math.min(80, this.streak * 3), power: 1.1 });
       else if (res.bangBang) confetti.burst({ x: 0.5, y: 0.45, n: 70 });
-      else if (res.grade === 'A') confetti.burst({ x: 0.5, y: 0.45, n: 36, power: 0.8 });
       else if (res.strikeThree) confetti.burst({ x: 0.5, y: 0.5, n: 30, power: 0.75 });
       if (this.streak > 0 && this.streak % 5 === 0) {
         audio.streak(this.streak / 5);

@@ -23,7 +23,7 @@ function insideDiamond(p) {
 function cross(a, b) { return a.x * b.y - a.y * b.x; }
 
 // How good is the view of the critical moment from point p?
-// Graded generously: a view about 50 degrees or more to the play counts as a full-credit angle.
+// Generous: a view about 50 degrees or more to the play gives a clear UMP CAM.
 export function viewScore(p, crit, moving = false) {
   const d = dist(p, crit.base);
   const sight = norm(sub(crit.base, p));
@@ -110,22 +110,10 @@ function startZonePoly(k) {
   return [P(z.s0 + 1, z.b0), P(z.s1 - 1, z.b0), P(z.s1 - 1, z.b1), P(z.s0 + 1, z.b1)];
 }
 
-function gradeFor(r) {
-  if (r >= 0.75) return 'A';
-  if (r >= 0.55) return 'B';
-  if (r >= 0.38) return 'C';
-  if (r >= 0.22) return 'D';
-  return 'F';
-}
-const GRADE_PTS = { A: 100, B: 75, C: 50, D: 25, F: 5 };
-const GRADE_COLOR = { A: '#2fd67b', B: '#b9f36b', C: '#ffd34d', D: '#ff9a3c', F: '#ff4d5a' };
-
 export class BasePlayEvent {
   constructor(session, spec = {}) {
     this.s = session;
     this.div = session.div;
-    // Minors (AA/AAA) keeps it simple: no angle grade, just get set and see the play
-    this.noGrade = this.div.id === 'AA' || this.div.id === 'AAA';
     this.spec = spec;
     this.kind = 'base';
     this.play = spec.play || weighted([
@@ -452,7 +440,7 @@ export class BasePlayEvent {
     const hud = this.s.hud;
     hud.tip(null);
     hud.options(null);
-    // Grade the starting spot
+    // Check the starting spot
     let nearest = null, nd = Infinity;
     for (const k of ['A', 'B', 'C']) {
       const d = dist(this.ump, UMP_SPOTS[k]);
@@ -683,11 +671,7 @@ export class BasePlayEvent {
     const moving = Math.hypot(this.ump.vx, this.ump.vy) > 1.5 || this.ump.still < 0.12;
     const fpos = this._fielderAt(c);
     const v = viewScore(this.ump, { ...c, fielder: fpos }, moving);
-    const ideal = c.ideal || idealSpot({ ...c, fielder: fpos }, this.ump);
-    const ratio = clamp(v.score / Math.max(0.2, ideal.v.score), 0, 1);
     c.view = v;
-    c.grade = gradeFor(ratio);
-    c.ratio = ratio;
     c.moving = moving;
     // which way is the runner going in the umpire's view? (mirror the close-up if needed)
     const sight = norm(sub(c.base, this.ump));
@@ -706,7 +690,6 @@ export class BasePlayEvent {
       missed: c.missed, empty: c.empty, slide: c.slide, mirror,
       quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving },
       baseName: BASE_NAME[c.baseNum], speed: 0.4,
-      gradeLabel: this.noGrade ? null : `ANGLE ${c.grade}`, gradeColor: GRADE_COLOR[c.grade],
       skin: pick(SKINS),
     });
     this.cam.three = !!this.s.field.is3d;
@@ -759,7 +742,6 @@ export class BasePlayEvent {
       if (this.startOk) bonus.push({ label: `Started in ${this.expectSpot}`, pts: 50 });
       else bonus.push({ label: `Wrong start spot`, pts: -25 });
     }
-    if (!this.noGrade) bonus.push({ label: `Angle grade ${c.grade}`, pts: GRADE_PTS[c.grade] });
     if (c.view.lane) bonus.push({ label: 'In the throwing lane', pts: -25 });
     if (c.moving) bonus.push({ label: 'Called it on the move', pts: -25 });
     for (const p of this.penalties) bonus.push(p);
@@ -769,10 +751,11 @@ export class BasePlayEvent {
       kind: 'base', sub: c.key, correct, timing, card: c.card,
       extraCards: [
         { id: 'abc', correct: !!this.startOk },
-        ...(this.noGrade ? [] : [{ id: 'angles', correct: c.grade === 'A' || c.grade === 'B' }]),
+        // good positioning: set, a clear view, and out of the throwing lane
+        { id: 'angles', correct: !c.moving && !c.view.occl && !c.view.lane },
         ...(bang ? [{ id: 'bang-bang', correct }] : []),
       ],
-      bonus, grade: this.noGrade ? undefined : c.grade, startOk: this.critIdx === 0 ? this.startOk : undefined, bangBang: bang && correct,
+      bonus, startOk: this.critIdx === 0 ? this.startOk : undefined, bangBang: bang && correct,
       call: id, truth, division: this.div.id,
     };
     const scored = this.s.record(res);
@@ -806,20 +789,11 @@ export class BasePlayEvent {
     if (v.occl) tips.push('A fielder\'s body **blocked your view**. Step so you can see daylight between glove and runner.');
     if (v.lane) tips.push('You were **in the throwing lane**. Stay out of the ball\'s path.');
     if (c.moving) tips.push('You were **still moving** at the moment of the play. Get set — stop — then watch.');
-    if (!this.noGrade) {
-      if (v.angle < 0.4 && !v.occl) tips.push(`Poor angle: you were looking **along** the ${c.type === 'force' ? 'throw' : 'runner\'s path'}. Aim for about **90°** to it.`);
-      if (v.d > 60) tips.push('You were **too far away**. Close the distance while the ball is in the air.');
-      if (v.d < 5) tips.push('You were **too close** — back off so you can see the whole play.');
-    }
     if (this.critIdx === 0 && !this.startOk) tips.unshift(`Start in ${ZONE_HELP[this.expectSpot]}`);
-    if (!tips.length) tips.push(this.noGrade ? 'Nice — you were set and could see the play.' : 'Great positioning: good angle, good distance, and you were set.');
+    if (!tips.length) tips.push('Nice — you were set and could see the play.');
     const start = this.critIdx === 0 ? `Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be in <b>${this.expectSpot}</b>`}` : '';
-    let extra = this.noGrade
-      ? `<div class="vcall">${start ? `📍 ${start}<br>` : ''}${mini(tips.join(' '))}</div>`
-      : `<div class="vcall">📐 Angle grade: <b style="color:${GRADE_COLOR[c.grade]}">${c.grade}</b> · ${Math.round(c.ratio * 100)}% of the best view${start ? ` · ${start}` : ''}<br>${mini(tips.join(' '))}</div>`;
+    let extra = `<div class="vcall">${start ? `📍 ${start}<br>` : ''}${mini(tips.join(' '))}</div>`;
     if (timing === 'early') extra += '<div class="vcall">⏱️ <b>Quick trigger!</b> You called it before the play was over. Let it finish, pause, then sell it.</div>';
-    // Show the best spot on the field
-    this.showIdeal = this.noGrade ? null : c.ideal;
     this.s.showVerdict({
       correct,
       title: correct ? pick(['GREAT CALL!', 'RIGHT ON!', 'SOLD IT!', 'MONEY!']) : 'MISSED CALL',
@@ -828,9 +802,7 @@ export class BasePlayEvent {
       extraHtml: extra,
       card: c.card,
       scored,
-      note: this.noGrade ? '' : 'The gold ring on the field shows a great spot for that play.',
     }, () => {
-      this.showIdeal = null;
       this.signalPose = null;
       this.umpActor.faceAt = null;
       if (this.critIdx === 0 && this.crits.length > 1) {
@@ -863,7 +835,6 @@ export class BasePlayEvent {
       const c = this.crits[this.critIdx];
       if (c && c.ideal && this.t > this.tPlate - 0.2) markers.push({ x: c.ideal.x, y: c.ideal.y, r: 3.5, color: 'rgba(255,211,77,0.9)', dash: [5, 4] });
     }
-    if (this.showIdeal) markers.push({ x: this.showIdeal.x, y: this.showIdeal.y, r: 3.5, color: '#ffd34d', width: 4, label: '★' });
     s.field.draw(g, s.cam, { actors, ball: this.tl.ball, markers });
     if (this.state === 'cam' && this.cam) {
       const W = s.cam.w, H = s.cam.h;
