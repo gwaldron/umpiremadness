@@ -16,11 +16,12 @@ export class Field3D {
     this.safe = !!opts.safe;
     this.frame = 0;
     this.blank = 0;
+    this.litCount = 0;
+    this.verified = false;
     this.failed = null;
     this.scene = this.engine.scene;
     this.stadium = new Stadium(this.engine);
-    this.people = new People(this.engine);
-    if (opts.safe) this.people.noHero = true; // safe mode: simpler shaders for everyone
+    this.people = new People(this.engine, { safe: !!opts.safe });
     this.dust = new Dust(this.scene);
     this.track = new WeakMap();
     this.prevBall = null;
@@ -66,17 +67,32 @@ export class Field3D {
     this.markerPool = [];
     this.labelCache = new Map();
 
-    // Strike-zone helper (plate view)
+    // Strike-zone helper (plate view): a box over the whole plate, front to back, because a pitch
+    // that clips any part of it is a strike
     this.zone = new THREE.Group();
-    const zf = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#ffd34d', transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide }));
-    zf.rotation.x = Math.PI / 2;
+    const zf = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: '#ffd34d', transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }));
     this.zone.add(zf);
-    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1)), new THREE.LineDashedMaterial({ color: '#ffd34d', dashSize: 0.12, gapSize: 0.08, transparent: true, opacity: 0.95 }));
-    edge.rotation.x = Math.PI / 2;
+    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineDashedMaterial({ color: '#ffd34d', dashSize: 0.12, gapSize: 0.08, transparent: true, opacity: 0.9 }));
     edge.computeLineDistances();
     this.zone.add(edge);
     this.zone.visible = false;
     this.scene.add(this.zone);
+
+    // Pitch imprint: where the ball crossed the plate (the same point the K-Zone shows)
+    this.imprint = new THREE.Group();
+    this.imprintBall = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55, depthWrite: false }));
+    this.imprint.add(this.imprintBall);
+    const ic = document.createElement('canvas');
+    ic.width = ic.height = 64;
+    const ig = ic.getContext('2d');
+    ig.strokeStyle = '#ffffff';
+    ig.lineWidth = 6;
+    ig.beginPath(); ig.arc(32, 32, 26, 0, Math.PI * 2); ig.stroke();
+    this.imprintRing = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(ic), transparent: true, depthTest: false, depthWrite: false }));
+    this.imprintRing.renderOrder = 9;
+    this.imprint.add(this.imprintRing);
+    this.imprint.visible = false;
+    this.scene.add(this.imprint);
 
     this._v = new THREE.Vector3();
     this._m = new THREE.Matrix4();
@@ -219,9 +235,18 @@ export class Field3D {
     if (world.zone) {
       const z = world.zone;
       this.zone.visible = true;
-      this.zone.position.set(0, z.y ?? 1.0, (z.bot + z.top) / 2);
-      this.zone.scale.set(1.416, 1, z.top - z.bot);
+      this.zone.position.set(0, z.y ?? 0.708, (z.bot + z.top) / 2);
+      this.zone.scale.set(1.416, z.depth ?? 1.416, z.top - z.bot);
     } else this.zone.visible = false;
+    const im = world.imprint;
+    this.imprint.visible = !!im;
+    if (im) {
+      this.imprint.position.set(im.x, im.y, im.z);
+      this.imprintBall.scale.setScalar(0.121);
+      this.imprintBall.material.color.set(im.color);
+      this.imprintRing.material.color.set(im.color);
+      this.imprintRing.scale.setScalar(0.42);
+    }
   }
 
   draw(g, cam, world = {}) {
@@ -258,19 +283,26 @@ export class Field3D {
     this._lastDraw = now;
     if (h.lost) {
       if (gap > 400) h.lostAt = now; // we were in the background: give the browser time to restore it
-      if (now - h.lostAt > 4000) this._fail('lost the graphics context');
+      if (now - h.lostAt > 3000) this._fail('lost', 'lost the graphics context');
       return;
     }
+    // Startup check only: once the 3D view has drawn for a moment, stop probing pixels, so a stray
+    // dark frame later (e.g. while a restored context rebuilds its shaders) can't trip it.
+    if (this.verified) return;
     const f = ++this.frame;
-    if (f < 4 || (f < 300 ? f % 3 : f % 120)) return;
-    if (this.engine.probe()) { this.blank = 0; this.lit = true; return; }
-    if (++this.blank >= (this.lit ? 8 : 20)) this._fail(h.errors.length ? 'shader error' : 'nothing drawn');
+    if (f < 4 || f % 3) return;
+    if (this.engine.probe()) {
+      this.blank = 0;
+      if (++this.litCount >= 12) this.verified = true;
+      return;
+    }
+    if (++this.blank >= 25) this._fail(h.errors.length ? 'shader' : 'blank', h.errors.length ? 'shader error' : 'nothing drawn');
   }
 
-  _fail(reason) {
+  _fail(kind, reason) {
     this.failed = reason;
     console.warn('3D renderer failed:', reason, this.engine.gpu, this.engine.health.errors);
-    if (this.onFail) this.onFail(reason);
+    if (this.onFail) this.onFail(reason, kind);
   }
 
   // Render an inset view (UMP CAM). view: { eye, target, fov(rad) }, rect in CSS px.

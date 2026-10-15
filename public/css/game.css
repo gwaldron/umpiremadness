@@ -514,6 +514,12 @@ button.card { text-align: left; cursor: pointer; color: inherit; font: inherit; 
 .opt:active, .opt.hit { transform: translateY(3px) scale(0.98); background: var(--c); }
 .opt.big { min-width: min(42vw, 260px); justify-content: center; white-space: nowrap; font-family: var(--display); font-weight: 400; font-size: clamp(20px, 3.6vw, 30px); padding: 16px 20px; }
 .options.locked .opt { opacity: 0.5; }
+/* TRY AGAIN after a missed call: make it the obvious choice */
+.opt.hot, .btn.hot { border-color: var(--gold) !important; box-shadow: 0 0 0 2px rgba(255,211,77,0.35), 0 0 22px rgba(255,211,77,0.45); animation: hotPulse 1.1s ease-in-out infinite alternate; }
+.btn.hot, .opt.hot { background: var(--gold); color: #251b00; font-family: var(--display); font-weight: 400; }
+.opt.hot small { color: #4a3800; }
+@keyframes hotPulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+.vpractice { display: inline-block; vertical-align: middle; font-family: var(--body); font-size: 12px; font-weight: 900; letter-spacing: 1px; color: #251b00; background: var(--gold); border-radius: 999px; padding: 3px 9px; margin-left: 6px; }
 @keyframes optIn { from { opacity: 0; transform: translateY(20px) scale(0.9); } }
 body[data-input="touch"] .opt { min-height: 58px; }
 

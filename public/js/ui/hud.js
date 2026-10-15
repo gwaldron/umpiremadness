@@ -100,7 +100,7 @@ export class Hud {
     this.optHandler = list ? onPick : null;
     if (!list) return;
     for (const o of list) {
-      const b = el('button', { class: `opt${o.big ? ' big' : ''}`, 'data-btn': o.btn, type: 'button' });
+      const b = el('button', { class: `opt${o.big ? ' big' : ''}${o.small ? ' small' : ''}${o.hot ? ' hot' : ''}`, 'data-btn': o.btn, type: 'button' });
       b.innerHTML = `${glyph(o.btn, 'opt-glyph')}<span>${escapeHtml(o.label)}${o.sub ? `<small>${escapeHtml(o.sub)}</small>` : ''}</span>`;
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); this._pick(o.btn); });
       box.append(b);
@@ -168,9 +168,10 @@ export class Hud {
     k.querySelector('.kz-label').innerHTML = `<span style="color:${info.strike ? '#ff7a7a' : '#7cc0ff'}">${info.strike ? 'STRIKE' : 'BALL'}</span> · ${where}`;
   }
 
-  verdict(v, onContinue) {
+  // onRetry: optional TRY AGAIN (replays the same play as practice)
+  verdict(v, onContinue, onRetry = null) {
     const box = this.$('verdict');
-    if (!v) { box.hidden = true; this.verdictHandler = null; return; }
+    if (!v) { box.hidden = true; this.verdictHandler = null; this.retryHandler = null; return; }
     const card = v.card && RULE[v.card];
     const sc = v.scored;
     let pts = '';
@@ -180,17 +181,28 @@ export class Hud {
     box.className = `verdict${v.correct ? '' : ' bad'}`;
     box.innerHTML = `
       <div class="vhead"><div class="vicon">${v.info ? '📋' : v.correct ? '✅' : '❌'}</div>
-        <div><div class="vtitle">${escapeHtml(v.title)}</div><div class="vsub">${escapeHtml(v.sub || '')}</div></div></div>
+        <div><div class="vtitle">${escapeHtml(v.title)}${v.practice ? ' <span class="vpractice">PRACTICE</span>' : ''}</div><div class="vsub">${escapeHtml(v.sub || '')}</div></div></div>
       <div class="vbody"><p>${mini(v.body || '')}</p>${v.extraHtml || ''}</div>
       ${card ? `<div class="rulecard-mini"><span class="rc-ico">${card.icon}</span><div><b>${escapeHtml(card.title)}</b> rule card ${sc && sc.newCard ? '<b style="color:#2fd67b">· NEW!</b>' : ''}<br><a class="lesson" href="${lessonUrl(card.lesson)}" target="_blank" rel="noopener">📖 Bootcamp lesson →</a></div></div>` : ''}
       ${v.note ? `<div class="vsub" style="margin-top:8px">${escapeHtml(v.note)}</div>` : ''}
       ${pts}
-      <div class="vfoot"><span></span><button class="btn big" id="vcont" type="button">${glyph('A')} CONTINUE</button></div>`;
+      <div class="vfoot">${onRetry ? `<button class="btn ${v.correct ? 'ghost' : 'hot'}" id="vretry" type="button">${glyph('X')} ↻ TRY AGAIN</button>` : '<span></span>'}<button class="btn big" id="vcont" type="button">${glyph('A')} CONTINUE</button></div>`;
     box.hidden = false;
     this.verdictHandler = onContinue;
+    this.retryHandler = onRetry;
     box.querySelector('#vcont').addEventListener('click', () => this._continue());
+    if (onRetry) box.querySelector('#vretry').addEventListener('click', () => this._retry());
     if (v.info) audio.select(); else if (v.correct) audio.correct(); else audio.wrong();
   }
+  _retry() {
+    if (!this.retryHandler) return false;
+    const h = this.retryHandler;
+    this.verdict(null);
+    audio.select();
+    h();
+    return true;
+  }
+
   _continue() {
     if (!this.verdictHandler) return false;
     const h = this.verdictHandler;
@@ -223,6 +235,7 @@ export class Hud {
   handleAction(act) {
     if (this.verdictHandler) {
       if (act === 'A') return this._continue();
+      if (act === 'X') return this._retry() || true;
       return true;
     }
     if (this.optHandler && ['A', 'B', 'X', 'Y'].includes(act)) {

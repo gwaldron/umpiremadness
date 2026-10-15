@@ -11,14 +11,35 @@ export const easeOutBack = (t) => {
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 };
 
-export const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+// Game randomness goes through rng(), which a session can seed so a play can be replayed exactly.
+let rng = Math.random;
+export function setRng(fn) { rng = fn || Math.random; }
+export function withRng(fn, body) {
+  const prev = rng;
+  rng = fn;
+  try { return body(); } finally { rng = prev; }
+}
+export const newSeed = () => (Math.random() * 4294967296) >>> 0;
+// mulberry32
+export function seededRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export const rand = (a = 0, b = 1) => a + rng() * (b - a);
 export const randInt = (a, b) => Math.floor(rand(a, b + 1));
-export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-export const chance = (p) => Math.random() < p;
+export const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+export const chance = (p) => rng() < p;
 export function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -27,7 +48,7 @@ export function weighted(entries) {
   // entries: [[value, weight], ...]
   let total = 0;
   for (const [, w] of entries) total += w;
-  let r = Math.random() * total;
+  let r = rng() * total;
   for (const [v, w] of entries) {
     r -= w;
     if (r <= 0) return v;

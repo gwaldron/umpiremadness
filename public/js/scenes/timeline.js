@@ -1,7 +1,7 @@
 // Keyframed play animation: actors move between keys; the ball follows segments.
 import { KITS, SKINS } from '../render/figures.js';
 import { POS, BASES, UMP_SPOTS } from '../render/field.js';
-import { lerp, clamp, easeOut, pick, dist } from '../util.js';
+import { lerp, clamp, easeOut, pick, dist, shuffle } from '../util.js';
 
 export const BASE_XY = { 0: BASES.home, 1: BASES.first, 2: BASES.second, 3: BASES.third, 4: BASES.home };
 export const STRIDE = 5.2; // feet per run cycle
@@ -183,7 +183,7 @@ export class Timeline {
 
 // ---- Helpers to set up a standard field ----
 export function setupDefense(tl, opts = {}) {
-  const skins = [...SKINS].sort(() => Math.random() - 0.5);
+  const skins = shuffle(SKINS);
   let i = 0;
   for (const k of ['P', 'C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF']) {
     const p = opts[k] || POS[k];

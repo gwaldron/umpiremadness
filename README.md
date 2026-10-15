@@ -70,7 +70,7 @@ It deploys to `https://umpiremadness.<your-subdomain>.workers.dev`.
 | `public/js/scenes/umpcam.js` | Slow-motion close-up whose clarity depends on your angle, plus the Call Cam that cuts to your umpire selling the call |
 | `public/js/scenes/situation.js` + `data/situations.js` | Scripted rule situations |
 | `public/js/render3d/*` | three.js ballpark (bloom and color grade, waving flags, birds, night stars), cel-shaded instanced players with IK and faces, realistic close-up players for the plate view (`hero.js`: soft shading, real gear, jersey numbers), dirt-dust particles, Ump Cam inset rendering, Locker Room preview |
-| `public/js/render/*` | Game camera and constants, plus the 2D fallback renderer (used if WebGL is unavailable, with `?gl=0`, or when the 3D view stops drawing on a device: the engine probes its own pixels, switches to 2D, and tries a lighter "safe" 3D on the next load; Settings → Graphics shows the GPU and can retry 3D) |
+| `public/js/render/*` | Game camera and constants, plus the 2D fallback renderer (`?gl=0`, no WebGL, or a GPU that fails). Graphics step down gracefully: a lost context rebuilds the 3D view in place, real failures go full 3D → safe 3D (no MSAA/shadows, simple shading) → 2D, and a 2D fallback retries 3D after two days. `render/hero2d.js` paints the realistic close-up players on a 2D canvas so they look right in 2D too. Settings → Graphics shows the GPU and mode |
 | `public/vendor/three/` | Vendored three.js (MIT) |
 | `public/js/ui/*` | HUD and menus (gamepad-navigable), TV-style batter lower-third, confetti |
 | `public/js/audio.js` + `voice.js` | Synthesized sound and music; umpire calls, PA announcer and TV commentary from pre-rendered voice clips (`public/audio/vo/`, made by `scripts/render-vo.py`) |

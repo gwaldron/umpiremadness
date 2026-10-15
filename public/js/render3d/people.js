@@ -61,8 +61,10 @@ export function groundZ(x, y) {
 const FRONT_POSES = new Set(['stand', 'ready', 'set', 'out', 'safe', 'time', 'pointR', 'pointL', 'catchHigh', 'catcher', 'pitch']);
 
 export class People {
-  constructor(engine) {
+  // opts.safe: GPUs that struggled get simpler (Lambert) shading for the realistic players
+  constructor(engine, opts = {}) {
     this.engine = engine;
+    this.safe = !!opts.safe;
     const scene = engine.scene;
     const mk = (geo, mat, cast) => {
       const m = new THREE.InstancedMesh(geo, mat, CAP);
@@ -97,8 +99,8 @@ export class People {
     });
     this.fam = {
       toon: fam(new THREE.MeshToonMaterial({ color: '#ffffff', gradientMap: TOON_STEPS }), false),
-      hero: fam(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.82, metalness: 0 }), true),
-      gloss: fam(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.28, metalness: 0.15 }), true),
+      hero: fam(this.safe ? new THREE.MeshLambertMaterial({ color: '#ffffff' }) : new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.82, metalness: 0 }), true),
+      gloss: fam(this.safe ? new THREE.MeshPhongMaterial({ color: '#ffffff', shininess: 60, specular: '#555555' }) : new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.28, metalness: 0.15 }), true),
     };
     this.family = 'toon';
     this.fills = this.fam.toon;
@@ -182,7 +184,8 @@ export class People {
     }
     let m = this.decals[this.nDecal];
     if (!m) {
-      m = new THREE.Mesh(this.decalGeo, new THREE.MeshStandardMaterial({ roughness: 0.85, transparent: true, alphaTest: 0.35, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, depthWrite: false }));
+      const dm = { transparent: true, alphaTest: 0.35, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, depthWrite: false };
+      m = new THREE.Mesh(this.decalGeo, this.safe ? new THREE.MeshLambertMaterial(dm) : new THREE.MeshStandardMaterial({ roughness: 0.85, ...dm }));
       m.matrixAutoUpdate = false;
       m.receiveShadow = true;
       m.renderOrder = 3;

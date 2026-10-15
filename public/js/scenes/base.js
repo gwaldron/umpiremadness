@@ -3,7 +3,7 @@
 import { audio } from '../audio.js';
 import { voices } from '../voice.js';
 import { input } from '../input.js';
-import { clamp, lerp, rand, randInt, pick, chance, weighted, dist, norm, sub, add, mul, dot, segDist } from '../util.js';
+import { clamp, lerp, rand, randInt, pick, chance, weighted, dist, norm, sub, add, mul, dot, segDist, mini } from '../util.js';
 import { KITS, SKINS } from '../render/figures.js';
 import { BASES, UMP_SPOTS, POS } from '../render/field.js';
 import { Timeline, setupDefense, setupRunners, setupBatter, BASE_XY } from './timeline.js';
@@ -769,7 +769,7 @@ export class BasePlayEvent {
     if (v.d > 60) tips.push('You were **too far away**. Close the distance while the ball is in the air.');
     if (v.d < 5) tips.push('You were **too close** — back off so you can see the whole play.');
     if (!tips.length) tips.push('Great positioning: good angle, good distance, and you were set.');
-    let extra = `<div class="vcall">📐 Angle grade: <b style="color:${GRADE_COLOR[c.grade]}">${c.grade}</b> · ${Math.round(c.ratio * 100)}% of the best view${this.critIdx === 0 ? ` · Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be <b>${this.expectSpot}</b>`}` : ''}<br>${tips.join(' ')}</div>`;
+    let extra = `<div class="vcall">📐 Angle grade: <b style="color:${GRADE_COLOR[c.grade]}">${c.grade}</b> · ${Math.round(c.ratio * 100)}% of the best view${this.critIdx === 0 ? ` · Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be <b>${this.expectSpot}</b>`}` : ''}<br>${mini(tips.join(' '))}</div>`;
     if (timing === 'early') extra += '<div class="vcall">⏱️ <b>Quick trigger!</b> You called it before the play was over. Let it finish, pause, then sell it.</div>';
     // Show the best spot on the field
     this.showIdeal = c.ideal;

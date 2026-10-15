@@ -128,8 +128,8 @@ export function drawHero(P, W, o) {
   P.ellipsoid(waistC, Lw, Fw, upT, 0.46 * S, 0.3 * S, tl * 0.34, jersey);
   P.ellipsoid(chestC, Lt, Ft, upT, 0.6 * S, 0.34 * S, tl * 0.38, jersey);
   if (o.protector) P.ellipsoid(add(lerp3(W.hip, W.neck, 0.62), mul(Ft, 0.17 * S)), Lt, Ft, upT, 0.44 * S, 0.24 * S, tl * 0.5, '#1d2233');
-  // collar
-  P.ellipsoid(add(W.neck, mul(upT, -0.06 * S)), Lt, Ft, upT, 0.2 * S, 0.17 * S, 0.05 * S, trim, false);
+  // collar (3D only: in a flat painter it shows through the back)
+  if (!P.flat) P.ellipsoid(add(W.neck, mul(upT, -0.06 * S)), Lt, Ft, upT, 0.2 * S, 0.17 * S, 0.05 * S, trim, false);
   if (catcher) {
     // chest protector in front, harness straps across the back
     P.ellipsoid(add(lerp3(W.hip, W.neck, 0.6), mul(Ft, 0.16 * S)), Lt, Ft, upT, 0.46 * S, 0.26 * S, tl * 0.5, GEAR);
@@ -207,11 +207,12 @@ export function drawHero(P, W, o) {
   if (catcher) {
     P.ellipsoid(add(headC, mul(UP, hr * 0.06)), hl, hf, UP, hr * 1.08, hr * 1.14, hr * 1.1, GEAR);
     P.ellipsoid(add(add(headC, mul(hf, -hr * 0.3)), mul(UP, -hr * 0.3)), hl, hf, UP, hr * 0.95, hr * 0.85, hr * 0.7, GEAR);
-    // back plate seam, vents and the mask's back strap
-    P.ellipsoid(add(add(headC, mul(hf, -hr * 0.62)), mul(UP, -hr * 0.42)), hl, hf, UP, hr * 0.78, hr * 0.5, hr * 0.42, '#183478');
-    for (const s of [1, -1]) P.ellipsoid(add(add(add(headC, mul(hf, -hr * 0.55)), mul(UP, hr * 0.78)), mul(hl, s * hr * 0.28)), hl, hf, UP, hr * 0.09, hr * 0.15, hr * 0.06, '#0d1424', false);
+    // back plate seam, vents and the mask's back strap (3D only: these sit partly inside the helmet,
+    // which a flat 2D painter can't hide)
+    if (!P.flat) P.ellipsoid(add(add(headC, mul(hf, -hr * 0.62)), mul(UP, -hr * 0.42)), hl, hf, UP, hr * 0.78, hr * 0.5, hr * 0.42, '#183478');
+    if (!P.flat) for (const s of [1, -1]) P.ellipsoid(add(add(add(headC, mul(hf, -hr * 0.55)), mul(UP, hr * 0.78)), mul(hl, s * hr * 0.28)), hl, hf, UP, hr * 0.09, hr * 0.15, hr * 0.06, '#0d1424', false);
     P.useFamily('hero');
-    P.limb(add(add(headC, mul(hl, hr * 1.02)), mul(UP, -hr * 0.2)), add(add(headC, mul(hl, -hr * 1.02)), mul(UP, -hr * 0.2)), hr * 0.07, '#121318', false);
+    if (!P.flat) P.limb(add(add(headC, mul(hl, hr * 1.02)), mul(UP, -hr * 0.2)), add(add(headC, mul(hl, -hr * 1.02)), mul(UP, -hr * 0.2)), hr * 0.07, '#121318', false);
     P.ellipsoid(add(add(headC, mul(hf, hr * 0.92)), mul(UP, -hr * 0.12)), hl, hf, UP, hr * 0.98, hr * 0.36, hr * 1.02, '#20232b'); // cage
     P.ellipsoid(add(add(headC, mul(hf, hr * 0.8)), mul(UP, -hr * 1.05)), hl, hf, UP, hr * 0.42, hr * 0.2, hr * 0.32, '#20232b', false); // throat guard
   } else if (o.helmet || kit.helmet) {

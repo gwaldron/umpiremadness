@@ -19,16 +19,46 @@ const canvas = document.getElementById('game');
 const g = canvas.getContext('2d');
 
 // 3D ballpark on a WebGL canvas underneath; the 2D canvas on top is a transparent overlay.
-// If 3D failed on this device before, the next load tries a lighter "safe" 3D, then plain 2D.
-const GFX_KEY = 'umpiremadness.gfx';
-const gfxState = (() => { try { return JSON.parse(localStorage.getItem(GFX_KEY) || 'null'); } catch (e) { return null; } })();
+// Graphics fall back step by step: full 3D -> "safe" 3D (no MSAA/shadows, simpler shading) -> 2D.
+// A lost context (the phone reclaiming memory) just rebuilds the 3D view. A 2D fallback expires
+// after two days so a driver update gets another chance.
+const GFX_KEY = 'umpiremadness.gfx.v2';
+const gfxState = (() => {
+  try {
+    const st = JSON.parse(localStorage.getItem(GFX_KEY) || 'null');
+    if (st && st.mode === '2d' && Date.now() - st.t > 2 * 864e5) return { ...st, mode: 'safe' };
+    return st;
+  } catch (e) { return null; }
+})();
+const saveGfx = (st) => { try { localStorage.setItem(GFX_KEY, JSON.stringify(st)); } catch (e) { /* private mode */ } };
+// GPUs known to struggle with the full renderer start in safe mode (Imagination PowerVR, e.g. Pixel 10)
+function gpuHint() {
+  try {
+    const c = document.createElement('canvas').getContext('webgl2');
+    if (!c) return '';
+    const ext = c.getExtension('WEBGL_debug_renderer_info');
+    const name = String(ext ? c.getParameter(ext.UNMASKED_RENDERER_WEBGL) : c.getParameter(c.RENDERER));
+    c.getExtension('WEBGL_lose_context')?.loseContext();
+    return name;
+  } catch (e) { return ''; }
+}
+// a fresh canvas for each 3D build (a lost context can't be reused)
+function make3D(safe) {
+  const old = document.getElementById('game3d');
+  const c = document.createElement('canvas');
+  c.id = 'game3d';
+  c.setAttribute('aria-hidden', 'true');
+  old.replaceWith(c);
+  return new Field3D(c, { safe });
+}
 const profile = loadProfile();
 let field;
 try {
   if (new URLSearchParams(location.search).get('gl') === '0') throw new Error('2D requested');
   if (profile.settings.gfx === '2d') throw new Error('2D chosen in Settings');
   if (gfxState && gfxState.mode === '2d') throw new Error('3D failed on this device before: ' + gfxState.reason);
-  field = new Field3D(document.getElementById('game3d'), { safe: !!(gfxState && gfxState.mode === 'safe') });
+  const safe = (gfxState && gfxState.mode === 'safe') || (profile.settings.gfx !== 'high' && /PowerVR/i.test(gpuHint()));
+  field = make3D(safe);
 } catch (err) {
   console.warn('Using the 2D renderer:', err.message || err);
   document.getElementById('game3d').style.display = 'none';
@@ -46,26 +76,46 @@ const app = {
 app.rig = new FieldRig(app.cam);
 app.gfxState = gfxState;
 
-// The 3D view stopped drawing: switch to the 2D renderer right away, and remember for next time.
-function switchTo2D(reason) {
+// The 3D view stopped drawing. Rebuild it in place: the same mode after a lost context, one step
+// lighter after a real failure (or a second loss within a minute). Only safe 3D failing goes to 2D.
+let lastGfxFail = -1e9;
+function installField(f) {
+  app.field = f;
+  if (app.session) {
+    app.session.field = f;
+    if (f.setTimeOfDay) f.setTimeOfDay(app.session.cfg.night ? 'night' : 'day');
+  }
+  if (f.is3d) f.onFail = on3DFail;
+  resize();
+  app.applySettings();
+}
+function on3DFail(reason, kind) {
   const f3 = app.field;
   if (!f3.is3d) return;
-  const gpu = f3.engine.gpu;
-  const next = { mode: f3.safe ? '2d' : 'safe', reason, gpu, err: (f3.engine.health.errors[0] || '').slice(0, 160), t: Date.now() };
-  try { localStorage.setItem(GFX_KEY, JSON.stringify(next)); } catch (e) { /* private mode */ }
-  app.gfxState = next;
-  const f2 = new FieldRenderer();
-  app.field = f2;
-  if (app.session) app.session.field = f2;
-  document.getElementById('game3d').style.display = 'none';
+  const info = { reason, gpu: f3.engine.gpu, err: (f3.engine.health.errors[0] || '').slice(0, 160), t: Date.now() };
   try { f3.engine.renderer.dispose(); } catch (e) { /* already gone */ }
-  resize();
-  app.toast({
-    icon: '🖥️', kicker: 'GRAPHICS', title: 'Switched to 2D graphics',
-    desc: f3.safe ? `3D doesn't work on this device (${reason}).` : `3D had trouble on this device (${reason}). Next time we'll try a lighter 3D mode.`,
-  });
+  const now = performance.now();
+  const quick = now - lastGfxFail < 60000;
+  lastGfxFail = now;
+  const stepDown = kind !== 'lost' || quick;
+  if (!stepDown || !f3.safe) {
+    const safe = f3.safe || stepDown;
+    if (stepDown) { app.gfxState = { mode: 'safe', ...info }; saveGfx(app.gfxState); }
+    try {
+      installField(make3D(safe));
+      if (stepDown) app.toast({ icon: '🖥️', kicker: 'GRAPHICS', title: 'Lighter 3D mode', desc: `3D had trouble on this device (${reason}), so we switched to a lighter 3D mode.` });
+      return;
+    } catch (e) {
+      info.reason = reason + ' / rebuild failed';
+    }
+  }
+  app.gfxState = { mode: '2d', ...info };
+  saveGfx(app.gfxState);
+  document.getElementById('game3d').style.display = 'none';
+  installField(new FieldRenderer());
+  app.toast({ icon: '🖥️', kicker: 'GRAPHICS', title: 'Switched to 2D graphics', desc: `3D doesn't work on this device right now (${info.reason}). We'll try 3D again in a couple of days.` });
 }
-if (field.is3d) field.onFail = switchTo2D;
+if (field.is3d) field.onFail = on3DFail;
 // Settings: forget a past failure and try full 3D again
 app.retry3D = () => {
   try { localStorage.removeItem(GFX_KEY); } catch (e) { /* private mode */ }

@@ -3,10 +3,11 @@
 import { audio } from '../audio.js';
 import { voices, playerName } from '../voice.js';
 import { input } from '../input.js';
-import { clamp, lerp, rand, randInt, pick, chance, weighted, easeOut } from '../util.js';
-import { drawFigure, KITS, SKINS } from '../render/figures.js';
+import { clamp, lerp, rand, randInt, pick, chance, weighted, easeOut, newSeed, seededRng, withRng } from '../util.js';
+import { KITS, SKINS } from '../render/figures.js';
 import { pitcherJoints, PITCHER_LIMBS } from './pitcher3d.js';
-import { solveLimbs } from '../render3d/hero.js';
+import { solveLimbs, drawHero } from '../render3d/hero.js';
+import { Painter2D } from '../render/hero2d.js';
 import { POS, UMP_SPOTS, BASES } from '../render/field.js';
 
 const BALL_R = 0.121; // feet (2.9 in diameter)
@@ -25,7 +26,7 @@ const FUN_FACTS = [
 ];
 
 export function makeBatter(div, opts = {}) {
-  const hand = opts.hand || (Math.random() < 0.7 ? 'R' : 'L');
+  const hand = opts.hand || (chance(0.7) ? 'R' : 'L');
   const H = opts.height || rand(div.heights[0], div.heights[1]);
   const crouch = opts.crouch || rand(0.9, 1.0);
   const side = hand === 'R' ? -1 : 1;
@@ -194,6 +195,7 @@ export class AtBatEvent {
     this.catcherX = 0;
     this.glove = { x: 0, z: 2.2, y: GLOVE_Y };
     this.armAnim = -1;
+    this.trail = [];
     this.lookZ = LOOK_Z;
     this.zone = { bot: this.batter.knee, top: this.batter.armpit };
     this.fast = !!spec.fast; // blitz mode: snappier pacing
@@ -277,7 +279,35 @@ export class AtBatEvent {
   }
 
   // ---------- Pitch generation ----------
-  _newPitch() {
+  // Each pitch gets its own seed, so TRY AGAIN can throw the exact same pitch again.
+  _newPitch(seed = null) {
+    this.pitchSeed = seed ?? newSeed();
+    this.pitchBefore = { balls: this.balls, strikes: this.strikes, pitchNo: this.pitchNo };
+    withRng(seededRng(this.pitchSeed), () => this._genPitch());
+  }
+
+  // TRY AGAIN: rewind the count and throw the same pitch (practice, no points). Afterwards the
+  // at-bat picks up from the original call.
+  _retryPitch() {
+    clearTimeout(this._autoNext);
+    const hud = this.s.hud;
+    hud.kzone(null);
+    hud.options(null);
+    hud.prompt('', '');
+    if (!this.resume) this.resume = { balls: this.balls, strikes: this.strikes, pitchNo: this.pitchNo, end: this.lastEnd };
+    const b = this.pitchBefore;
+    this.balls = b.balls; this.strikes = b.strikes; this.pitchNo = b.pitchNo;
+    this.practice = true;
+    this.s.practice = true;
+    this.glove = { x: 0, y: GLOVE_Y, z: 2.2 };
+    this.lookZ = LOOK_Z;
+    this.catcherStand = 0;
+    hud.setBug({ balls: Math.min(this.balls, 3), strikes: Math.min(this.strikes, 2), outs: this.outs, runners: this.runners });
+    hud.stamp('TRY AGAIN!', 'gold');
+    this._newPitch(this.pitchSeed);
+  }
+
+  _genPitch() {
     const d = this.div;
     const st = this.strikes, bl = this.balls;
     const forced = this.spec.forceKinds ? this.spec.forceKinds[this.pitchNo] : null;
@@ -323,7 +353,12 @@ export class AtBatEvent {
       }
       case 'contact': {
         target = { x: rand(-0.4, 0.4), z: rand(zone.bot + 0.3, zone.top - 0.2) };
-        pk.sub = weighted([['foulBack', 4], ['foulTip', 4], ['foulTipDrop', 2], ['popCaught', 2]]);
+        pk.sub = weighted([['foulSide', 4], ['foulBack', 2], ['foulTip', 4], ['foulTipDrop', 2], ['popCaught', 2]]);
+        // foul balls: which way and how hard (angle measured from straight out; past 45 degrees is foul)
+        pk.foulDir = chance(0.5) ? 1 : -1;
+        pk.foulAng = rand(0.92, 1.3);
+        pk.foulV = rand(55, 80);
+        pk.foulVz = rand(5, 15);
         break;
       }
       case 'bunt2': {
@@ -422,14 +457,28 @@ export class AtBatEvent {
           return { x: p.x - this.batter.side * dt * 3, y: p.y - dt * 4, z: Math.max(BALL_R, p.z - 6 * dt - 16 * dt * dt) };
         }
         if (kind === 'bunt2') {
-          return { x: atContact.x + this.batter.side * -dt * 10, y: atContact.y + dt * 6, z: Math.max(BALL_R, atContact.z - dt * 10 - 10 * dt * dt) };
+          // a two-strike bunt that trickles into foul ground and stops
+          const roll = (1 - Math.exp(-dt * 1.2)) / 1.2;
+          return { x: atContact.x + this.batter.side * -roll * 10, y: atContact.y + roll * 6, z: Math.max(BALL_R, atContact.z - dt * 10 - 10 * dt * dt) };
         }
         if (kind === 'inPlay') {
           const vz = sub === 'fly' ? 38 : -6;
           return { x: atContact.x + dt * 12 * this.batter.side, y: atContact.y + dt * 95, z: Math.max(BALL_R, atContact.z + vz * dt - 16 * dt * dt) };
         }
         if (sub === 'foulBack') {
-          return { x: atContact.x + dt * 7 * -this.batter.side, y: atContact.y - dt * 70, z: atContact.z + dt * 34 - 16 * dt * dt };
+          // popped straight back and up into the backstop and stands
+          return { x: atContact.x + dt * 18 * pk.foulDir, y: atContact.y - dt * 58, z: atContact.z + dt * 30 - 16 * dt * dt };
+        }
+        if (sub === 'foulSide') {
+          // pulled or sliced hard into foul ground past the first- or third-base line: one hop, then a roll
+          const vx = Math.sin(pk.foulAng) * pk.foulV * pk.foulDir, vy = Math.cos(pk.foulAng) * pk.foulV;
+          const z0 = atContact.z, vz0 = pk.foulVz;
+          const tLand = (vz0 + Math.sqrt(vz0 * vz0 + 64 * z0)) / 32;
+          if (dt < tLand) return { x: atContact.x + vx * dt, y: atContact.y + vy * dt, z: z0 + vz0 * dt - 16 * dt * dt };
+          const d2 = dt - tLand;
+          const hop = Math.abs(vz0 - 32 * tLand) * 0.35;
+          const roll = (0.6 * (1 - Math.exp(-d2 * 1.2))) / 1.2;
+          return { x: atContact.x + vx * (tLand + roll), y: atContact.y + vy * (tLand + roll), z: Math.max(BALL_R, hop * d2 - 16 * d2 * d2) };
         }
         if (sub === 'popCaught') {
           const T = 2.4; // time to come down
@@ -464,8 +513,32 @@ export class AtBatEvent {
   }
 
   // ---------- Loop ----------
+  // Where the umpire is looking: straight out at the pitcher, or following a foul ball.
+  _updateLook(dt) {
+    const eye = { x: this.eye.x, y: -4.3, z: this.eye.z };
+    const pk = this.pk;
+    let want = { x: this.eye.x * 0.25 - eye.x, y: 25 - eye.y, z: this.lookZ - eye.z };
+    // follow anything batted away from the plate: fouls, bunts, balls in play
+    const batted = pk && ((pk.kind === 'contact' && (pk.sub === 'foulSide' || pk.sub === 'foulBack')) || pk.kind === 'bunt2' || pk.kind === 'inPlay');
+    const follow = batted && pk.t > pk.contactT && this.state !== 'pre' && this.state !== 'setup';
+    if (follow) {
+      const b = pk.ballAt(pk.t);
+      if (b) want = { x: b.x - eye.x, y: b.y - eye.y, z: b.z - eye.z };
+      this.trail.push(b ? { x: b.x, y: b.y, z: b.z } : null);
+      if (this.trail.length > 8) this.trail.shift();
+    } else if (this.trail.length) this.trail.length = 0;
+    const wl = Math.hypot(want.x, want.y, want.z) || 1;
+    want = { x: want.x / wl, y: want.y / wl, z: want.z / wl };
+    const cur = this.lookDir || want;
+    const k = 1 - Math.exp(-dt * (follow ? 7 : 5));
+    const nx = cur.x + (want.x - cur.x) * k, ny = cur.y + (want.y - cur.y) * k, nz = cur.z + (want.z - cur.z) * k;
+    const nl = Math.hypot(nx, ny, nz) || 1;
+    this.lookDir = { x: nx / nl, y: ny / nl, z: nz / nl };
+  }
+
   update(dt) {
     this.t += dt;
+    this._updateLook(dt);
     const hud = this.s.hud;
     if (this.state === 'setup') {
       const m = input.move;
@@ -553,8 +626,9 @@ export class AtBatEvent {
       // When does the special decision open?
       if (live && !pk.decisionOpen && !this._isZoneCall()) {
         let openAt = Infinity;
-        if (pk.kind === 'contact') openAt = pk.sub === 'popCaught' ? pk.contactT + 2.5 : pk.sub === 'foulBack' ? pk.contactT + 0.7 : pk.contactT + 0.45;
-        if (pk.kind === 'bunt2') openAt = pk.contactT + 0.6;
+        // fouls wait until you've watched the ball go foul
+        if (pk.kind === 'contact') openAt = pk.sub === 'popCaught' ? pk.contactT + 2.5 : pk.sub === 'foulBack' ? pk.contactT + 1.1 : pk.sub === 'foulSide' ? pk.contactT + 1.3 : pk.contactT + 0.45;
+        if (pk.kind === 'bunt2') openAt = pk.contactT + 1.5;
         if (pk.kind === 'hbp') openAt = pk.contactT + 0.45;
         if (pk.kind === 'u3k') openAt = pk.tGlove + 0.55;
         if (pk.kind === 'inPlay') openAt = pk.contactT + 0.9;
@@ -675,6 +749,7 @@ export class AtBatEvent {
       else { this.balls++; if (this.balls >= 4) end = 'bb'; }
     } else if (k === 'u3k') end = truth === 'run' ? 'u3k-run' : 'k';
     this.pitchNo++;
+    this.lastEnd = end;
 
     const delay = this.fast ? 200 : 650;
     setTimeout(() => {
@@ -685,21 +760,22 @@ export class AtBatEvent {
         } else {
           hud.kzone(null);
         }
+        const pre = this.practice ? 'PRACTICE: ' : '';
         if (k !== 'take') {
           const why = k === 'swingMiss' ? (correct ? 'He swung — strike, no matter where it was.' : 'He SWUNG! A swing and a miss is always a strike.') : pk.went ? 'The bat came all the way around — that\'s an attempt to hit.' : 'He held up — the bat never came around.';
-          hud.prompt(correct ? 'GOOD CALL!' : 'MISSED IT!', why);
+          hud.prompt(pre + (correct ? 'GOOD CALL!' : 'MISSED IT!'), why);
         } else if (timing === 'early') {
-          hud.prompt(correct ? 'RIGHT CALL… TOO SOON!' : 'MISSED IT!', 'Quick trigger! See the ball into the glove, pause, THEN call it.');
+          hud.prompt(pre + (correct ? 'RIGHT CALL… TOO SOON!' : 'MISSED IT!'), 'Quick trigger! See the ball into the glove, pause, THEN call it.');
         } else if (timing === 'none') {
-          hud.prompt('NO CALL!', 'You have to make a call on every pitch.');
+          hud.prompt(pre + 'NO CALL!', 'You have to make a call on every pitch.');
         } else {
-          hud.prompt(correct ? 'GOOD CALL!' : 'MISSED IT!', '');
+          hud.prompt(pre + (correct ? 'GOOD CALL!' : 'MISSED IT!'), '');
         }
         hud.setBug({ balls: Math.min(this.balls, 3), strikes: Math.min(this.strikes, 2), outs: this.outs, runners: this.runners });
         const wait = this.fast ? 300 : 1500;
-        this._continueAfter(wait, end);
+        this._continueAfter(wait, end, correct && timing !== 'early' && timing !== 'none');
       } else {
-        this.s.showVerdict(this._specialVerdict(correct, truth, id, scored), () => {
+        this.s.showVerdict({ ...this._specialVerdict(correct, truth, id, scored), retry: this.fast ? null : () => this._retryPitch() }, () => {
           hud.setBug({ balls: Math.min(this.balls, 3), strikes: Math.min(this.strikes, 2), outs: this.outs, runners: this.runners });
           this._afterPitch(end);
         });
@@ -707,22 +783,38 @@ export class AtBatEvent {
     }, delay);
   }
 
-  _continueAfter(ms, end) {
+  // After a ball/strike call: NEXT PITCH (auto after a beat when you got it right) or TRY AGAIN.
+  _continueAfter(ms, end, good = true) {
     let done = false;
-    const go = () => {
+    const go = (id) => {
       if (done) return;
       done = true;
+      clearTimeout(this._autoNext);
+      if (id === 'retry') return this._retryPitch();
       this.s.hud.kzone(null);
       this.s.hud.options(null);
       this._afterPitch(end);
     };
-    this.s.hud.options([{ btn: 'A', id: 'next', label: 'NEXT PITCH', small: true }], go);
-    this._autoNext = setTimeout(go, ms + (this.fast ? 100 : 600));
+    const opts = [{ btn: 'A', id: 'next', label: 'NEXT PITCH', small: true }];
+    if (!this.fast) opts.push({ btn: 'X', id: 'retry', label: good ? 'TRY AGAIN' : '↻ TRY AGAIN', small: !!good, big: !good, hot: !good });
+    this.s.hud.options(opts, go);
+    // a miss waits for you, so there's time to try it again
+    if (good || this.fast) this._autoNext = setTimeout(() => go('next'), ms + (this.fast ? 100 : 600));
   }
 
   _afterPitch(end) {
     clearTimeout(this._autoNext);
     if (this.s.ended) return;
+    if (this.resume) {
+      // back from a practice pitch: pick up where the real call left the at-bat
+      const r = this.resume;
+      this.resume = null;
+      this.balls = r.balls; this.strikes = r.strikes; this.pitchNo = r.pitchNo;
+      end = r.end;
+      this.practice = false;
+      this.s.practice = false;
+      this.s.hud.setBug({ balls: Math.min(this.balls, 3), strikes: Math.min(this.strikes, 2), outs: this.outs, runners: this.runners });
+    }
     this.s.hud.prompt('', '');
     if (this.s.gameOver && !end) return this.s.eventDone();
     if (end) return this._endAtBat(end);
@@ -804,29 +896,50 @@ export class AtBatEvent {
     // Keep roughly the same horizontal coverage on any screen shape
     cam.fovY = clamp(2 * Math.atan(Math.tan(0.5) * 1.6 / Math.min(aspect, 1.6)), 0.9, 1.5);
     const EYE_Y = -4.3;
-    cam.lookAt({ x: this.eye.x, y: EYE_Y, z: this.eye.z }, { x: this.eye.x * 0.25, y: 25, z: this.lookZ });
+    const d = this.lookDir;
+    cam.lookAt({ x: this.eye.x, y: EYE_Y, z: this.eye.z }, d ? { x: this.eye.x + d.x * 25, y: EYE_Y + d.y * 25, z: this.eye.z + d.z * 25 } : { x: this.eye.x * 0.25, y: 25, z: this.lookZ });
     const pk = this.pk;
     const t = pk ? pk.t : 0;
     const ball = pk && this.state !== 'setup' ? pk.ballAt(t) : null;
     if (s.field.is3d) return this._render3d(g, cam, t, ball);
 
-    s.field.draw(g, cam, { actors: this.bg });
+    // 2D (no WebGL): the same realistic pitcher, batter and catcher as 3D, painted onto the canvas
+    s.field.draw(g, cam, { actors: this.bg.filter((a) => a !== this.pitcher) });
+    const P2 = this._p2 || (this._p2 = new Painter2D());
+    const paint = (body) => { P2.begin(g, cam); drawHero(P2, body.W, body.o); P2.end(); };
+    paint(this._pitcherBody());
     // Pitcher hides the ball until release
     if (ball && ball.y > 1.6) this._drawBall(g, cam, ball);
     this._drawZoneHelper(g, cam);
-    this._drawBatter(g, cam, t);
+    this._drawImprint(g, cam);
+    paint(this._batterBody(t));
     if (ball && ball.y <= 1.6 && ball.y > GLOVE_Y + 0.05) this._drawBall(g, cam, ball);
-    this._drawGlove(g, cam);
-    if (ball && ball.y <= GLOVE_Y + 0.05 && ball.y > -2.0) this._drawBall(g, cam, ball);
-    this._drawCatcher(g, cam);
-    if (ball && ball.y <= -2.0) this._drawBall(g, cam, ball);
+    paint(this._catcherBody());
+    if (ball && ball.y <= GLOVE_Y + 0.05) this._drawBall(g, cam, ball);
     this._drawMask(g, cam);
     this._drawArm(g, cam);
   }
 
+  // Where the pitch crossed the plate, shown once the ball gets there: the exact point the K-Zone
+  // uses, so the field and the K-Zone always agree. (Exams show it only after you call it.)
+  _imprint() {
+    const pk = this.pk;
+    if (!pk || !pk.judge || pk.kind !== 'take' || this.state === 'setup') return null;
+    const at = pk.judge.at;
+    const ay = at.y ?? 1.0;
+    if (pk.t < pk.tRelease + pk.traj.tAtY(ay)) return null;
+    if (this.spec.exam && !pk.called) return null;
+    const color = pk.called ? (pk.judge.strike ? '#ff5a5a' : '#3fa2ff') : '#ffffff';
+    return { x: at.x, y: ay, z: at.z, color };
+  }
+
   _zoneShown() {
-    if (this.spec.exam) return false;
-    return (this.s.zoneHelper && (this.state === 'setup' || this.state === 'pre' || this.state === 'pitch')) || (this.state === 'setup' && this.s.hints);
+    // after a called pitch, the zone stays up with the imprint so the field matches the K-Zone
+    const review = !!(this.pk && this.pk.called && this.pk.kind === 'take' && (this.state === 'signal' || this.state === 'wait'));
+    if (this.spec.exam) return review;
+    // once the ball is hit, the zone is no longer the point (and the view may turn to follow it)
+    if (this.pk && this.pk.contactT && this.pk.kind !== 'take' && this.pk.t > this.pk.contactT && this.state !== 'setup') return false;
+    return review || (this.s.zoneHelper && (this.state === 'setup' || this.state === 'pre' || this.state === 'pitch')) || (this.state === 'setup' && this.s.hints);
   }
 
   // ---------- 3D rendering ----------
@@ -838,8 +951,9 @@ export class AtBatEvent {
     s.field.draw(g, cam, {
       actors: this.bg.filter((a) => a !== this.pitcher),
       bodies,
-      ball: ball ? { ...ball, scale: 1.15, halo: 0.45 } : null,
-      zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 1.0 } : null,
+      ball: ball ? { ...ball, scale: 1.15, halo: 0.45, trail: this.trail.filter(Boolean) } : null,
+      zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 0.708, depth: 1.416 } : null,
+      imprint: this._imprint(),
       extra: (P) => this._arm3d(P, cam),
       overlay: (gg) => {
         if (showZone) this._zoneLabels(gg, cam);
@@ -971,17 +1085,20 @@ export class AtBatEvent {
     const show = this._zoneShown();
     if (!show) return;
     const z = this.zone;
-    const y = 1.0;
-    const pts = [[-HALF, y, z.bot], [HALF, y, z.bot], [HALF, y, z.top], [-HALF, y, z.top]];
+    const y = 1.416;
     g.save();
-    if (cam.polyPath(g, pts)) {
-      g.fillStyle = 'rgba(255,211,77,0.10)';
-      g.fill();
-      g.setLineDash([6, 5]);
-      g.lineWidth = 2;
-      g.strokeStyle = 'rgba(255,211,77,0.85)';
-      g.stroke();
-      g.setLineDash([]);
+    // the zone is a box over the whole plate: back face, then front face
+    for (const [yy, fill] of [[0, 0.05], [y, 0.08]]) {
+      const pts = [[-HALF, yy, z.bot], [HALF, yy, z.bot], [HALF, yy, z.top], [-HALF, yy, z.top]];
+      if (cam.polyPath(g, pts)) {
+        g.fillStyle = `rgba(255,211,77,${fill})`;
+        g.fill();
+        g.setLineDash([6, 5]);
+        g.lineWidth = 2;
+        g.strokeStyle = 'rgba(255,211,77,0.75)';
+        g.stroke();
+        g.setLineDash([]);
+      }
     }
     // landmark ticks at knees / armpits
     const b = this.batter;
@@ -999,10 +1116,50 @@ export class AtBatEvent {
     g.restore();
   }
 
+  _drawImprint(g, cam) {
+    const im = this._imprint();
+    if (!im) return;
+    const p = cam.project(im.x, im.y, im.z);
+    if (!p) return;
+    const r = Math.max(2, 0.121 * p.s);
+    g.save();
+    g.globalAlpha = 0.55;
+    g.fillStyle = im.color;
+    g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+    g.strokeStyle = im.color;
+    g.lineWidth = Math.max(2, r * 0.25);
+    g.beginPath(); g.arc(p.x, p.y, r * 1.7, 0, Math.PI * 2); g.stroke();
+    g.restore();
+  }
+
   _drawBall(g, cam, b) {
     const p = cam.project(b.x, b.y, b.z);
     if (!p) return;
-    const r = Math.max(1.8, BALL_R * 1.2 * p.s);
+    // never smaller than a few screen pixels (more on phones), like the 3D ball
+    const dpr = this.s.app.dpr;
+    const minR = (Math.min(cam.w, cam.h) / dpr < 500 ? 6.2 : 4.6) * dpr;
+    const r = Math.max(minR, BALL_R * 1.2 * p.s);
+    const far = BALL_R * 1.2 * p.s < minR;
+    // trail while following a hit ball
+    const tr = this.trail.filter(Boolean);
+    tr.forEach((q, i) => {
+      const pq = cam.project(q.x, q.y, q.z);
+      if (!pq) return;
+      g.fillStyle = `rgba(255,255,255,${0.12 + (0.3 * i) / tr.length})`;
+      g.beginPath(); g.arc(pq.x, pq.y, r * (0.4 + (0.5 * i) / tr.length), 0, Math.PI * 2); g.fill();
+    });
+    if (far) {
+      // halo + dark ring so a far-away ball pops against grass, dirt and chalk
+      const gl = g.createRadialGradient(p.x, p.y, r * 0.5, p.x, p.y, r * 3);
+      gl.addColorStop(0, 'rgba(255,224,102,0.55)');
+      gl.addColorStop(1, 'rgba(255,224,102,0)');
+      g.fillStyle = gl;
+      g.beginPath(); g.arc(p.x, p.y, r * 3, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = 'rgba(10,14,28,0.9)';
+      g.lineWidth = Math.max(1.5, r * 0.28);
+      g.beginPath(); g.arc(p.x, p.y, r * 1.12, 0, Math.PI * 2); g.stroke();
+    }
     // shadow
     const sh = cam.project(b.x, b.y, 0);
     if (sh) {
@@ -1104,230 +1261,8 @@ export class AtBatEvent {
     return J;
   }
 
-  _drawBatter(g, cam, t) {
-    const b = this.batter;
-    const J = this._batterPose(t);
-    const kit = KITS.off;
-    const OL = 'rgba(10,14,28,0.92)';
-    const P = (p) => cam.project(p[0], p[1], p[2]);
-    const seg = (a, c, w, color, outline = true) => {
-      const pa = P(a), pc = P(c);
-      if (!pa || !pc) return;
-      const s = (pa.s + pc.s) / 2;
-      if (outline) {
-        g.strokeStyle = OL;
-        g.lineWidth = Math.max(2, (w + 0.09) * s);
-        g.beginPath(); g.moveTo(pa.x, pa.y); g.lineTo(pc.x, pc.y); g.stroke();
-      }
-      g.strokeStyle = color;
-      g.lineWidth = Math.max(1, w * s);
-      g.beginPath(); g.moveTo(pa.x, pa.y); g.lineTo(pc.x, pc.y); g.stroke();
-    };
-    const dot = (p, r, color, outline = true) => {
-      const q = P(p);
-      if (!q) return;
-      if (outline) { g.fillStyle = OL; g.beginPath(); g.arc(q.x, q.y, (r + 0.045) * q.s, 0, Math.PI * 2); g.fill(); }
-      g.fillStyle = color;
-      g.beginPath(); g.arc(q.x, q.y, r * q.s, 0, Math.PI * 2); g.fill();
-    };
-    const mix = (p, q, k) => [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k, p[2] + (q[2] - p[2]) * k];
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-    // shadow
-    const sh = P([J.hip[0], J.hip[1], 0]);
-    if (sh) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(sh.x, sh.y, 1.4 * sh.s, 0.4 * sh.s, 0, 0, Math.PI * 2); g.fill(); }
-    // cleats
-    for (const ft of [J.footB, J.footF]) {
-      const p = P(ft);
-      if (!p) continue;
-      g.fillStyle = OL; g.beginPath(); g.ellipse(p.x, p.y, 0.42 * p.s, 0.2 * p.s, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#1b1b22'; g.beginPath(); g.ellipse(p.x, p.y, 0.37 * p.s, 0.16 * p.s, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#fff'; g.fillRect(p.x - 0.2 * p.s, p.y - 0.03 * p.s, 0.4 * p.s, 0.05 * p.s);
-    }
-    // legs: red socks below the knee, white pants above
-    seg(mix(J.kneeB, J.footB, 0.15), J.footB, 0.3, '#b3122a');
-    seg(mix(J.kneeF, J.footF, 0.15), J.footF, 0.31, '#c8172f');
-    seg(J.hip, mix(J.kneeB, J.footB, 0.2), 0.48, '#d9dce3');
-    seg(J.hip, mix(J.kneeF, J.footF, 0.2), 0.5, kit.pants);
-    seg(J.hip, mix(J.kneeF, J.footF, 0.2), 0.07, '#c8172f', false); // pant stripe
-    // back arm
-    seg(J.shB, J.elB, 0.3, '#b51f30');
-    seg(J.elB, J.hands, 0.23, shade3(b.skin, 0.85));
-    // torso
-    seg(J.hip, J.neck, 1.3, kit.jersey);
-    seg(J.shB, J.shF, 0.7, kit.jersey, false);
-    seg(mix(J.hip, J.neck, 0.15), mix(J.hip, J.neck, 0.85), 0.25, 'rgba(255,255,255,0.12)', false);
-    // belt
-    const bl = P([J.hip[0], J.hip[1] - 0.38, J.hip[2]]), br = P([J.hip[0], J.hip[1] + 0.38, J.hip[2]]);
-    if (bl && br) { g.strokeStyle = '#16161c'; g.lineWidth = Math.max(1, 0.15 * bl.s); g.beginPath(); g.moveTo(bl.x, bl.y); g.lineTo(br.x, br.y); g.stroke(); }
-    // number on the back
-    const np = P(mix(J.hip, J.neck, 0.55).map((v, i) => (i === 1 ? v - 0.45 : v)));
-    if (np && np.s > 16) {
-      g.font = `${np.s * 0.5}px Bungee, Impact, sans-serif`;
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.lineWidth = Math.max(2, np.s * 0.06);
-      g.strokeStyle = '#7a0d1a';
-      g.strokeText(String(b.num), np.x, np.y);
-      g.fillStyle = '#fff';
-      g.fillText(String(b.num), np.x, np.y);
-    }
-    // bat: handle + barrel
-    const knob = J.hands, tip = J.batTip;
-    const neck = mix(knob, tip, 0.42);
-    seg(knob, neck, 0.11, '#c7924f');
-    seg(neck, tip, 0.21, '#d9a865');
-    dot(tip, 0.115, '#b9864a');
-    dot(knob, 0.08, '#2a2a2a', false);
-    // front arm + batting gloves
-    seg(J.shF, J.elF, 0.31, kit.jersey);
-    seg(J.elF, J.hands, 0.24, b.skin);
-    dot(J.hands, 0.17, '#f2f2f2');
-    // neck + head + helmet
-    seg(J.neck, J.head, 0.32, b.skin);
-    const hd = P(J.head);
-    if (hd) {
-      const r = 0.42 * hd.s;
-      g.fillStyle = OL;
-      g.beginPath(); g.arc(hd.x, hd.y, r * 1.14, 0, Math.PI * 2); g.fill();
-      g.fillStyle = b.skin;
-      g.beginPath(); g.arc(hd.x, hd.y + r * 0.25, r * 0.85, 0, Math.PI * 2); g.fill();
-      const grad = g.createRadialGradient(hd.x - r * 0.4, hd.y - r * 0.5, r * 0.1, hd.x, hd.y, r * 1.2);
-      grad.addColorStop(0, '#ff4a5c');
-      grad.addColorStop(0.6, kit.cap);
-      grad.addColorStop(1, '#5e0712');
-      g.fillStyle = grad;
-      g.beginPath(); g.arc(hd.x, hd.y - r * 0.05, r * 1.08, Math.PI * 0.88, Math.PI * 2.12); g.closePath(); g.fill();
-      // ear flap
-      g.beginPath(); g.ellipse(hd.x - this.batter.side * r * 0.55, hd.y + r * 0.35, r * 0.48, r * 0.5, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.55)';
-      g.beginPath(); g.ellipse(hd.x - r * 0.35, hd.y - r * 0.6, r * 0.38, r * 0.15, -0.45, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#fff';
-      g.font = `${r * 0.6}px Bungee, Impact, sans-serif`;
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText('M', hd.x + this.batter.side * r * 0.25, hd.y - r * 0.15);
-    }
-  }
 
-  _drawGlove(g, cam) {
-    const p = cam.project(this.glove.x, this.glove.y, this.glove.z);
-    if (!p) return;
-    const r = 0.4 * p.s;
-    g.fillStyle = 'rgba(10,14,28,0.9)';
-    g.beginPath(); g.ellipse(p.x, p.y, r * 1.1, r * 1.18, 0, 0, Math.PI * 2); g.fill();
-    const grad = g.createRadialGradient(p.x - r * 0.3, p.y - r * 0.4, r * 0.1, p.x, p.y, r * 1.1);
-    grad.addColorStop(0, '#a8692f');
-    grad.addColorStop(1, '#5e3714');
-    g.fillStyle = grad;
-    g.beginPath(); g.ellipse(p.x, p.y, r, r * 1.08, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#4a2a0f';
-    g.beginPath(); g.ellipse(p.x, p.y + r * 0.12, r * 0.58, r * 0.66, 0, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#d9b27a';
-    g.lineWidth = Math.max(1, r * 0.06);
-    for (let i = -2; i <= 2; i++) {
-      g.beginPath(); g.moveTo(p.x + i * r * 0.28, p.y - r * 1.0); g.lineTo(p.x + i * r * 0.3, p.y - r * 0.6); g.stroke();
-    }
-  }
 
-  _drawCatcher(g, cam) {
-    const cx = this.catcherX;
-    const up = this.catcherStand || 0;
-    const P = (x, y, z) => cam.project(x, y, z);
-    const lift = up * 1.4;
-    const OL = 'rgba(10,14,28,0.92)';
-    const kit = KITS.def;
-    g.lineCap = 'round';
-    const seg = (a, c, w, color) => {
-      if (!a || !c) return;
-      const s = (a.s + c.s) / 2;
-      g.strokeStyle = OL; g.lineWidth = (w + 0.08) * s;
-      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(c.x, c.y); g.stroke();
-      g.strokeStyle = color; g.lineWidth = w * s;
-      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(c.x, c.y); g.stroke();
-    };
-    // legs: pants thighs + shin guards with knee caps
-    for (const sx of [-1, 1]) {
-      const knee = P(cx + sx * 0.85, -1.85, 1.15 + lift * 0.5);
-      const foot = P(cx + sx * 0.75, -2.5, 0.1);
-      const hip = P(cx + sx * 0.4, -2.45, 1.2 + lift);
-      seg(hip, knee, 0.5, '#d5dae3');
-      seg(knee, foot, 0.45, '#1f4fb0');
-      if (knee) {
-        g.fillStyle = '#2a63d6';
-        g.beginPath(); g.arc(knee.x, knee.y, 0.3 * knee.s, 0, Math.PI * 2); g.fill();
-        g.fillStyle = 'rgba(255,255,255,0.3)';
-        g.beginPath(); g.arc(knee.x - 0.08 * knee.s, knee.y - 0.08 * knee.s, 0.1 * knee.s, 0, Math.PI * 2); g.fill();
-      }
-    }
-    // body (we see the catcher's back: jersey + chest-protector straps)
-    const sh = P(cx, -2.3, 2.05 + lift);
-    const hp = P(cx, -2.5, 1.25 + lift);
-    if (sh && hp) {
-      const w = 0.85;
-      const L = P(cx - w, -2.3, 2.0 + lift), R = P(cx + w, -2.3, 2.0 + lift);
-      const HL = P(cx - 0.62, -2.5, 1.15 + lift), HR = P(cx + 0.62, -2.5, 1.15 + lift);
-      if (L && R && HL && HR) {
-        g.beginPath();
-        g.moveTo(L.x, L.y);
-        g.quadraticCurveTo(sh.x, sh.y - 0.3 * sh.s, R.x, R.y);
-        g.lineTo(HR.x, HR.y);
-        g.lineTo(HL.x, HL.y);
-        g.closePath();
-        g.lineWidth = 0.1 * sh.s;
-        g.strokeStyle = OL;
-        g.stroke();
-        g.fillStyle = kit.jersey;
-        g.fill();
-        // shading on the right side
-        g.fillStyle = 'rgba(30,40,70,0.12)';
-        g.beginPath(); g.moveTo(sh.x, sh.y); g.lineTo(R.x, R.y); g.lineTo(HR.x, HR.y); g.lineTo(hp.x, hp.y); g.closePath(); g.fill();
-        // straps
-        g.strokeStyle = '#151515';
-        g.lineWidth = 0.13 * sh.s;
-        g.beginPath(); g.moveTo(L.x + (R.x - L.x) * 0.15, L.y); g.lineTo(HR.x - (HR.x - HL.x) * 0.15, HR.y); g.stroke();
-        g.beginPath(); g.moveTo(R.x - (R.x - L.x) * 0.15, R.y); g.lineTo(HL.x + (HR.x - HL.x) * 0.15, HL.y); g.stroke();
-        g.fillStyle = '#c0c4cc';
-        const mx = (L.x + R.x + HL.x + HR.x) / 4, my = (L.y + R.y + HL.y + HR.y) / 4;
-        g.beginPath(); g.arc(mx, my, 0.09 * sh.s, 0, Math.PI * 2); g.fill();
-        // number
-        g.font = `${0.5 * sh.s}px Bungee, Impact, sans-serif`;
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.fillStyle = '#1f5fe0';
-        g.fillText('2', (L.x + mx) / 2, my - 0.05 * sh.s);
-      }
-    }
-    // glove arm reaching toward the mitt
-    const shL = P(cx - 0.75, -2.3, 2.0 + lift);
-    const gl = P(this.glove.x, this.glove.y, this.glove.z);
-    seg(shL, gl, 0.3, kit.jersey);
-    // helmet (back of a hockey-style catcher's helmet, mask cage peeking out)
-    const hd = P(cx, -2.1, 2.45 + lift);
-    if (hd) {
-      const r = 0.42 * hd.s;
-      g.strokeStyle = '#3a3f4a';
-      g.lineWidth = Math.max(1, 0.05 * hd.s);
-      for (const sx of [-1, 1]) {
-        g.beginPath(); g.arc(hd.x + sx * r * 0.85, hd.y + r * 0.3, r * 0.35, -1, 1.2); g.stroke();
-      }
-      g.fillStyle = OL;
-      g.beginPath(); g.arc(hd.x, hd.y, r * 1.1, 0, Math.PI * 2); g.fill();
-      const grad = g.createRadialGradient(hd.x - r * 0.35, hd.y - r * 0.45, r * 0.1, hd.x, hd.y, r * 1.1);
-      grad.addColorStop(0, '#3f6fe0');
-      grad.addColorStop(0.6, '#1d3f9e');
-      grad.addColorStop(1, '#0d1f52');
-      g.fillStyle = grad;
-      g.beginPath(); g.arc(hd.x, hd.y, r, 0, Math.PI * 2); g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.35)';
-      g.beginPath(); g.ellipse(hd.x - r * 0.3, hd.y - r * 0.45, r * 0.4, r * 0.18, -0.5, 0, Math.PI * 2); g.fill();
-      // strap + dangling throat guard
-      g.strokeStyle = '#111';
-      g.lineWidth = 0.08 * hd.s;
-      g.beginPath(); g.moveTo(hd.x - r * 0.9, hd.y + r * 0.2); g.lineTo(hd.x + r * 0.9, hd.y + r * 0.2); g.stroke();
-      g.beginPath(); g.moveTo(hd.x, hd.y + r); g.lineTo(hd.x, hd.y + r * 1.4); g.stroke();
-    }
-  }
 
   // Looking through your own umpire mask: soft bars + vignette at the edges.
   _drawMask(g, cam) {
@@ -1397,11 +1332,6 @@ export class AtBatEvent {
   }
 }
 
-function shade3(hex, k) {
-  const n = parseInt(hex.slice(1), 16);
-  const c = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
-  return `rgb(${c((n >> 16) & 255)},${c((n >> 8) & 255)},${c(n & 255)})`;
-}
 function lerpV3(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }

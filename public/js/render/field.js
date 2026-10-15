@@ -185,8 +185,8 @@ export class FieldRenderer {
         if (cam.line(g, p, q)) g.stroke();
       }
     };
-    chalk([0, 0], [FENCE_R * R2, FENCE_R * R2]);
-    chalk([0, 0], [-FENCE_R * R2, FENCE_R * R2]);
+    chalk([0.8, 0.8], [FENCE_R * R2, FENCE_R * R2]);
+    chalk([-0.8, 0.8], [-FENCE_R * R2, FENCE_R * R2]);
     // Running lane (last half of the way to first, 3 ft into foul ground)
     const off = 3 * R2;
     chalk([30 * R2 + off, 30 * R2 - off], [B + off, B - off]);
@@ -213,9 +213,10 @@ export class FieldRenderer {
     bag(B - 0.9, B, 0);
     bag(0, 2 * B, 0);
     bag(-B + 0.9, B, 0);
-    // Home plate pentagon (17 in)
-    const hp = [[0, 0, 0.02], [0.708, 0.706, 0.02], [0.708, 1.414, 0.02], [-0.708, 1.414, 0.02], [-0.708, 0.706, 0.02]];
-    cam.fillPoly(g, hp, '#ffffff');
+    // Home plate pentagon (17 in): white top on a black rubber edge
+    const pent = (k, z) => [[0, 0], [0.708, 0.706], [0.708, 1.414], [-0.708, 1.414], [-0.708, 0.706]].map(([x, y]) => [x * k, 0.75 + (y - 0.75) * k, z]);
+    cam.fillPoly(g, pent(1.07, 0.01), '#1b1c21');
+    cam.fillPoly(g, pent(0.97, 0.03), '#ffffff');
     // Rubber
     cam.fillPoly(g, [[-1, 46, 0.4], [1, 46, 0.4], [1, 46.5, 0.4], [-1, 46.5, 0.4]], '#ffffff');
 

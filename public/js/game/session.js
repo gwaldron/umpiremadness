@@ -3,7 +3,7 @@ import { audio } from '../audio.js';
 import { voices } from '../voice.js';
 import { input } from '../input.js';
 import { confetti } from '../ui/confetti.js';
-import { pick, shuffle, weighted, clamp, chance } from '../util.js';
+import { pick, shuffle, weighted, clamp, chance, newSeed, seededRng, setRng } from '../util.js';
 import { DIV, DIVISIONS, gameRole, GAME_NAMES } from '../data/divisions.js';
 import { situationsFor, SITUATIONS, SOFTBALL_ENABLED } from '../data/situations.js';
 import { LIFE } from '../data/life.js';
@@ -169,9 +169,37 @@ export class Session {
     this.hud.setInning(this.game.label());
     this.hud.tip(null);
     this.hud.kzone(null);
+    // each event runs on its own random seed, so TRY AGAIN can replay it exactly
+    this.evSpec = spec;
+    this.evSeed = newSeed();
+    this.practice = false;
+    setRng(seededRng(this.evSeed));
     this.ev = this._make(spec);
     this.evCorrect = null;
     this.ev.start();
+  }
+
+  // Can the play that just ended be tried again? (Not in timed Blitz, and not for info cards.)
+  canRetry() {
+    return !this.ended && this.mode !== 'blitz' && this.ev && this.ev.kind !== 'info' && !!this.evSpec;
+  }
+
+  // TRY AGAIN: replay the same event from the start as practice (no points, lives or streak).
+  retry() {
+    if (!this.canRetry()) return;
+    const hud = this.hud;
+    hud.verdict(null);
+    hud.dialog(null);
+    hud.options(null);
+    hud.tip(null);
+    hud.kzone(null);
+    hud.prompt('', '');
+    this.practice = true;
+    setRng(seededRng(this.evSeed));
+    this.ev = this._make(this.evSpec);
+    this.ev.practice = true;
+    this.ev.start();
+    hud.stamp('TRY AGAIN!', 'gold');
   }
 
   eventDone(skipStatus = false) {
@@ -184,11 +212,13 @@ export class Session {
   }
 
   showVerdict(v, cb) {
-    this.hud.verdict(v, cb);
+    const retry = v.info || !this.canRetry() ? null : v.retry !== undefined ? v.retry : () => this.retry();
+    this.hud.verdict({ ...v, practice: this.practice }, cb, retry);
   }
 
   // ---------- scoring ----------
   record(res) {
+    if (this.practice) return this._practice(res);
     const p = this.profile;
     const st = p.stats;
     const base = { pitch: 100, base: 150, sit: 200, life: 150 }[res.kind] || 100;
@@ -308,6 +338,20 @@ export class Session {
     return { items, points, mult, correct: res.correct, newCard };
   }
 
+  // A TRY AGAIN replay: feedback only — no points, lives, streak, stats or rule-card progress.
+  _practice(res) {
+    const hud = this.hud;
+    hud.floater(res.correct ? 'PRACTICE ✓' : 'PRACTICE ✗', !res.correct, 50, 30);
+    if (res.correct) {
+      this.field.cheer(0.5);
+      confetti.burst({ x: 0.5, y: 0.45, n: 28, power: 0.7 });
+    } else {
+      input.rumble(0.5, 0.3, 160);
+      setTimeout(() => audio.aww(), 300);
+    }
+    return { items: [{ label: 'Practice replay — no points', pts: 0 }], points: 0, mult: 1, correct: res.correct, newCard: false, practice: true };
+  }
+
   checkAchievements(extra = {}) {
     const p = this.profile;
     const level = levelFromXp(p.xp);
@@ -363,6 +407,7 @@ export class Session {
   }
 
   _teardown() {
+    setRng(null); // back to plain randomness outside a session
     if (this.field.setTimeOfDay) this.field.setTimeOfDay('day');
     audio.stopCrowd();
     input.stickEnabled = false;

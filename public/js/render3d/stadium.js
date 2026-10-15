@@ -99,10 +99,19 @@ export class Stadium {
       b.receiveShadow = true;
       group.add(b);
     }
-    const hp = new THREE.Shape();
-    hp.moveTo(0, 0); hp.lineTo(0.708, 0.706); hp.lineTo(0.708, 1.414); hp.lineTo(-0.708, 1.414); hp.lineTo(-0.708, 0.706); hp.closePath();
-    const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(hp, { depth: 0.05, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 }), white);
-    plate.position.z = 0.0;
+    // Home plate: 17 in wide, point toward the catcher. A white top on a black rubber base gives it
+    // the dark beveled edge a real plate has, so it stands out from the chalk lines.
+    const pent = (k) => {
+      const sh = new THREE.Shape();
+      const P = (x, y) => [x * k, 0.75 + (y - 0.75) * k];
+      sh.moveTo(...P(0, 0)); sh.lineTo(...P(0.708, 0.706)); sh.lineTo(...P(0.708, 1.414)); sh.lineTo(...P(-0.708, 1.414)); sh.lineTo(...P(-0.708, 0.706)); sh.closePath();
+      return sh;
+    };
+    const plateBase = new THREE.Mesh(new THREE.ExtrudeGeometry(pent(1.07), { depth: 0.04, bevelEnabled: false }), lam('#1b1c21'));
+    plateBase.receiveShadow = true;
+    group.add(plateBase);
+    const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(pent(0.97), { depth: 0.05, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 1 }), white);
+    plate.position.z = 0.012;
     plate.receiveShadow = true;
     group.add(plate);
 
