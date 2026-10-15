@@ -212,8 +212,9 @@ export function paintField(region, ppf, detail = 1, opts = {}) {
   g.strokeStyle = '#f8f8f2';
   g.lineCap = 'butt';
   const line = (x0, y0, x1, y1, w = 0.3) => { g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
-  line(0.8, 0.8, 200 * R2, 200 * R2);
-  line(-0.8, 0.8, -200 * R2, 200 * R2);
+  // the foul lines start at the front corner of the batter's boxes, not through them
+  line(3.7, 3.7, 200 * R2, 200 * R2);
+  line(-3.7, 3.7, -200 * R2, 200 * R2);
   // running lane: last 30 ft to first, 3 ft into foul ground
   const off = 3 * R2;
   line(30 * R2 + off, 30 * R2 - off, B + off, B - off, 0.25);

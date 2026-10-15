@@ -53,6 +53,21 @@ const SIDE = {
   slide() {
     return { hip: [0, 0.55], neck: [-1.35, 1.25], head: [-1.7, 1.6], kneeF: [0.95, 0.5], footF: [2.0, 0.25], kneeB: [0.6, 0.2], footB: [-0.1, 0.15], elbowF: [-1.0, 1.8], handF: [-0.7, 2.4], elbowB: [-1.6, 1.8], handB: [-1.3, 2.4] };
   },
+  // Knocked down in a collision: stumble back with the arms flung up, then land on the seat of the
+  // pants, legs out and hands behind (p: 0..1 through the fall)
+  fall(p = 1) {
+    const stumble = { hip: [-0.4, 2.1], neck: [-0.95, 3.4], head: [-1.15, 3.85], kneeF: [0.35, 1.45], footF: [0.6, 0.35], kneeB: [-0.3, 1.2], footB: [-0.35, 0],
+      elbowF: [0.25, 3.5], handF: [0.6, 4.05], elbowB: [-0.25, 3.55], handB: [0.15, 4.1] };
+    const down = { hip: [-0.6, 0.55], neck: [-1.3, 1.85], head: [-1.6, 2.3], kneeF: [0.4, 1.0], footF: [1.3, 0.15], kneeB: [0.3, 0.7], footB: [1.2, 0.1],
+      elbowF: [-1.0, 1.1], handF: [-1.3, 0.2], elbowB: [-1.1, 1.0], handB: [-1.4, 0.15] };
+    const st = SIDE.stand();
+    const a = p < 0.35 ? st : stumble, b = p < 0.35 ? stumble : down;
+    let k = p < 0.35 ? p / 0.35 : (p - 0.35) / 0.65;
+    k = k * k * (3 - 2 * k);
+    const J = {};
+    for (const j in b) J[j] = [a[j][0] + (b[j][0] - a[j][0]) * k, a[j][1] + (b[j][1] - a[j][1]) * k];
+    return J;
+  },
   dive() {
     return { hip: [0, 0.55], neck: [1.35, 0.65], head: [1.8, 0.75], kneeF: [-1.0, 0.45], footF: [-2.0, 0.5], kneeB: [-0.95, 0.3], footB: [-1.9, 0.25], elbowF: [2.0, 0.65], handF: [2.6, 0.55], elbowB: [1.9, 0.75], handB: [2.5, 0.7] };
   },

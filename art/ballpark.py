@@ -6,8 +6,11 @@ Run headless from the repo root:
 Writes public/models/ballpark.glb (and art/out/ballpark.blend to open in Blender).
 World units are feet, Z up, home plate at the origin, first base along +X+Y: the game's own
 coordinates, so nothing needs moving after loading. Pieces the game treats specially are named:
-  dugout_1b / dugout_3b, bleachers_1b / bleachers_3b, backstop, lighttower_0..3 (+ empty lightbank_0..3),
-  scoreboard (+ plane sb_face), foulpole_l / foulpole_r, tree_0..3 (templates the game instances).
+  dugout_1b / dugout_3b (+ dugout_roof_1b / _3b), bleachers_1b_0..2 / bleachers_3b_0..2 (+ aisle steps),
+  backstop, lighttower_0..3 (+ empty lightbank_0..3), scoreboard (+ plane sb_face), foulpole_l / foulpole_r,
+  tree_0..3 (templates the game instances).
+Repeated pieces (bleacher sections, light towers, dugout bodies) are built once and placed several times;
+glTF stores one mesh for all of them, which keeps the file small.
 Materials with special jobs: chainlink (the game swaps in its see-through chain-link texture),
 lamp (glows at night), sb_face (gets the live scoreboard canvas), roof_home / roof_away (team colors).
 """
@@ -122,12 +125,12 @@ def box(name, size, center, material, rot_z=0.0, bevel=0.06):
     return o
 
 
-def tube(name, a, b, r, material, verts=10):
+def tube(name, a, b, r, material, verts=10, caps=True):
     """Cylinder from point a to point b."""
     a, b = Vector(a), Vector(b)
     d = b - a
     bm = bmesh.new()
-    bmesh.ops.create_cone(bm, cap_ends=True, segments=verts, radius1=r, radius2=r, depth=d.length)
+    bmesh.ops.create_cone(bm, cap_ends=caps, segments=verts, radius1=r, radius2=r, depth=d.length)
     o = mesh_obj(name, bm, material)
     o.location = (a + b) / 2
     o.rotation_mode = 'QUATERNION'
@@ -178,6 +181,44 @@ def join(name, objs, parent_matrix=None):
     return o
 
 
+def bake(o):
+    """Apply every modifier (including the smooth-by-angle one) so copies can share one mesh."""
+    bpy.ops.object.select_all(action='DESELECT')
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.convert(target='MESH')
+    # bake the joined parts' offset into the mesh, so the object sits at a clean origin and
+    # setting its placement (and its copies') can't shift it
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return o
+
+
+def copy_at(name, src, matrix):
+    """Another placement of src's mesh (a linked duplicate: glTF stores the mesh once)."""
+    o = link(bpy.data.objects.new(name, src.data))
+    o.matrix_world = matrix
+    return o
+
+
+def sweep(name, pts, r, material, verts=6):
+    """One continuous tube through a list of points (no caps): cheaper than a tube per segment."""
+    bm = bmesh.new()
+    rings = []
+    for i, p in enumerate(pts):
+        p = Vector(p)
+        t = (Vector(pts[min(i + 1, len(pts) - 1)]) - Vector(pts[max(i - 1, 0)])).normalized()
+        side = t.cross(Vector((0, 0, 1)))
+        if side.length < 1e-4:
+            side = Vector((1, 0, 0))
+        side.normalize()
+        up = side.cross(t)
+        rings.append([bm.verts.new(p + (side * math.cos(2 * math.pi * k / verts) + up * math.sin(2 * math.pi * k / verts)) * r) for k in range(verts)])
+    for i in range(len(rings) - 1):
+        for k in range(verts):
+            bm.faces.new((rings[i][k], rings[i][(k + 1) % verts], rings[i + 1][(k + 1) % verts], rings[i + 1][k]))
+    return mesh_obj(name, bm, material)
+
+
 def frame(side):
     """Foul-line frame for one side (+1 = first base): s along the line, d out into foul ground."""
     u = Vector((side * R2, R2, 0))
@@ -190,11 +231,16 @@ def P(side, s, d, z=0.0):
     return u * s + n * d + Vector((0, 0, z))
 
 
-def place(local_objs, side, s, d, rot_extra=0.0):
-    """Move objects built around the origin (local +Y toward the field) to the foul-line spot."""
+def spot(side, s, d, rot_extra=0.0):
+    """Placement matrix for a piece built around the origin with local +Y toward the field."""
     u, n = frame(side)
     rot = math.atan2(n.x, -n.y) + rot_extra
-    M_ = Matrix.Translation(P(side, s, d)) @ Matrix.Rotation(rot, 4, 'Z')
+    return Matrix.Translation(P(side, s, d)) @ Matrix.Rotation(rot, 4, 'Z')
+
+
+def place(local_objs, side, s, d, rot_extra=0.0):
+    """Move objects built around the origin (local +Y toward the field) to the foul-line spot."""
+    M_ = spot(side, s, d, rot_extra)
     bpy.context.view_layer.update()  # make matrix_world reflect the locations just set
     for o in local_objs:
         o.matrix_world = M_ @ o.matrix_world
@@ -202,10 +248,13 @@ def place(local_objs, side, s, d, rot_extra=0.0):
 
 
 # ---------------------------------------------------------------- dugouts
-def dugout(side):
+DUG = (20.0, 8.0, 7.2)  # along the line, deep, tall
+
+
+def dugout_body():
+    """Everything but the team colors, built at the origin (local +Y toward the field)."""
     parts = []
-    W, D, H = 20.0, 8.0, 7.2   # along the line, deep, tall
-    roof = M['roofHome'] if side > 0 else M['roofAway']
+    W, D, H = DUG
     # cinder-block back and side walls, a low front wall with padding
     parts.append(box('back', (W, 0.8, H), (0, -D / 2, 0), M['block']))
     for sx in (-1, 1):
@@ -214,43 +263,58 @@ def dugout(side):
     parts.append(box('frontpad', (W - 1.4, 0.35, 1.2), (0, D / 2 + 0.05, 1.6), M['pad']))
     # concrete floor, sunk a little
     parts.append(box('floor', (W - 0.4, D - 0.4, 0.3), (0, 0, -0.2), M['concrete'], bevel=0.0))
-    # roof slab with a team-colored fascia that overhangs the front
-    parts.append(box('roof', (W + 1.6, D + 2.4, 0.45), (0, 0.6, H), roof, bevel=0.08))
-    parts.append(box('fascia', (W + 1.7, 0.35, 1.1), (0, D / 2 + 1.8, H - 0.6), roof))
-    parts.append(box('fasciaTrim', (W + 1.75, 0.38, 0.18), (0, D / 2 + 1.8, H + 0.45), M['trim']))
+    parts.append(box('fasciaTrim', (W + 1.75, 0.38, 0.18), (0, D / 2 + 1.8, H + 0.45), M['trim'], bevel=0.0))
     # chain-link screen between the front wall and the roof, with steel posts
-    screen = plane('screen', W - 1.0, H - 3.0, (0, D / 2 - 0.35, 3.0 + (H - 3.0) / 2), M['chain'])
-    parts.append(screen)
+    parts.append(plane('screen', W - 1.0, H - 3.0, (0, D / 2 - 0.35, 3.0 + (H - 3.0) / 2), M['chain']))
     for k in range(5):
         x = -W / 2 + 0.6 + k * (W - 1.2) / 4
-        parts.append(tube('post', (x, D / 2 - 0.35, 3.0), (x, D / 2 - 0.35, H), 0.12, M['steel'], 8))
+        parts.append(tube('post', (x, D / 2 - 0.35, 3.0), (x, D / 2 - 0.35, H), 0.12, M['steel'], 6, caps=False))
     # bench along the back wall
-    parts.append(box('bench', (W - 2.0, 1.2, 0.18), (0, -D / 2 + 1.4, 1.5), M['wood'], bevel=0.03))
+    parts.append(box('bench', (W - 2.0, 1.2, 0.18), (0, -D / 2 + 1.4, 1.5), M['wood'], bevel=0.0))
     for k in range(5):
         x = -W / 2 + 1.6 + k * (W - 3.2) / 4
-        parts.append(box('benchleg', (0.2, 0.9, 1.5), (x, -D / 2 + 1.4, 0), M['steel'], bevel=0.02))
-    # helmet cubbies with helmets, a bat rack and a water cooler
+        parts.append(box('benchleg', (0.2, 0.9, 1.5), (x, -D / 2 + 1.4, 0), M['steel'], bevel=0.0))
+    # helmet cubby, a bat rack and a water cooler
     cx = -W / 2 + 3.2
-    parts.append(box('cubby', (4.0, 1.0, 2.6), (cx, -D / 2 + 0.9, 3.4), M['wood'], bevel=0.04))
+    parts.append(box('cubby', (4.0, 1.0, 2.6), (cx, -D / 2 + 0.9, 3.4), M['wood'], bevel=0.0))
+    bx = W / 2 - 3.0
+    parts.append(box('batrack', (3.6, 0.5, 0.25), (bx, -D / 2 + 0.7, 2.8), M['wood'], bevel=0.0))
+    for i in range(6):
+        x = bx - 1.5 + i * 0.6
+        parts.append(tube('bat', (x, -D / 2 + 0.75, 0.2), (x, -D / 2 + 0.95, 2.9), 0.09, M['aluDark'] if i % 2 else M['helmetRed'], 6))
+    parts.append(cone('cooler', 0.8, 0.8, 1.6, (W / 2 - 1.6, D / 2 - 1.6, 0), M['orange'], 10))
+    parts.append(cone('coolerLid', 0.82, 0.7, 0.3, (W / 2 - 1.6, D / 2 - 1.6, 1.6), M['white'], 10))
+    return bake(join('dugout_body', parts))
+
+
+def dugout_roof(side):
+    """The team-colored roof and fascia, plus the team's helmets in the cubby."""
+    parts = []
+    W, D, H = DUG
+    roof = M['roofHome'] if side > 0 else M['roofAway']
+    parts.append(box('roof', (W + 1.6, D + 2.4, 0.45), (0, 0.6, H), roof, bevel=0.08))
+    parts.append(box('fascia', (W + 1.7, 0.35, 1.1), (0, D / 2 + 1.8, H - 0.6), roof))
+    cx = -W / 2 + 3.2
     hm = M['helmetRed'] if side > 0 else M['helmetBlue']
     for i in range(3):
         for j in range(2):
             bm = bmesh.new()
-            bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=6, radius=0.42)
+            bmesh.ops.create_uvsphere(bm, u_segments=8, v_segments=5, radius=0.42)
             h = mesh_obj('helmet', bm, hm)
             h.location = (cx - 1.3 + i * 1.3, -D / 2 + 1.25, 3.85 + j * 1.15)
             h.scale = (1, 1.15, 0.85)
             parts.append(h)
-    bx = W / 2 - 3.0
-    parts.append(box('batrack', (3.6, 0.5, 0.25), (bx, -D / 2 + 0.7, 2.8), M['wood'], bevel=0.02))
-    for i in range(6):
-        x = bx - 1.5 + i * 0.6
-        parts.append(tube('bat', (x, -D / 2 + 0.75, 0.2), (x, -D / 2 + 0.95, 2.9), 0.09, M['aluDark'] if i % 2 else M['helmetRed'], 8))
-    cooler = cone('cooler', 0.8, 0.8, 1.6, (W / 2 - 1.6, D / 2 - 1.6, 0), M['orange'], 14)
-    parts.append(cooler)
-    parts.append(cone('coolerLid', 0.82, 0.7, 0.3, (W / 2 - 1.6, D / 2 - 1.6, 1.6), M['white'], 14))
     place(parts, side, 17, 30)
-    return join('dugout_1b' if side > 0 else 'dugout_3b', parts)
+    return join('dugout_roof_1b' if side > 0 else 'dugout_roof_3b', parts)
+
+
+def dugouts():
+    body = dugout_body()
+    body.name = 'dugout_1b'
+    body.matrix_world = spot(1, 17, 30)
+    copy_at('dugout_3b', body, spot(-1, 17, 30))
+    dugout_roof(1)
+    dugout_roof(-1)
 
 
 # ---------------------------------------------------------------- bleachers
@@ -258,57 +322,71 @@ def dugout(side):
 SECTIONS = [(34, 58), (61, 85), (88, 112)]   # aisles in between (the game skips fans there)
 
 
-def bleachers(side):
-    parts = []
-    rows = 6
-    for (s0, s1) in SECTIONS:
-        L = s1 - s0
-        mid = (s0 + s1) / 2
-        local = []
-        for r in range(rows):
+ROWS = 6
+
+
+def bleacher_section(L):
+    """One section, built at the origin: y = 0 at the front edge, -y away from the field."""
+    local = []
+    rows = ROWS
+    for r in range(rows):
+        d = 31 + 3 * r
+        z = 1.2 + 1.4 * r
+        # seat plank (two boards) at the back of the row, footboard in front a step lower
+        for off in (1.95, 2.55):
+            local.append(box('seat', (L, 0.55, 0.16), (0, -(d + off - 31), z - 0.16), M['alu'], bevel=0.0))
+        local.append(box('foot', (L, 1.3, 0.12), (0, -(d + 0.75 - 31), z - 1.25), M['aluDark'], bevel=0.0))
+        # riser kick plate under the seat
+        local.append(box('riser', (L, 0.08, 1.15), (0, -(d + 1.6 - 31), z - 1.3), M['aluDark'], bevel=0.0))
+    top = 1.2 + 1.4 * (rows - 1)
+    back = -(3 * rows)
+    # understructure: a frame every ~8 ft, each a stringer up the slope plus a leg under every row
+    nfr = max(2, int(L / 8) + 1)
+    xs = [-L / 2 + 0.4 + i * (L - 0.8) / (nfr - 1) for i in range(nfr)]
+    for x in xs:
+        local.append(tube('stringer', (x, 0.2, 0.0), (x, back + 0.3, top - 0.3), 0.12, M['steel'], 4, caps=False))
+        for r in range(1, rows):
             d = 31 + 3 * r
             z = 1.2 + 1.4 * r
-            # seat plank (two boards) at the back of the row, footboard in front a step lower
-            for k, off in enumerate((1.95, 2.55)):
-                local.append(box('seat', (L, 0.55, 0.16), (0, -(d + off - 31) , z - 0.16), M['alu'], bevel=0.03))
-            local.append(box('foot', (L, 1.3, 0.12), (0, -(d + 0.75 - 31), z - 1.25), M['aluDark'], bevel=0.02))
-            # riser kick plate under the seat
-            local.append(box('riser', (L, 0.08, 1.15), (0, -(d + 1.6 - 31), z - 1.3), M['aluDark'], bevel=0.0))
-        top = 1.2 + 1.4 * (rows - 1)
-        back = -(31 + 3 * rows - 31)
-        # understructure: frames every ~6 ft, each a stringer up the slope plus legs
-        nfr = max(2, int(L / 6) + 1)
-        for i in range(nfr):
-            x = -L / 2 + 0.4 + i * (L - 0.8) / (nfr - 1)
-            local.append(tube('stringer', (x, 0.2, 0.0), (x, back + 0.3, top - 0.3), 0.12, M['steel'], 6))
-            for r in range(1, rows):
-                d = 31 + 3 * r
-                z = 1.2 + 1.4 * r
-                local.append(tube('leg', (x, -(d + 2.2 - 31), 0.0), (x, -(d + 2.2 - 31), z - 0.2), 0.09, M['steel'], 6))
-        # guardrail across the back and down the ends
-        rail_z = top + 3.2
-        local.append(tube('railTop', (-L / 2, back, rail_z), (L / 2, back, rail_z), 0.1, M['alu'], 8))
-        local.append(tube('railMid', (-L / 2, back, rail_z - 1.5), (L / 2, back, rail_z - 1.5), 0.08, M['alu'], 8))
-        for i in range(nfr):
-            x = -L / 2 + 0.4 + i * (L - 0.8) / (nfr - 1)
-            local.append(tube('railPost', (x, back, top - 0.3), (x, back, rail_z), 0.09, M['alu'], 8))
-        for sx in (-1, 1):
-            x = sx * L / 2
-            local.append(tube('endRail', (x, -0.8, 1.2 + 2.8), (x, back, rail_z), 0.09, M['alu'], 8))
-        # build at local origin (y = 0 at the front edge, -y away from the field) then place
-        place(local, side, mid, 31)
-        parts += local
-    # aisle steps between sections
-    for (a, b) in zip(SECTIONS[:-1], SECTIONS[1:]):
-        mid = (a[1] + b[0]) / 2
-        local = []
-        for r in range(rows):
-            d = 31 + 3 * r
-            z = 1.2 + 1.4 * r
-            local.append(box('step', (2.6, 1.5, 0.14), (0, -(d + 0.75 - 31), z - 1.25 + 0.7), M['aluDark'], bevel=0.02))
-        place(local, side, mid, 31)
-        parts += local
-    return join('bleachers_1b' if side > 0 else 'bleachers_3b', parts)
+            local.append(tube('leg', (x, -(d + 2.2 - 31), 0.0), (x, -(d + 2.2 - 31), z - 0.2), 0.09, M['steel'], 4, caps=False))
+    # guardrail across the back and down the ends
+    rail_z = top + 3.2
+    local.append(tube('railTop', (-L / 2, back, rail_z), (L / 2, back, rail_z), 0.1, M['alu'], 6))
+    local.append(tube('railMid', (-L / 2, back, rail_z - 1.5), (L / 2, back, rail_z - 1.5), 0.08, M['alu'], 6, caps=False))
+    for x in xs:
+        local.append(tube('railPost', (x, back, top - 0.3), (x, back, rail_z), 0.09, M['alu'], 6, caps=False))
+    for sx in (-1, 1):
+        x = sx * L / 2
+        local.append(tube('endRail', (x, -0.8, 1.2 + 2.8), (x, back, rail_z), 0.09, M['alu'], 6))
+    return bake(join('bleacher_section', local))
+
+
+def aisle_steps():
+    local = []
+    for r in range(ROWS):
+        d = 31 + 3 * r
+        z = 1.2 + 1.4 * r
+        local.append(box('step', (2.6, 1.5, 0.14), (0, -(d + 0.75 - 31), z - 1.25 + 0.7), M['aluDark'], bevel=0.0))
+    return bake(join('aisle_steps', local))
+
+
+def bleachers():
+    lengths = {b - a for a, b in SECTIONS}
+    assert len(lengths) == 1, 'bleacher sections share one mesh, so they must be the same length'
+    sec = bleacher_section(lengths.pop())
+    steps = aisle_steps()
+    first = True
+    for side in (1, -1):
+        tag = '1b' if side > 0 else '3b'
+        for i, (s0, s1) in enumerate(SECTIONS):
+            m = spot(side, (s0 + s1) / 2, 31)
+            if first:
+                sec.name, sec.matrix_world, first = f'bleachers_{tag}_{i}', m, False
+            else:
+                copy_at(f'bleachers_{tag}_{i}', sec, m)
+        for i, (a, b) in enumerate(zip(SECTIONS[:-1], SECTIONS[1:])):
+            copy_at(f'aisle_{tag}_{i}', steps, spot(side, (a[1] + b[0]) / 2, 31))
+    bpy.data.objects.remove(steps)  # only its copies are placed
 
 
 # ---------------------------------------------------------------- backstop
@@ -353,18 +431,17 @@ def backstop():
     for i in range(pads):
         a = a0 + (a1 - a0) * (i + 0.5) / pads
         w = arc / pads - 0.15
-        p = box('pad', (w, 0.9, 3.0), (math.cos(a) * (R - 0.25), math.sin(a) * (R - 0.25), 0), M['pad'], rot_z=a + math.pi / 2, bevel=0.18)
+        p = box('pad', (w, 0.9, 3.0), (math.cos(a) * (R - 0.25), math.sin(a) * (R - 0.25), 0), M['pad'], rot_z=a + math.pi / 2, bevel=0.15)
         parts.append(p)
     # steel posts, top rail and the hood's arms
     for i in range(7):
         a = a0 + (a1 - a0) * i / 6
         c, s = math.cos(a), math.sin(a)
-        parts.append(tube('post', (c * (R + 0.3), s * (R + 0.3), 0), (c * (R + 0.3), s * (R + 0.3), H + 0.3), 0.28, M['steel'], 10))
-        parts.append(tube('arm', (c * (R + 0.3), s * (R + 0.3), H + 0.2), (c * (R - 5), s * (R - 5), H + 3.6), 0.14, M['steel'], 8))
-    for i in range(n):
-        a, b = a0 + (a1 - a0) * i / n, a0 + (a1 - a0) * (i + 1) / n
-        parts.append(tube('rail', (math.cos(a) * R, math.sin(a) * R, H), (math.cos(b) * R, math.sin(b) * R, H), 0.12, M['steel'], 6))
-        parts.append(tube('hoodRail', (math.cos(a) * (R - 5), math.sin(a) * (R - 5), H + 3.5), (math.cos(b) * (R - 5), math.sin(b) * (R - 5), H + 3.5), 0.1, M['steel'], 6))
+        parts.append(tube('post', (c * (R + 0.3), s * (R + 0.3), 0), (c * (R + 0.3), s * (R + 0.3), H + 0.3), 0.28, M['steel'], 8))
+        parts.append(tube('arm', (c * (R + 0.3), s * (R + 0.3), H + 0.2), (c * (R - 5), s * (R - 5), H + 3.6), 0.14, M['steel'], 6, caps=False))
+    arc_pts = lambda rr, z: [(math.cos(a0 + (a1 - a0) * i / n) * rr, math.sin(a0 + (a1 - a0) * i / n) * rr, z) for i in range(n + 1)]
+    parts.append(sweep('rail', arc_pts(R, H), 0.12, M['steel']))
+    parts.append(sweep('hoodRail', arc_pts(R - 5, H + 3.5), 0.1, M['steel']))
     return join('backstop', parts)
 
 
@@ -372,47 +449,53 @@ def backstop():
 TOWERS = [(-95, 5), (95, 5), (-165, 175), (165, 175)]
 
 
-def light_tower(i, x, y):
+def light_tower_mesh():
+    """One tower at the origin with its lamp bank facing local -Y; each placement turns it to the infield."""
     parts = []
     H = 72.0
-    parts.append(cone('pole', 1.25, 0.6, H, (x, y, 0), M['steel'], 12))
-    parts.append(cone('base', 2.0, 1.6, 2.2, (x, y, 0), M['concrete'], 12))
-    # rungs up the pole
-    for k in range(18):
-        z = 6 + k * 3.4
-        r = 1.25 - (1.25 - 0.6) * (z / H) + 0.35
-        parts.append(tube('rung', (x - r, y, z), (x - r, y + 0.01, z + 0.02), 0.06, M['darkSteel'], 4))
-    # lamp bank facing the infield
-    ang = math.atan2(-x, -(40 - y))
+    parts.append(cone('pole', 1.25, 0.6, H, (0, 0, 0), M['steel'], 10))
+    parts.append(cone('base', 2.0, 1.6, 2.2, (0, 0, 0), M['concrete'], 10))
     bank = []
-    bank.append(box('frame', (16, 1.0, 0.5), (0, 0, -0.2), M['darkSteel'], bevel=0.05))
-    bank.append(box('frame2', (16, 1.0, 0.5), (0, 0, -4.4), M['darkSteel'], bevel=0.05))
-    bank.append(box('frame3', (16, 1.0, 0.5), (0, 0, -8.6), M['darkSteel'], bevel=0.05))
+    bank.append(box('frame', (16, 1.0, 0.5), (0, 0, -0.2), M['darkSteel'], bevel=0.0))
+    bank.append(box('frame2', (16, 1.0, 0.5), (0, 0, -4.4), M['darkSteel'], bevel=0.0))
+    bank.append(box('frame3', (16, 1.0, 0.5), (0, 0, -8.6), M['darkSteel'], bevel=0.0))
+    bank.append(box('frame4', (16, 1.0, 0.5), (0, 0, -12.8), M['darkSteel'], bevel=0.0))
     for k in (-1, 1):
-        bank.append(box('upright', (0.5, 0.8, 9.0), (k * 7.8, 0, -8.8), M['darkSteel'], bevel=0.04))
+        bank.append(box('upright', (0.5, 0.8, 13.2), (k * 7.8, 0, -12.9), M['darkSteel'], bevel=0.0))
     for row in range(3):
         for col in range(5):
             lx, lz = -6.0 + col * 3.0, -1.6 - row * 4.2
-            hous = cone('lampHousing', 1.2, 0.9, 1.4, (0, 0, 0), M['darkSteel'], 12)
+            hous = cone('lampHousing', 1.2, 0.9, 1.4, (0, 0, 0), M['darkSteel'], 8)
             hous.rotation_euler = (math.radians(-110), 0, 0)
             hous.location = (lx, 0.3, lz)
             bank.append(hous)
-            face = cone('lampFace', 1.12, 1.12, 0.05, (0, 0, 0), M['lamp'], 12)
+            bm = bmesh.new()  # the lamp's glowing face: a flat disc
+            bmesh.ops.create_circle(bm, cap_ends=True, segments=8, radius=1.12)
+            face = mesh_obj('lampFace', bm, M['lamp'])
             face.rotation_euler = (math.radians(-110), 0, 0)
             face.location = (lx, -1.05, lz - 0.5)
             bank.append(face)
     # the bank hangs in front of the pole top (local -Y faces the field)
-    Mx = Matrix.Translation((x, y, H + 5)) @ Matrix.Rotation(ang, 4, 'Z') @ Matrix.Translation((0, -1.8, 0))
+    Mb = Matrix.Translation((0, 0, H + 5)) @ Matrix.Translation((0, -1.8, 0))
     bpy.context.view_layer.update()
-    parts.append(box('bracket', (2.0, 2.4, 1.2), (x, y, H - 0.4), M['darkSteel'], bevel=0.05))
+    parts.append(box('bracket', (2.0, 2.4, 1.2), (0, 0, H - 0.4), M['darkSteel'], bevel=0.0))
     for o in bank:
-        o.matrix_world = Mx @ o.matrix_world
+        o.matrix_world = Mb @ o.matrix_world
     parts += bank
-    tower = join(f'lighttower_{i}', parts)
-    e = bpy.data.objects.new(f'lightbank_{i}', None)
-    e.location = Mx @ Vector((0, -3, -4))
-    link(e)
-    return tower
+    return bake(join('lighttower', parts)), Mb
+
+
+def light_towers():
+    tower, Mb = light_tower_mesh()
+    for i, (x, y) in enumerate(TOWERS):
+        N = Matrix.Translation((x, y, 0)) @ Matrix.Rotation(math.atan2(-x, -(40 - y)), 4, 'Z')
+        if i == 0:
+            tower.name, tower.matrix_world = 'lighttower_0', N
+        else:
+            copy_at(f'lighttower_{i}', tower, N)
+        e = bpy.data.objects.new(f'lightbank_{i}', None)
+        e.location = N @ Mb @ Vector((0, -3, -4))
+        link(e)
 
 
 # ---------------------------------------------------------------- scoreboard
@@ -435,6 +518,7 @@ def scoreboard():
     t.data.align_y = 'CENTER'
     t.data.size = 3.0
     t.data.extrude = 0.12
+    t.data.resolution_u = 3
     t.data.materials.append(M['signText'])
     coll.objects.link(t) if t.name not in coll.objects else None
     for c in list(t.users_collection):
@@ -478,10 +562,10 @@ def leafy_tree(i, leaf, seed):
         a = k * 2.1 + r.random()
         parts.append(tube('branch', (0, 0, 6.5 + k), (math.cos(a) * 3, math.sin(a) * 3, 10 + k * 0.8), 0.32, M['bark'], 5))
     # crown: lumpy icospheres
-    blobs = [(0, 0, 13, 6.5), (3.5, 1.0, 11.5, 4.6), (-3.2, -1.2, 11.8, 4.8), (0.8, -3.0, 12.5, 4.2), (-0.8, 2.8, 14.5, 4.4)]
+    blobs = [(0, 0, 13, 6.5), (3.5, 1.0, 11.5, 4.6), (-3.2, -1.2, 11.8, 4.8), (0.8, -3.0, 12.5, 4.2), (-0.8, 2.8, 14.5, 4.4), (0.5, 0.5, 16.5, 3.6)]
     for (bx, by, bz, br) in blobs:
         bm = bmesh.new()
-        bmesh.ops.create_icosphere(bm, subdivisions=2, radius=br)
+        bmesh.ops.create_icosphere(bm, subdivisions=1, radius=br)
         for v in bm.verts:
             v.co *= 0.85 + r.random() * 0.3
         o = mesh_obj('crown', bm, leaf)
@@ -503,13 +587,10 @@ def pine_tree(i):
 
 
 # ---------------------------------------------------------------- build
-dugout(1)
-dugout(-1)
-bleachers(1)
-bleachers(-1)
+dugouts()
+bleachers()
 backstop()
-for i, (x, y) in enumerate(TOWERS):
-    light_tower(i, x, y)
+light_towers()
 scoreboard()
 foul_pole(1)
 foul_pole(-1)
@@ -525,5 +606,5 @@ bpy.ops.export_scene.gltf(
     export_texcoords=True, export_normals=True, export_materials='EXPORT',
     export_extras=False, export_cameras=False, export_lights=False,
 )
-stats = {o.name: len(o.data.polygons) for o in coll.objects if o.type == 'MESH'}
+stats = {o.data.name: len(o.data.polygons) for o in coll.objects if o.type == 'MESH'}  # each shared mesh once
 print('BALLPARK', os.path.getsize(OUT_GLB), sum(stats.values()), stats)

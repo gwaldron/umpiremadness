@@ -250,7 +250,7 @@ export class Stadium {
           if (rnd() < 0.24) continue;
           if ((s > 57.2 && s < 61.8) || (s > 84.2 && s < 88.8)) continue; // aisles in the kit's bleachers
           const p = P(s + (rnd() - 0.5) * 0.5, d + 2.2);
-          this.fans.push({ x: p.x, y: p.y, z, ph: rnd() * 6.28, sp: 0.8 + rnd() * 0.6, faceRot: rot });
+          this.fans.push({ x: p.x, y: p.y, z, ph: rnd() * 6.28, sp: 0.8 + rnd() * 0.6, faceRot: rot, face: Math.atan2(-n.y, -n.x) });
         }
       }
       // back wall of the stands
@@ -264,9 +264,18 @@ export class Stadium {
     this.fanHeads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.42, 10, 8), engine.toon('#ffffff'), nf);
     this.fanArms = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.13, 1.4, 6), engine.toon('#ffffff'), nf * 2);
     const col = new THREE.Color();
+    const pantsPalette = ['#2b4a7a', '#24395e', '#1f2937', '#3a3f47', '#c2b28f', '#5b6b4a'];
+    const hairPalette = ['#2b1d14', '#4a2f1b', '#1a1a1a', '#7a4b23', '#c9a25c', '#8b3a1a', '#9a9a9a'];
+    const capPalette = ['#d62839', '#1f5fe0', '#d62839', '#1f5fe0', '#1f2937', '#ffd34d'];
     this.fans.forEach((f, i) => {
       f.shirt = shirtPalette[(rnd() * shirtPalette.length) | 0];
       f.skin = skinPalette[(rnd() * skinPalette.length) | 0];
+      f.pants = pantsPalette[(rnd() * pantsPalette.length) | 0];
+      f.hair = hairPalette[(rnd() * hairPalette.length) | 0];
+      f.cap = rnd() < 0.4 ? capPalette[(rnd() * capPalette.length) | 0] : null;
+      f.size = rnd() < 0.3 ? 0.8 + rnd() * 0.08 : 0.95 + rnd() * 0.12; // some kids among the grown-ups
+      f.oneArm = rnd() < 0.3; // some fans cheer with one fist up
+      f.arm = 0;
       this.fanBodies.setColorAt(i, col.set(f.shirt));
       this.fanHeads.setColorAt(i, col.set(f.skin));
       this.fanArms.setColorAt(i * 2, col.set(f.skin));
@@ -436,6 +445,55 @@ export class Stadium {
     new GLTFLoader().load(url, (gltf) => {
       try { this._installKit(gltf.scene); } catch (e) { console.warn('Ballpark kit failed to install:', e); }
     }, undefined, (e) => console.warn('Ballpark kit not loaded:', e && e.message));
+    this.loadFans();
+  }
+
+  // ---- The Blender-built bleacher fan (art/fan.py -> models/fan.glb) ----
+  // One instanced mesh per body part, each fan in its own colors. Until it loads, the simple fans stay.
+  loadFans(url = 'models/fan.glb') {
+    new GLTFLoader().load(url, (gltf) => {
+      try { this._installFans(gltf.scene); } catch (e) { console.warn('Fan model failed to install:', e); }
+    }, undefined, (e) => console.warn('Fan model not loaded:', e && e.message));
+  }
+
+  _installFans(root) {
+    root.updateMatrixWorld(true);
+    const part = (name) => {
+      const node = root.getObjectByName(name);
+      let mesh = null;
+      node.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
+      // glTF puts the mesh under the node; its node offset is the pivot (the shoulder for arms)
+      return { geo: mesh.geometry, at: new THREE.Matrix4().copy(mesh.matrixWorld) };
+    };
+    const fans = this.fans;
+    const capped = fans.filter((f) => f.cap);
+    const col = new THREE.Color();
+    const mk = (name, list, color, shadow = true) => {
+      const pt = part(name);
+      const im = new THREE.InstancedMesh(pt.geo, this.engine.toon('#ffffff'), list.length);
+      list.forEach((f, i) => im.setColorAt(i, col.set(color(f))));
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.castShadow = shadow;
+      im.receiveShadow = false;
+      im.frustumCulled = false;
+      this.group.add(im);
+      return { im, at: pt.at, list };
+    };
+    this.fanParts = {
+      torso: mk('fan_torso', fans, (f) => f.shirt),
+      legs: mk('fan_legs', fans, (f) => f.pants),
+      shoes: mk('fan_shoes', fans, () => '#23252b', false),
+      head: mk('fan_head', fans, (f) => f.skin),
+      hair: mk('fan_hair', fans, (f) => f.hair, false),
+      cap: mk('fan_cap', capped, (f) => f.cap, false),
+      // arms are too thin to matter in the shadow map
+      sleeveL: mk('fan_sleeve_l', fans, (f) => f.shirt, false),
+      sleeveR: mk('fan_sleeve_r', fans, (f) => f.shirt, false),
+      armL: mk('fan_arm_l', fans, (f) => f.skin, false),
+      armR: mk('fan_arm_r', fans, (f) => f.skin, false),
+    };
+    capped.forEach((f, i) => { f.capIdx = i; });
+    for (const m of [this.fanBodies, this.fanHeads, this.fanArms]) m.visible = false;
   }
 
   _kitMaterial(m, cache) {
@@ -563,6 +621,7 @@ export class Stadium {
   }
 
   updateCrowd(t, excite) {
+    if (this.fanParts) { this._updateFans(t, excite); return; }
     const m = this._m, q = this._q, v = this._v, s = this._s;
     const up = this._up || (this._up = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)));
     const eul = this._eul || (this._eul = new THREE.Euler());
@@ -587,6 +646,36 @@ export class Stadium {
     this.fanBodies.instanceMatrix.needsUpdate = true;
     this.fanHeads.instanceMatrix.needsUpdate = true;
     this.fanArms.instanceMatrix.needsUpdate = true;
+  }
+
+  // Seated fans: a little sway when it's quiet; when the crowd gets loud they hop and swing their arms
+  // up into a waving V (some pump just one fist).
+  _updateFans(t, excite) {
+    const P = this.fanParts;
+    const base = this._fb || (this._fb = new THREE.Matrix4());
+    const m = this._m, q = this._q, v = this._v, s = this._s;
+    const arm = this._fa || (this._fa = new THREE.Matrix4());
+    const zAxis = this._zAxis || (this._zAxis = new THREE.Vector3(0, 0, 1));
+    const dt = Math.min(0.1, Math.max(0, t - (this._fanT ?? t)));
+    this._fanT = t;
+    const up = excite > 0.3;
+    this.fans.forEach((f, i) => {
+      const hop = excite > 0.05 ? Math.max(0, Math.sin(t * 9 * f.sp + f.ph)) * 1.3 * excite : Math.sin(t * 1.2 * f.sp + f.ph) * 0.05;
+      f.arm += ((up ? 1 : 0) - f.arm) * Math.min(1, dt * (up ? 9 : 4));
+      base.compose(v.set(f.x, f.y, f.z + Math.max(0, hop)), q.setFromAxisAngle(zAxis, f.face - Math.PI / 2), s.set(f.size, f.size, f.size));
+      for (const k of ['torso', 'legs', 'shoes', 'head', 'hair']) P[k].im.setMatrixAt(i, m.multiplyMatrices(base, P[k].at));
+      if (f.cap) P.cap.im.setMatrixAt(f.capIdx, m.multiplyMatrices(base, P.cap.at));
+      // arms swing out to the side at the shoulder (about the fan's forward axis)
+      const wave = Math.sin(t * 7 * f.sp + f.ph) * 0.22 * f.arm;
+      for (const [sl, sk, sx] of [['sleeveL', 'armL', -1], ['sleeveR', 'armR', 1]]) {
+        const lift = f.oneArm && sx < 0 ? 0.15 * f.arm : f.arm;
+        const ang = -sx * (lift * 2.7 + wave);
+        arm.makeRotationY(ang);
+        P[sl].im.setMatrixAt(i, m.multiplyMatrices(base, P[sl].at).multiply(arm));
+        P[sk].im.setMatrixAt(i, m.multiplyMatrices(base, P[sk].at).multiply(arm));
+      }
+    });
+    for (const k in P) P[k].im.instanceMatrix.needsUpdate = true;
   }
 
   update(dt, t, info = {}) {

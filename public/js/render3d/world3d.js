@@ -106,6 +106,46 @@ export class Field3D {
   }
 
   setTimeOfDay(mode) { this.engine.setTimeOfDay(mode); }
+  // A big, obvious puff of dirt (a pitch in the dirt, a ball scooped off the ground)
+  puff(x, y, k = 1) {
+    this.dust.emit(x, y, 0.1, Math.round(16 * k), { size: 0.45 + 0.55 * k, spread: 0.5 * k, up: 2.2 * k, speed: 2.4 * k, life: 1.2 });
+  }
+
+  // Scuff marks on the ground: [{ x, y, r, sx, sy, a }] (where a pitch dug into the dirt)
+  _scuffs(list = []) {
+    if (!this.scuffPool) {
+      this.scuffPool = [];
+      // a dug-in scuff: dark, firm-edged center with a softer ring of scattered dirt
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(58,34,12,0.95)');
+      gr.addColorStop(0.45, 'rgba(70,42,16,0.85)');
+      gr.addColorStop(0.62, 'rgba(110,72,34,0.45)');
+      gr.addColorStop(1, 'rgba(120,80,40,0)');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, 64, 64);
+      this.scuffTex = new THREE.CanvasTexture(c);
+      this.scuffTex.colorSpace = THREE.SRGBColorSpace;
+    }
+    const n = Math.max(list.length, this.scuffPool.length);
+    for (let i = 0; i < n; i++) {
+      const s = list[i];
+      let m = this.scuffPool[i];
+      if (!s) { if (m) m.visible = false; continue; }
+      if (!m) {
+        m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: this.scuffTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 }));
+        m.renderOrder = 4;
+        this.scene.add(m);
+        this.scuffPool.push(m);
+      }
+      m.visible = true;
+      m.position.set(s.x, s.y, 0.05);
+      m.scale.set(s.r * 2 * (s.sx || 1), s.r * 2 * (s.sy || 1), 1);
+      m.material.opacity = s.a ?? 0.85;
+    }
+  }
   // Baseball or softball: mound or circle, white ball or the big yellow one
   setSport(id, rubber, ballR) {
     this.stadium.setSport(id, rubber);
@@ -228,6 +268,8 @@ export class Field3D {
     const minPx = Math.min(this.engine.cssW, this.engine.cssH) < 500 ? 6.2 : 4.6;
     const r = Math.max((this.ballR || 0.121) * (b.scale || 1), (d * minPx) / fc);
     this.ball.position.set(b.x, b.y, Math.max(r * 0.6, b.z || 0));
+    // a touch darker while it's inside the strike zone box (a learning aid)
+    this.ball.material.color.setScalar(1 - (b.dim || 0));
     this.ball.scale.setScalar(r);
     this.ball.rotation.x += 0.4;
     this.ball.rotation.z += 0.3;
@@ -267,6 +309,11 @@ export class Field3D {
       const v = Math.hypot(a.x - st.x, a.y - st.y) / dt;
       st.x = a.x; st.y = a.y;
       if (v > 60) continue; // teleport, not movement
+      if (a.pose === 'fall') {
+        if (!st.fell && (a.phase || 0) > 0.6) { st.fell = true; this.dust.emit(a.x, a.y, 0.1, 10, { spread: 0.9, size: 1.2, up: 1.4, speed: 2.6, life: 1.1 }); }
+        continue;
+      }
+      st.fell = false;
       if ((a.pose === 'slide' || a.pose === 'dive') && v > 2.5) {
         this.dust.emit(a.x, a.y, 0.1, 3, { spread: 0.7, size: 1.3, up: 1.3, speed: 3.2, life: 1.1 });
       } else if (a.pose === 'run' && v > 6 && onDirt(a.x, a.y)) {
@@ -303,6 +350,7 @@ export class Field3D {
     if (world.extra) world.extra(P, t);
     P.end();
     this._markers(markers, t);
+    this._scuffs(world.scuffs);
     this._ball(world.ball, camera.position);
     if (world.zone) {
       const z = world.zone;

@@ -187,8 +187,9 @@ export class FieldRenderer {
         if (cam.line(g, p, q)) g.stroke();
       }
     };
-    chalk([0.8, 0.8], [FENCE_R * R2, FENCE_R * R2]);
-    chalk([-0.8, 0.8], [-FENCE_R * R2, FENCE_R * R2]);
+    // the foul lines start at the front corner of the batter's boxes, not through them
+    chalk([3.7, 3.7], [FENCE_R * R2, FENCE_R * R2]);
+    chalk([-3.7, 3.7], [-FENCE_R * R2, FENCE_R * R2]);
     // Running lane (last half of the way to first, 3 ft into foul ground)
     const off = 3 * R2;
     chalk([30 * R2 + off, 30 * R2 - off], [B + off, B - off]);

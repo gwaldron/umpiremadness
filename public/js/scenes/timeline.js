@@ -112,7 +112,7 @@ export class Timeline {
     const step = Math.hypot(a.x - px, a.y - py);
     if (step < 20) a.dist += step;
     a.phase = (a.dist / STRIDE) % 1;
-    if (a.pose === 'pitch' || a.pose === 'throw' || a.pose === 'out' || a.pose === 'safe') {
+    if (a.pose === 'pitch' || a.pose === 'throw' || a.pose === 'out' || a.pose === 'safe' || a.pose === 'fall') {
       const k = a.keys.filter((kk) => kk.t <= t && kk.pose === a.pose).pop();
       a.phase = k ? clamp((t - k.t) / (k.dur || 0.6), 0, 1) : 1;
     }

@@ -196,17 +196,20 @@ export const SITUATIONS = [
         tl.ground(tc, tc + 1.0, { x: 0, y: 2 }, { x: spot.x + 1, y: spot.y - 1 });
         tl.move('R2', tc + 0.1, tc + 0.95, spot.x - 0.5, spot.y + 0.6, 'stand');
         tl.at(tc + 0.95, () => { audio.thud(); audio.ouch(); });
+        tl.pose('SS', tc + 0.95, 'fall', { dur: 0.32 }); // knocked down by the runner
+        tl.move('R2', tc + 0.97, tc + 1.15, spot.x - 3.2, spot.y - 2.6, 'stand'); // the runner stumbles on past him
         tl.ground(tc + 1.0, tc + 1.7, { x: spot.x + 1, y: spot.y - 1 }, { x: -24, y: 58 });
         batterRuns(tl, tc + 0.3, 16);
-        return { pause: tc + 1.15 };
+        return { pause: tc + 1.35 };
       }
       // ball goes past the shortstop into left field; then the runner bumps into him
       tl.ground(tc, tc + 1.6, { x: 0, y: 2 }, { x: -40, y: 120 });
       tl.move('R2', tc + 0.1, tc + 1.15, spot.x - 0.5, spot.y + 0.6, 'stand');
       tl.at(tc + 1.15, () => { audio.thud(); });
+      tl.pose('R2', tc + 1.15, 'fall', { dur: 0.32 }); // the runner bounces off him and goes down
       tl.move('LF', tc + 0.2, tc + 1.6, -40, 118, 'ready');
       batterRuns(tl, tc + 0.3, 16);
-      return { pause: tc + 1.3 };
+      return { pause: tc + 1.5 };
     },
     steps(v) {
       return [{
@@ -283,7 +286,8 @@ export const SITUATIONS = [
       tl.runTo('3B', t1 + 0.15, -33, 33, 9, 'tag');
       const tBump = tl.runTo('R3', tTurn, -26.3, 26.3, 11, 'stand');
       tl.at(tBump, () => { audio.thud(); audio.ouch(); });
-      return { pause: tBump + 0.3, cam: () => ({ x: -22, y: 28, ext: 46 }) };
+      tl.pose('R3', tBump, 'fall', { dur: 0.32 });
+      return { pause: tBump + 0.4, cam: () => ({ x: -22, y: 28, ext: 46 }) };
     },
     steps() {
       return [{
@@ -317,10 +321,11 @@ export const SITUATIONS = [
       tl.move('C', tc + 0.4, tc + 1.6, -2.5, 3.5, 'ready');
       const tArrive = tl.runTo('R3', tc + 0.2, -3.2, 4.2, 15, 'stand');
       tl.at(tArrive, () => { audio.thud(); audio.ouch(); });
+      tl.pose('R3', tArrive, 'fall', { dur: 0.32 });
       const tThrow = tc + 2.95;
       tl.hold(tc + 2.6, tThrow, 'LF', 4);
       throwFrom(tl, 'LF', tThrow, { x: -6, y: 30, z: 3 }, 70);
-      return { pause: tArrive + 0.25, cam: () => ({ x: -10, y: 14, ext: 40 }) };
+      return { pause: tArrive + 0.4, cam: () => ({ x: -10, y: 14, ext: 40 }) };
     },
     steps() {
       return [{
@@ -363,8 +368,10 @@ export const SITUATIONS = [
       } else {
         tEnd = tl.runTo('R2', tNear, 0, 3, 17, 'stand');
         tl.at(tEnd, () => { audio.thud(); audio.ouch(); });
+        tl.pose('C', tEnd, 'fall', { dur: 0.32 });
+        tl.hold(tEnd + 0.3, tEnd + 4, 'C', 1.1);
       }
-      return { pause: tEnd + 0.3, cam: () => ({ x: -6, y: 10, ext: 36 }) };
+      return { pause: tEnd + 0.4, cam: () => ({ x: -6, y: 10, ext: 36 }) };
     },
     steps(v) {
       return [{
@@ -638,7 +645,7 @@ export const SITUATIONS = [
         tl.at(tc + 3.0, () => audio.pop());
         tl.at(tc + 3.3, () => { audio.thud(); });
         tl.fly(tc + 3.35, tc + 4.0, { ...spot, z: 5 }, { x: spot.x - 4, y: spot.y - 6, z: 0.1 }, 2);
-        tl.pose('CF', tc + 3.35, 'dive');
+        tl.pose('CF', tc + 3.3, 'fall', { dur: 0.32 });
         return { pause: tc + 4.1, cam: () => ({ x: 8, y: 170, ext: 40 }) };
       }
       if (v.k === 'carom') {

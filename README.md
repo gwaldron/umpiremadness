@@ -69,7 +69,7 @@ While the game loads, `index.html` shows an inline splash screen (logo, spinning
 
 ## 3D art (Blender)
 
-The ballpark kit and the ballplayer body are modeled in Blender **from code**: each asset is a Python script in `art/` that builds the model and exports it to `public/models/`. Edit the script, then rebuild (Blender 4.2 or newer):
+The ballpark kit, the ballplayer body and the bleacher fan are modeled in Blender **from code**: each asset is a Python script in `art/` that builds the model and exports it to `public/models/`. Edit the script, then rebuild (Blender 4.2 or newer):
 
 ```bash
 blender --background --factory-startup --python art/ballpark.py
@@ -79,10 +79,15 @@ blender --background --factory-startup --python art/ballpark.py
 blender --background --factory-startup --python art/player.py
 ```
 
+```bash
+blender --background --factory-startup --python art/fan.py
+```
+
 Each also saves a `.blend` to `art/out/` (not committed) to open in Blender.
 
-- **`art/ballpark.py` → `ballpark.glb`**: dugouts (cinder block, team-colored roofs, helmet cubbies, bat rack, water cooler), aluminum bleachers with aisles and rails, the backstop with padding and a netting hood, light towers, the scoreboard with its marquee, foul poles, and tree models. It uses the game's own coordinates (feet, Z up, home plate at the origin). The game swaps in its chain-link texture, live scoreboard canvas and night lamps by material name, and instances the trees. Until it loads (or if it can't), the procedural stand-ins in `render3d/stadium.js` stay.
+- **`art/ballpark.py` → `ballpark.glb`**: dugouts (cinder block, team-colored roofs, helmet cubbies, bat rack, water cooler), aluminum bleachers with aisles and rails, the backstop with padding and a netting hood, light towers, the scoreboard with its marquee, foul poles, and tree models. It uses the game's own coordinates (feet, Z up, home plate at the origin). The game swaps in its chain-link texture, live scoreboard canvas and night lamps by material name, and instances the trees. Repeated pieces (the six bleacher sections, four light towers and both dugout bodies) are built once and placed several times, so the file stores each mesh only once (about 360 KB). Until it loads (or if it can't), the procedural stand-ins in `render3d/stadium.js` stay.
 - **`art/player.py` → `player.glb`**: a smooth kid ballplayer in uniform. The body is fused from overlapping shapes (voxel remesh), with clean seams at the belt, sleeves and socks, and auto-weighted to 18 bones. Each face stores its uniform region (jersey, pants, socks, cleats, skin...) in a vertex color, so one shader colors any team and a whole player is one draw call. `render3d/rig.js` poses the bones every frame from the joints the game already computes, so every player on the field uses it. The head, face, caps and helmets, gloves, bat, catcher's gear and softball bubble braids still draw on top.
+- **`art/fan.py` → `fan.glb`**: a low-poly seated fan (about 350 triangles plus an optional cap), split into parts: shirt, pants, shoes, head, hair, cap, and arms that pivot at the shoulder. The game draws the whole crowd with one instanced mesh per part, gives each fan their own colors (some kids, some caps), and swings the arms up into a waving V when the crowd cheers.
 
 ## Deploy (Cloudflare Workers static assets)
 

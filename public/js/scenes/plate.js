@@ -198,6 +198,8 @@ export class AtBatEvent {
     this.glove = { x: 0, z: 2.2, y: GLOVE_Y };
     this.armAnim = -1;
     this.trail = [];
+    this.divots = []; // where the current pitch dug into the dirt
+    this.puffs2d = []; // 2D renderer: dirt puffs to animate
     this.lookZ = LOOK_Z;
     this.zone = { bot: this.batter.knee, top: this.batter.armpit };
     this.fast = !!spec.fast; // blitz mode: snappier pacing
@@ -438,6 +440,7 @@ export class AtBatEvent {
     this.gloveFrom = { ...this.glove };
     pk.contactT = pk.tPlate - 0.02;
     pk.events = [];
+    this.divots = [];
     this._buildBallPath();
     this.state = 'pre';
     this.t = 0;
@@ -627,6 +630,14 @@ export class AtBatEvent {
         pk.slotOk = this.slotInfo().ok;
         this.s.lastSlot = { ...this.eye };
       }
+      // a pitch in the dirt: a big puff and a divot where it hit, so it's obvious
+      if (!pk.bounceDone && pk.traj.tb !== null && t >= pk.tRelease + pk.traj.tb && (!pk.contactT || pk.kind === 'u3k' || t < pk.contactT)) {
+        pk.bounceDone = true;
+        const p = pk.traj.pos(pk.traj.tb);
+        this.divots.push({ x: p.x, y: p.y });
+        this._dirtPuff(p.x, p.y, 1);
+        audio.thud();
+      }
       if (pk.swing && !pk.swingSnd && t >= pk.swing.start) { pk.swingSnd = true; audio.swing(); }
       // Catcher reaches for the ball late in its flight
       if (pk.kind !== 'contact' || pk.sub !== 'popCaught') {
@@ -664,6 +675,8 @@ export class AtBatEvent {
         pk.frame = { x: clamp(-this.glove.x * 0.0 + (0 - this.glove.x) * 0.35, -0.3, 0.3), z: clamp((zMid - this.glove.z) * 0.3, -0.3, 0.3) };
         pk.framed = !pk.judge.strike && pk.kind === 'take' && Math.abs(pk.judge.margin) < 0.25 && (Math.abs(pk.frame.x) > 0.08 || Math.abs(pk.frame.z) > 0.08);
         if (pk.kind === 'u3k') audio.thud();
+        // a very low pitch: the catcher scoops it right off the dirt
+        if (!pk.bounceDone && pk.catchPos.z < 0.8) this._dirtPuff(pk.catchPos.x, GLOVE_Y + 0.2, 0.55);
       }
       if (pk.popped && pk.frame && pk.kind === 'take') {
         const k = clamp((t - pk.tGlove) / 0.25, 0, 1);
@@ -961,6 +974,7 @@ export class AtBatEvent {
 
     // 2D (no WebGL): the same realistic pitcher, batter and catcher as 3D, painted onto the canvas
     s.field.draw(g, cam, { actors: this.bg.filter((a) => a !== this.pitcher) });
+    this._drawDirt2d(g, cam);
     const P2 = this._p2 || (this._p2 = new Painter2D());
     const paint = (body) => { P2.begin(g, cam); drawHero(P2, body.W, body.o); P2.end(); };
     paint(this._pitcherBody());
@@ -1011,7 +1025,8 @@ export class AtBatEvent {
     s.field.draw(g, cam, {
       actors: this.bg.filter((a) => a !== this.pitcher),
       bodies,
-      ball: ball ? { ...ball, scale: 1.15, halo: 0.45, trail: this.trail.filter(Boolean) } : null,
+      ball: ball ? { ...ball, scale: 1.15, halo: 0.45, trail: this.trail.filter(Boolean), dim: showZone && this._inZone(ball) ? 0.3 : 0 } : null,
+      scuffs: this.divots.map((d) => ({ x: d.x, y: d.y, r: 0.7, sx: 0.9, sy: 1.7, a: 0.95 })),
       zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 0.708, depth: 1.416, alpha: showZone } : null,
       imprint: this._imprint(),
       extra: (P) => this._arm3d(P, cam),
@@ -1197,6 +1212,40 @@ export class AtBatEvent {
     g.restore();
   }
 
+  // Is any part of the ball inside the strike zone box right now?
+  _inZone(b) {
+    return !!b && b.y >= 0 && b.y <= 1.414 && margin(b.x, b.z, b.y, this.zone) >= 0;
+  }
+
+  // Kick up dirt: the 3D dust system, or a quick animated puff in 2D
+  _dirtPuff(x, y, k) {
+    const f = this.s.field;
+    if (f.puff) f.puff(x, y, k);
+    else this.puffs2d.push({ x, y, k, t0: performance.now() });
+  }
+
+  // 2D renderer: divots and dirt puffs on the ground
+  _drawDirt2d(g, cam) {
+    for (const d of this.divots) {
+      const p = cam.project(d.x, d.y, 0);
+      if (!p) continue;
+      g.fillStyle = 'rgba(92,58,26,0.6)';
+      g.beginPath(); g.ellipse(p.x, p.y, Math.max(3, 0.5 * p.s), Math.max(1.5, 0.22 * p.s), 0, 0, Math.PI * 2); g.fill();
+    }
+    const now = performance.now();
+    this.puffs2d = this.puffs2d.filter((q) => now - q.t0 < 900);
+    for (const q of this.puffs2d) {
+      const u = (now - q.t0) / 900;
+      const p = cam.project(q.x, q.y, 0.6 * u * q.k);
+      if (!p) continue;
+      g.fillStyle = `rgba(196,150,100,${0.55 * (1 - u)})`;
+      for (let i = 0; i < 5; i++) {
+        const a = i * 1.3;
+        g.beginPath(); g.arc(p.x + Math.cos(a) * p.s * 0.5 * u * q.k, p.y - Math.abs(Math.sin(a)) * p.s * 0.3 * u, Math.max(2, p.s * (0.25 + 0.4 * u) * q.k), 0, Math.PI * 2); g.fill();
+      }
+    }
+  }
+
   _drawBall(g, cam, b) {
     const p = cam.project(b.x, b.y, b.z);
     if (!p) return;
@@ -1234,6 +1283,11 @@ export class AtBatEvent {
     g.beginPath(); g.arc(p.x, p.y, r * 1.8, 0, Math.PI * 2); g.fill();
     g.fillStyle = ballColor();
     g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill();
+    if (this._zoneShown() && this._inZone(b)) {
+      // a touch darker while it's inside the strike zone box
+      g.fillStyle = 'rgba(0,0,0,0.3)';
+      g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill();
+    }
     if (r > 6) {
       g.strokeStyle = '#d0302f';
       g.lineWidth = r * 0.12;
