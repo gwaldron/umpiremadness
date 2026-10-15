@@ -2,6 +2,7 @@
 // Softer shading, tapered limbs, real gear (two-flap batting helmet, aluminum bat, catcher's gear),
 // knicker pants with team socks, and jersey numbers/lettering.
 import { vec3, solveIK } from './people.js';
+import { sport, ballColor } from '../sport.js';
 
 const { V, add, sub, mul, dot, cross, len, norm, lerp3 } = vec3;
 const UP = V(0, 0, 1);
@@ -58,7 +59,8 @@ function teamCanvas(name, fill, stroke) {
 // ---------- the body ----------
 // W: world joints { hip, neck, head, shF, shB, elF, elB, handF, handB, kneeF, kneeB, footF, footB, f, L, S, knob?, batTip? }
 // F = the character's left side, B = right side.
-// o: { kit, skin, hair, gear: 'catcher', glove: 'F'|'B', gloveColor, battingGloves, num, team, teamColors, ballInHand, lookDir, noFace }
+// o: { kit, skin, hair, gear: 'catcher', glove: 'F'|'B', gloveColor, battingGloves, num, team, teamColors, ballInHand, lookDir, noFace,
+//      ponytail, faceguard }  (softball: a ponytail out the back, and a face cage on the batting helmet)
 export function drawHero(P, W, o) {
   const kit = o.kit;
   const S = W.S || 1;
@@ -177,7 +179,7 @@ export function drawHero(P, W, o) {
       P.ellipsoid(add(hand, mul(hd, 0.02 * S)), hx, hd, hz, 0.085 * S, 0.12 * S, 0.065 * S, tone);
       if (o.battingGloves) P.limb(lerp3(el, hand, 0.84), lerp3(el, hand, 0.9), 0.08 * S, '#1a1b20', false);
     }
-    if (o.ballInHand && ((o.ballInHand === 'F' && side > 0) || (o.ballInHand === 'B' && side < 0))) P.sphere(add(hand, mul(hd, 0.1 * S)), 0.12, '#fbfbf6');
+    if (o.ballInHand && ((o.ballInHand === 'F' && side > 0) || (o.ballInHand === 'B' && side < 0))) P.sphere(add(hand, mul(hd, (sport.softball ? 0.14 : 0.1) * S)), sport.softball ? 0.16 : 0.12, ballColor());
   }
 
   // ----- neck + head -----
@@ -234,6 +236,28 @@ export function drawHero(P, W, o) {
     P.ellipsoid(add(add(headC, mul(hf, hr * 1.02)), mul(UP, hr * 0.14)), hl, bf, bu, hr * 0.66, hr * 0.56, hr * 0.045, kit.cap);
   }
   P.useFamily('hero');
+  if (o.ponytail) {
+    // tied at the back of the head, hanging down past the collar and swinging a little
+    const tie = add(add(headC, mul(hf, -hr * 1.0)), mul(UP, -hr * 0.05));
+    const sway = mul(hl, Math.sin((W.hip.x + W.hip.y) * 2) * hr * 0.12);
+    const mid = add(add(add(tie, mul(hf, -hr * 0.28)), mul(UP, -hr * 0.65)), sway);
+    const tip = add(add(add(tie, mul(hf, -hr * 0.18)), mul(UP, -hr * 1.35)), mul(sway, 2));
+    P.sphere(tie, hr * 0.22, o.scrunchie || '#d62839', false);
+    P.taper(tie, mid, hr * 0.26, hair);
+    P.taper(mid, tip, hr * 0.2, hair);
+  }
+  if (o.faceguard && (o.helmet || kit.helmet)) {
+    // softball batting helmet: a cage over the face, bolted to both ear flaps
+    const cage = '#2a2d35';
+    const ear = (s, dz) => add(add(add(headC, mul(hl, s * hr * 1.0)), mul(UP, dz)), mul(hf, hr * 0.15));
+    const front = (s, dz) => add(add(add(headC, mul(hl, s * hr * 0.42)), mul(UP, dz)), mul(hf, hr * 1.22));
+    for (const dz of [-hr * 0.12, -hr * 0.48, -hr * 0.82]) {
+      P.limb(ear(1, dz), front(1, dz), hr * 0.045, cage, false);
+      P.limb(front(1, dz), front(-1, dz), hr * 0.045, cage, false);
+      P.limb(front(-1, dz), ear(-1, dz), hr * 0.045, cage, false);
+    }
+    P.limb(add(add(headC, mul(hf, hr * 1.24)), mul(UP, hr * 0.05)), add(add(headC, mul(hf, hr * 1.2)), mul(UP, -hr * 0.85)), hr * 0.045, cage, false);
+  }
 
   // ----- aluminum bat -----
   if (W.batTip && W.knob) {

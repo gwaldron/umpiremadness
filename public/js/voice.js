@@ -4,6 +4,7 @@
 // Batter intros are stitched from pieces like real sports games. Anything without a clip falls back
 // to the browser's speech engine.
 import { audio } from './audio.js';
+import { sport, txt } from './sport.js';
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const NUM = ['oh', 'one', 'two', 'three', 'four'];
@@ -11,8 +12,10 @@ const VO = 'audio/vo/';
 
 const FIRST = ['Jayden', 'Maya', 'Luis', 'Ava', 'Marcus', 'Sofia', 'Tyler', 'Zoe', 'Diego', 'Emma', 'Caleb', 'Aaliyah', 'Ethan', 'Isabella', 'Noah', 'Mia', 'Jackson', 'Priya', 'Mateo', 'Harper', 'Darius', 'Lily', 'Kenji', 'Olivia', 'Brayden', 'Chloe', 'Andre', 'Grace', 'Owen', 'Leah', 'Javier', 'Nora', 'Malik', 'Ella', 'Ryan', 'Hana'];
 const LAST = ['Rivera', 'Johnson', 'Kim', 'Okafor', 'Smith', 'Garcia', 'Nguyen', 'Brooks', 'Patel', 'Martinez', 'Walker', 'Chen', 'Robinson', 'Lopez', 'Murphy', 'Hughes', 'Rossi', 'Bennett', 'Diaz', 'Foster', 'Silva', 'Jensen', 'Ortiz', 'Carter', 'Tanaka', 'Reyes', 'Coleman', 'Park', 'Sullivan', 'Gomez'];
+// Softball rosters are girls (every name here already has a PA clip)
+const GIRLS = FIRST.filter((n) => ['Maya', 'Ava', 'Sofia', 'Zoe', 'Emma', 'Aaliyah', 'Isabella', 'Mia', 'Priya', 'Harper', 'Lily', 'Olivia', 'Chloe', 'Grace', 'Leah', 'Nora', 'Ella', 'Hana'].includes(n));
 export function playerName() {
-  return { first: pick(FIRST), last: pick(LAST) };
+  return { first: pick(sport.softball ? GIRLS : FIRST), last: pick(LAST) };
 }
 
 // Spoken situation rulings (situations.js "say") -> clip groups
@@ -22,10 +25,11 @@ const SAY = {
   "Time! That's obstruction!": 'u.timeObstruction',
   'Foul ball!': 'u.foul',
   "That's a catch! He's out!": 'u.catchOut',
+  "That's a catch! She's out!": 'u.catchOutSb',
   'No catch!': 'u.noCatch1',
   "He's out!": 'u.out',
+  "She's out!": 'u.outSb',
   'Safe!': 'u.safe',
-  "That's a balk!": 'u.balk',
 };
 
 const COMMENTS = {
@@ -275,6 +279,7 @@ class Voices {
   }
   ump(text, opts = {}) {
     if (!this.enabled || !text) return;
+    text = txt(text);
     const g = SAY[text];
     if (g) this._say('u', [g], text, this._clipStyle(opts.fast));
     else this._speak(text, 'ump', { ...this._umpStyle(), interrupt: true });
@@ -290,10 +295,10 @@ class Voices {
     const map = {
       strike: ['u.strike', 'Strike!', true],
       ball: ['u.ball', 'Ball.', true],
-      k: ['u.k', 'Strike three!'],
+      k: [sport.softball ? 'u.kSb' : 'u.k', 'Strike three!'],
       bb: ['u.bb', 'Ball four! Take your base!'],
-      out: [ctx.close ? 'u.outClose' : 'u.out', "He's out!"],
-      safe: [ctx.close ? 'u.safeClose' : 'u.safe', 'Safe!'],
+      out: [(ctx.close ? 'u.outClose' : 'u.out') + (sport.softball ? 'Sb' : ''), txt("He's out!")],
+      safe: [(ctx.close ? 'u.safeClose' : 'u.safe') + (sport.softball ? 'Sb' : ''), 'Safe!'],
       foul: ['u.foul', 'Foul ball!'],
       tip: ['u.tip', 'Foul tip! Strike!'],
       hbp: ['u.hbp', 'Time! Take your base!'],
@@ -389,7 +394,7 @@ class Voices {
     if (this._chatter) return;
     const tick = () => {
       this._chatter = setTimeout(tick, 1400 + Math.random() * 2600);
-      if (active() && Math.random() < 0.8) this.crowd('crowd.chatter', { n: Math.random() < 0.25 ? 2 : 1, gain: 0.2, spread: 0.6, rate: [0.97, 1.3] });
+      if (active() && Math.random() < 0.8) this.crowd(Math.random() < 0.15 ? (sport.softball ? 'crowd.chatterSb' : 'crowd.chatterBb') : 'crowd.chatter', { n: Math.random() < 0.25 ? 2 : 1, gain: 0.2, spread: 0.6, rate: [0.97, 1.3] });
     };
     this._chatter = setTimeout(tick, 1500);
   }

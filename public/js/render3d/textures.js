@@ -55,7 +55,8 @@ function dirtPathInto(g) {
 
 // ---------- The ballfield, painted top-down in world feet ----------
 // region: { x0, x1, y0, y1 }, ppf: pixels per foot
-export function paintField(region, ppf, detail = 1) {
+// opts.softball: no mound (the pitching circle is its own mesh, so it can move between 35 and 40 ft)
+export function paintField(region, ppf, detail = 1, opts = {}) {
   const W = Math.round((region.x1 - region.x0) * ppf);
   const H = Math.round((region.y1 - region.y0) * ppf);
   const c = document.createElement('canvas');
@@ -164,7 +165,7 @@ export function paintField(region, ppf, detail = 1) {
   circ(B, B, 7, dirt);
   circ(-B, B, 7, dirt);
   circ(0, 2 * B, 7, dirt);
-  circ(0, 46, 6, '#c27f45');
+  if (!opts.softball) circ(0, 46, 6, '#c27f45');
 
   // --- dirt texture: clumps and specks, density scaled to this texture's resolution ---
   const fine = Math.min(16, Math.max(1, ppf / 4));
@@ -182,7 +183,7 @@ export function paintField(region, ppf, detail = 1) {
     g.beginPath(); g.ellipse(x, y, r, r * (0.6 + rnd() * 0.6), rnd() * 3, 0, Math.PI * 2); g.fill();
   }
   // worn paths from the mound and around the bases
-  for (const [x, y, r] of [[0, 46, 4], [B - 1, B, 4], [-B + 1, B, 4], [0, 2 * B - 1, 4], [0, -1, 6]]) {
+  for (const [x, y, r] of [...(opts.softball ? [] : [[0, 46, 4]]), [B - 1, B, 4], [-B + 1, B, 4], [0, 2 * B - 1, 4], [0, -1, 6]]) {
     const gr = g.createRadialGradient(x, y, 0, x, y, r);
     gr.addColorStop(0, 'rgba(110,70,35,0.25)');
     gr.addColorStop(1, 'rgba(110,70,35,0)');
@@ -422,11 +423,12 @@ export function glowTexture(color = '255,250,220') {
 }
 
 // ---------- Baseball with seams ----------
-export function ballTexture() {
+// softball: optic yellow with red stitches
+export function ballTexture(color = '#fbfbf6') {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = '#fbfbf6';
+  g.fillStyle = color;
   g.fillRect(0, 0, 256, 128);
   g.strokeStyle = '#d0302f';
   g.lineWidth = 5;

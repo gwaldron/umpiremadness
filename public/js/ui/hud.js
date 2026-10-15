@@ -4,6 +4,7 @@ import { RULE } from '../data/rules.js';
 import { drawKZone } from '../scenes/plate.js';
 import { faceSvg } from '../scenes/life.js';
 import { audio } from '../audio.js';
+import { txt } from '../sport.js';
 
 const KEYS = { A: 'J', B: 'K', X: 'U', Y: 'I' };
 export function glyph(btn, extra = '') {
@@ -77,6 +78,7 @@ export class Hud {
   }
 
   prompt(main, sub) {
+    main = txt(main); sub = txt(sub);
     const p = this.$('prompt');
     const m = p.querySelector('.prompt-main');
     if (m.textContent !== (main || '')) {
@@ -89,6 +91,7 @@ export class Hud {
   }
   promptMain(main) { this.prompt(main, this.$('prompt').querySelector('.prompt-sub').textContent); }
   promptSub(sub) {
+    sub = txt(sub);
     const s = this.$('prompt').querySelector('.prompt-sub');
     if (s.textContent !== sub) s.textContent = sub || '';
   }
@@ -113,7 +116,7 @@ export class Hud {
     if (!list) return;
     for (const o of list) {
       const b = el('button', { class: `opt${o.big ? ' big' : ''}${o.small ? ' small' : ''}${o.hot ? ' hot' : ''}`, 'data-btn': o.btn, type: 'button' });
-      b.innerHTML = `${glyph(o.btn, 'opt-glyph')}<span>${escapeHtml(o.label)}${o.sub ? `<small>${escapeHtml(o.sub)}</small>` : ''}</span>`;
+      b.innerHTML = `${glyph(o.btn, 'opt-glyph')}<span>${escapeHtml(txt(o.label))}${o.sub ? `<small>${escapeHtml(txt(o.sub))}</small>` : ''}</span>`;
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); this._pick(o.btn); });
       box.append(b);
     }
@@ -158,7 +161,7 @@ export class Hud {
   tip(html) {
     const t = this.$('coachTip');
     if (!html) { t.hidden = true; return; }
-    t.innerHTML = html;
+    t.innerHTML = txt(html);
     t.hidden = false;
   }
 
@@ -193,10 +196,10 @@ export class Hud {
     box.className = `verdict${v.correct ? '' : ' bad'}`;
     box.innerHTML = `
       <div class="vhead"><div class="vicon">${v.info ? '📋' : v.correct ? '✅' : '❌'}</div>
-        <div><div class="vtitle">${escapeHtml(v.title)}${v.practice ? ' <span class="vpractice">PRACTICE</span>' : ''}</div><div class="vsub">${escapeHtml(v.sub || '')}</div></div></div>
-      <div class="vbody"><p>${mini(v.body || '')}</p>${v.extraHtml || ''}</div>
+        <div><div class="vtitle">${escapeHtml(txt(v.title))}${v.practice ? ' <span class="vpractice">PRACTICE</span>' : ''}</div><div class="vsub">${escapeHtml(txt(v.sub || ''))}</div></div></div>
+      <div class="vbody"><p>${mini(v.body || '')}</p>${txt(v.extraHtml || '')}</div>
       ${card ? `<div class="rulecard-mini"><span class="rc-ico">${card.icon}</span><div><b>${escapeHtml(card.title)}</b> rule card ${sc && sc.newCard ? '<b style="color:#2fd67b">· NEW!</b>' : ''}<br><a class="lesson" href="${lessonUrl(card.lesson)}" target="_blank" rel="noopener">📖 Bootcamp lesson →</a></div></div>` : ''}
-      ${v.note ? `<div class="vsub" style="margin-top:8px">${escapeHtml(v.note)}</div>` : ''}
+      ${v.note ? `<div class="vsub" style="margin-top:8px">${escapeHtml(txt(v.note))}</div>` : ''}
       ${pts}
       <div class="vfoot">${onRetry ? `<button class="btn ${v.correct ? 'ghost' : 'hot'}" id="vretry" type="button">${glyph('X')} ↻ TRY AGAIN</button>` : '<span></span>'}<button class="btn big" id="vcont" type="button">${glyph('A')} CONTINUE</button></div>`;
     box.hidden = false;
@@ -234,7 +237,7 @@ export class Hud {
       <div class="coach-card">${faceSvg(d.mood)}<div class="bubble"><span class="who">${escapeHtml(d.who)} · ${escapeHtml(d.role)}</span>${mini(d.text)}</div></div>
       <div class="vsub">What do you do?</div>
       <div class="options" style="position:static;flex-direction:column;align-items:stretch;padding:0;margin-top:10px">
-        ${d.options.map((o) => `<button class="opt" data-btn="${o.btn}" type="button" style="max-width:none">${glyph(o.btn, 'opt-glyph')}<span>${escapeHtml(o.label)}</span></button>`).join('')}
+        ${d.options.map((o) => `<button class="opt" data-btn="${o.btn}" type="button" style="max-width:none">${glyph(o.btn, 'opt-glyph')}<span>${escapeHtml(txt(o.label))}</span></button>`).join('')}
       </div>`;
     box.hidden = false;
     this.dialogHandler = onPick;

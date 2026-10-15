@@ -1,6 +1,7 @@
 // Stick-and-blob ballplayers drawn as billboards in the 3D field.
 // Each pose returns joint positions in feet for a 5-ft figure.
 //   x = forward (side view) or screen-right (front view), z = up.
+import { sport } from '../sport.js';
 
 export const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#a86b3c', '#d9a066'];
 
@@ -115,6 +116,7 @@ const FRONT = {
   pitch(p) {
     // Wind-up seen from the plate: knee lift, stride, release, follow-through.
     const S = FRONT.stand();
+    if (sport.softball) return windmill(S, p);
     if (p < 0.4) {
       const k = p / 0.4;
       return { ...S, kneeF: [0.25, 1.35 + 1.0 * k], footF: [0.3, 0.5 * k + 0.0], handF: [0.15, 3.1], handB: [-0.15, 3.1], elbowF: [0.5, 3.2], elbowB: [-0.5, 3.2] };
@@ -127,6 +129,25 @@ const FRONT = {
     return { ...S, hip: [0, 2.0], neck: [0.1, 3.4 - 0.3 * k], head: [0.1, 3.9 - 0.3 * k], kneeF: [0.4, 1.1], footF: [0.5, 0], kneeB: [-0.3, 1.0 + 0.4 * k], footB: [-0.4, 0.2 + 0.6 * k], elbowB: [-0.3 + 0.6 * k, 3.9 - 0.8 * k], handB: [0.0 + 0.8 * k, 4.4 - 2.2 * k] };
   },
 };
+
+// Softball windmill seen from the plate: hands together, the throwing arm (screen-left for a righty)
+// circles up over the top and down past the hip to release at p = 0.75, then follows through.
+function windmill(S, p) {
+  const sh = [-0.62, 3.8], L = 1.45;
+  if (p < 0.25) {
+    return { ...S, elbowF: [0.5, 3.1], handF: [0.12, 2.95], elbowB: [-0.5, 3.1], handB: [-0.1, 2.95] };
+  }
+  if (p < 0.75) {
+    const k = (p - 0.25) / 0.5;
+    const a = k * Math.PI * 2;
+    const hz = sh[1] - L * Math.cos(a) * (a < 0.3 ? 0.55 : 1);
+    const hx = sh[0] - 0.12 * Math.sin(a);
+    const lift = Math.sin(Math.min(1, k * 1.6) * Math.PI);
+    return { ...S, hip: [0, 2.45 - 0.2 * k], kneeF: [0.35, 1.35 + 0.7 * lift], footF: [0.4, 0.45 * lift], elbowF: [0.75, 3.55], handF: [0.6, 3.9 - 0.8 * k], elbowB: [(sh[0] + hx) / 2 - 0.08, (sh[1] + hz) / 2], handB: [hx, hz] };
+  }
+  const k = Math.min(1, (p - 0.75) / 0.25);
+  return { ...S, hip: [0, 2.15], neck: [0, 3.75], head: [0, 4.25], kneeF: [0.4, 1.1], footF: [0.5, 0], kneeB: [-0.3, 1.1 + 0.3 * k], footB: [-0.35, 0.3 * k], elbowF: [0.75, 3.0], handF: [0.65, 2.4], elbowB: [-0.55 + 0.25 * k, 2.8 + 0.4 * k], handB: [-0.45 + 0.3 * k, 2.4 + 1.2 * k] };
+}
 
 export function poseJoints(pose, phase = 0) {
   if (FRONT[pose]) return { J: FRONT[pose](phase), front: true };

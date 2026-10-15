@@ -69,6 +69,7 @@ export class Stadium {
 
     const detail = groundDetailTexture();
     detail.anisotropy = aniso;
+    this.fieldPlanes = [];
     const plane = (region, ppf, z, order) => {
       const tex = paintField(region, ppf);
       tex.anisotropy = aniso;
@@ -79,6 +80,7 @@ export class Stadium {
       m.receiveShadow = true;
       m.renderOrder = order;
       group.add(m);
+      this.fieldPlanes.push({ m, region, ppf });
       return m;
     };
     plane({ x0: -256, x1: 256, y0: -110, y1: 300 }, 4, 0, 1);
@@ -92,7 +94,26 @@ export class Stadium {
     mound.receiveShadow = true;
     group.add(mound);
     const white = lam('#fbfbf6');
-    group.add(box(2, 0.5, 0.08, white, 0, 46.2, 0.5));
+    this.mound = mound;
+    this.moundRubber = box(2, 0.5, 0.08, white, 0, 46.2, 0.5);
+    group.add(this.moundRubber);
+    // Softball: a flat dirt circle, 16 ft across, chalked, with the pitcher's plate at its center
+    const circle = new THREE.Group();
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(8.7, 48), addGroundDetail(lam('#c98a50', { polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 }), detail));
+    disc.position.z = 0.03;
+    disc.receiveShadow = true;
+    disc.renderOrder = 4;
+    circle.add(disc);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(7.88, 8.12, 72), lam('#f4f2ea', { polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -32 }));
+    ring.position.z = 0.04;
+    ring.renderOrder = 4;
+    circle.add(ring);
+    const plateSb = box(2, 0.5, 0.06, white, 0, 0.25, 0.02);
+    circle.add(plateSb);
+    circle.visible = false;
+    group.add(circle);
+    this.circle = circle;
+    this.sport = 'baseball';
     for (const [x, y] of [[B - 0.9, B], [0, 2 * B], [-B + 0.9, B]]) {
       const b = box(1.25, 1.25, 0.28, white, x, y, 0);
       b.castShadow = true;
@@ -393,6 +414,26 @@ export class Stadium {
       b.add(L, R);
       group.add(b);
       this.birds.push({ g: b, L, R, cx: -60 + rnd() * 120, cy: 300 + rnd() * 140, cz: 70 + rnd() * 50, r: 40 + rnd() * 60, w: (0.12 + rnd() * 0.1) * (rnd() < 0.5 ? 1 : -1), a: rnd() * 6.3, ph: rnd() * 6.3 });
+    }
+  }
+
+  // Baseball has the raised mound at 46 ft; softball a flat chalked circle at 35 or 40 ft.
+  setSport(id, rubber) {
+    const sb = id === 'softball';
+    this.mound.visible = this.moundRubber.visible = !sb;
+    this.circle.visible = sb;
+    this.circle.position.set(0, rubber, 0);
+    if (this.sport === id) return;
+    this.sport = id;
+    // repaint the ground where the mound was (the home plate close-up doesn't reach it)
+    for (const fp of this.fieldPlanes) {
+      if (fp.region.y1 < 40) continue;
+      const old = fp.m.material.map;
+      const tex = paintField(fp.region, fp.ppf, 1, { softball: sb });
+      tex.anisotropy = old.anisotropy;
+      fp.m.material.map = tex;
+      fp.m.material.needsUpdate = true;
+      old.dispose();
     }
   }
 

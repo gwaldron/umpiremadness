@@ -1,14 +1,13 @@
 // Rule situations. Each one scripts a short play, then asks for the ruling.
-// Rulings follow Little League rules as taught in Umpire Bootcamp (FXLL local rules where noted).
+// Rulings follow Little League rules as taught in Umpire Bootcamp.
 import { audio } from '../audio.js';
 import { pick, chance, rand, clamp, lerp } from '../util.js';
-import { BASES } from '../render/field.js';
+import { BASES, POS } from '../render/field.js';
+import { sport, forSport, releasePt, holdZ } from '../sport.js';
 
 const B1 = BASES.first, B2 = BASES.second, B3 = BASES.third, H = BASES.home;
 const ONBAG = { 1: { x: B1.x - 0.3, y: B1.y - 0.2 }, 2: { x: B2.x, y: B2.y - 0.5 }, 3: { x: B3.x + 0.3, y: B3.y - 0.2 }, 4: { x: 0.4, y: 0.6 } };
 
-// Baseball first: softball situations are drafted but switched off until the softball phase.
-export const SOFTBALL_ENABLED = false;
 
 // ---------- script helpers ----------
 function lastKey(tl, id) { const k = tl.actors[id].keys; return k[k.length - 1]; }
@@ -24,9 +23,9 @@ export function posAt(tl, id, t) {
 function pitchHit(tl, { t0 = 0.4, swing = true, z = 2.6, catcher = false, bunt = false } = {}) {
   tl.pose('P', t0, 'pitch');
   lastKey(tl, 'P').dur = 1.0;
-  tl.hold(0, t0 + 0.8, 'P', 5);
+  tl.hold(0, t0 + 0.8, 'P', holdZ());
   const tc = t0 + 1.4;
-  tl.fly(t0 + 0.8, tc, { x: -1, y: 42, z: 5 }, catcher ? { x: 0, y: -1.5, z } : { x: 0, y: 1.2, z }, 0.3);
+  tl.fly(t0 + 0.8, tc, releasePt(), catcher ? { x: 0, y: -1.5, z } : { x: 0, y: 1.2, z }, 0.3);
   tl.pose('P', t0 + 1.1, 'ready');
   if (swing && tl.actors.BAT) {
     tl.actors.BAT.swingAt = bunt ? tc - 0.02 : tc - 0.17;
@@ -117,10 +116,9 @@ export const SITUATIONS = [
       return { pause: tc + 1.15, cam: (t) => ({ x: v.to.x * 0.5, y: v.to.y * 0.7, ext: 64 }) };
     },
     steps(v, div) {
-      const yes = div.iff && v.outs < 2 && v.runners.includes(1) && v.runners.includes(2) && v.ball === 'popup';
+      const yes = v.outs < 2 && v.runners.includes(1) && v.runners.includes(2) && v.ball === 'popup';
       let explain;
       if (yes) explain = 'All four boxes are checked: **fewer than two outs**, runners on **1st & 2nd** (or loaded), a **fair fly ball**, and an infielder can catch it with **ordinary effort**. Call it loud: "Infield fly, batter\'s out!" The ball stays **live** — runners may advance at their own risk.';
-      else if (!div.iff && v.ball === 'popup') explain = `In **${div.full}**, the infield fly rule **does not apply** (FXLL local rule). No call — play on. If the ball drops, everybody runs.`;
       else if (v.ball === 'liner') explain = 'A **line drive** is never an infield fly. The rule only covers fly balls — not liners and not bunts.';
       else if (v.ball === 'bunt') explain = 'A popped-up **bunt** is never an infield fly. No call — just watch for the catch.';
       else if (v.outs === 2) explain = 'With **two outs** there\'s no infield fly — the defense just needs one out, so there\'s no cheap double play to protect against.';
@@ -883,274 +881,58 @@ export const SITUATIONS = [
     },
   },
 
-  // ===== BALK (50/70) =====
+  // ===== SOFTBALL: LEAVING EARLY (Bootcamp: softball-vs-baseball) =====
+  // Majors and up may leave on the release; Minors and below only when the pitch reaches the batter.
+  // Leaving too soon is an immediate dead-ball out (not baseball's delayed enforcement).
   {
-    id: 'balk', card: 'balk', title: 'Big Diamond Balk Check', weight: 1, bigField: true,
-    variant() { return { k: pick(['fake1', 'fake2', 'noStop', 'stepOff']) }; },
-    setup(v) { return { runners: [1], outs: 1, text: 'runner on 1st (with a lead) · 1 out', divLabel: 'Intermediate 50/70 game' }; },
-    build(tl, v) {
-      tl.move('R1', 0.2, 1.0, B1.x - 6, B1.y + 6, 'ready');
-      tl.pose('P', 0.6, 'stand');
-      if (v.k === 'fake1') {
-        tl.pose('P', 1.6, 'throw', { dur: 0.3, facing: 1 });
-        tl.pose('P', 2.0, 'stand');
-        return { pause: 2.2, cam: () => ({ x: 14, y: 44, ext: 34 }) };
-      }
-      if (v.k === 'fake2') {
-        tl.move('P', 1.4, 1.7, -0.2, 47.5, 'throw');
-        tl.pose('P', 2.0, 'stand');
-        return { pause: 2.2, cam: () => ({ x: 6, y: 50, ext: 34 }) };
-      }
-      if (v.k === 'stepOff') {
-        tl.move('P', 1.2, 1.5, 0, 48.2, 'stand');
-        tl.pose('P', 1.8, 'throw', { dur: 0.3, facing: 1 });
-        tl.pose('P', 2.2, 'stand');
-        return { pause: 2.4, cam: () => ({ x: 14, y: 44, ext: 34 }) };
-      }
-      // no stop in the set
-      tl.pose('P', 1.0, 'pitch', { dur: 1.0 });
-      tl.hold(0, 1.8, 'P', 5);
-      tl.fly(1.8, 2.4, { x: -1, y: 42, z: 5 }, { x: 0, y: -1.5, z: 2.5 }, 0.3);
-      tl.at(2.4, () => audio.pop());
-      return { pause: 2.6 };
+    id: 'sb-early', card: 'softball-early', title: 'Leaving Too Soon?', weight: 2, sport: 'softball',
+    variant(div) {
+      const minors = div.id === 'AA' || div.id === 'AAA';
+      return { minors, k: pick(minors ? ['early', 'atRelease', 'atBatter'] : ['early', 'atRelease', 'atRelease']) };
     },
-    steps(v) {
-      const balk = v.k === 'fake1' || v.k === 'noStop';
-      const desc = {
-        fake1: 'From the set position **on the rubber**, the pitcher faked a throw to **first**.',
-        fake2: 'On the rubber, the pitcher **stepped toward second** and faked a throw there.',
-        stepOff: 'The pitcher **stepped back off the rubber** first, then faked a throw to first.',
-        noStop: 'The pitcher came set and delivered **without a discernible pause**.',
-      }[v.k];
-      return [{
-        q: 'BALK OR LEGAL?',
-        sub: desc.replace(/\*\*/g, ''),
-        options: [
-          { btn: 'A', id: 'balk', label: 'BALK!', sub: 'Runners move up one base' },
-          { btn: 'B', id: 'legal', label: 'LEGAL — PLAY ON', sub: '' },
-        ],
-        answer: balk ? 'balk' : 'legal',
-        say: balk ? "That's a balk!" : null,
-        explain: desc + ' ' + {
-          fake1: '**Faking a throw to first from the rubber is a balk.** Runners advance one base.',
-          fake2: 'Feinting to **second (or third)** from the rubber is **legal** — as long as he steps toward that base.',
-          stepOff: 'Once he **disengages the rubber** with his back foot, he\'s just a fielder. Fielders can fake throws anywhere — **legal**.',
-          noStop: 'After coming set, the pitcher must make a **discernible pause**. No stop = **balk**.',
-        }[v.k] + ' (Balks apply in divisions where runners can lead off — not in Majors and below.)',
-      }];
-    },
-  },
-
-  // ===== FXLL: OUTFIELDER CAN'T MAKE AN OUT AT A BASE (AA) =====
-  {
-    id: 'aa-of', card: 'local-aa', title: 'Outfielder to the Rescue?', weight: 2, divs: ['AA', 'AAA', 'MAJ'],
-    variant() { return {}; },
-    setup() { return { runners: [1], outs: 0, text: 'runner on 1st · 0 outs' }; },
-    build(tl) {
-      const tc = pitchHit(tl);
-      tl.ground(tc, tc + 1.5, { x: 0, y: 2 }, { x: 4, y: 104 });
-      tl.move('CF', tc, tc + 1.4, 4, 106, 'ready');
-      tl.hold(tc + 1.5, tc + 6, 'CF', 3);
-      // CF charges and steps on second ahead of the slow runner
-      tl.runTo('CF', tc + 1.6, 0.8, 85.5, 19, 'stand');
-      const tStep = lastKey(tl, 'CF').t;
-      tl.runTo('R1', tc + 0.05, 9, 76, 12, 'run');
-      tl.runTo('R1', lastKey(tl, 'R1').t, 1.5, 83.6, 12, 'stand');
-      batterRuns(tl, tc + 0.3, 14);
-      return { pause: Math.max(tStep, lastKey(tl, 'R1').t) + 0.3, cam: () => ({ x: 4, y: 88, ext: 30 }) };
-    },
-    steps(v, div) {
-      const aa = div.id === 'AA';
-      return [{
-        q: 'THE CENTER FIELDER STEPS ON SECOND FIRST!',
-        sub: `This is a ${div.full} game`,
-        options: [
-          { btn: 'A', id: 'out', label: 'OUT — FORCE AT SECOND', sub: 'Fist up' },
-          { btn: 'B', id: 'safe', label: 'SAFE', sub: 'Outfielders can\'t do that here' },
-        ],
-        answer: aa ? 'safe' : 'out',
-        card: aa ? 'local-aa' : (div.id === 'AAA' ? 'local-aaa' : 'force-play'),
-        explain: aa
-          ? 'FXLL **AA local rule**: **an outfielder cannot make an out at a base**. The runner is **safe**.'
-          : `That AA rule **does not carry over to ${div.full}** — don\'t import AA rules into other divisions! He beat the runner to the bag: **force out**.`,
-      }];
-    },
-  },
-
-  // ===== FXLL: ONE BASE PER STEAL =====
-  {
-    id: 'one-base', card: 'local-aa', title: 'Overthrow!', weight: 2, divs: ['AA', 'AAA', 'MAJ'],
-    variant() { return {}; },
-    setup() { return { runners: [1], outs: 1, text: 'runner on 1st · 1 out · he\'s stealing on the pitch!' }; },
-    build(tl) {
-      // A pitch the batter takes. The runner goes as the ball reaches the batter (no leads in LL).
-      const tc = pitchHit(tl, { swing: false, catcher: true });
-      const go = tc - 0.08;
-      const tAt2 = tl.runTo('R1', go, ONBAG[2].x + 0.6, ONBAG[2].y - 0.8, 17.5, 'run');
-      // the shortstop covers second
-      tl.move('SS', tc + 0.05, tc + 1.3, -1.6, 83.8, 'ready');
-      tl.at(tc + 1.3, () => { tl.actors.SS.faceAt = { x: 0, y: 0 }; });
-      // the catcher's throw to second sails over the shortstop's glove...
-      tl.hold(tc, tc + 0.8, 'C', 2.4);
-      tl.pose('C', tc + 0.5, 'throw', { dur: 0.4, facing: 1 });
-      const over = { x: 0.6, y: 84.5, z: 9.4 };
-      const tOver = tl.throwBall(tc + 0.8, tc + 1.95, { x: 0, y: -2, z: 4.6 }, over);
-      tl.pose('SS', tOver - 0.25, 'catchHigh');
-      tl.pose('SS', tOver + 0.4, 'ready');
-      tl.at(tOver, () => audio.ooh());
-      // ...and skips into center field
-      tl.fly(tOver, tOver + 0.5, over, { x: 2.5, y: 103, z: 0 }, 0.5);
-      const tStop = tl.ground(tOver + 0.5, tOver + 1.7, { x: 2.5, y: 103 }, { x: 5, y: 124 });
-      tl.move('CF', tOver - 0.3, tStop, 5.5, 125.5, 'ready');
-      tl.hold(tStop, tOver + 2.3, 'CF', 3);
-      // the runner touches second and keeps going; the throw comes back in to second, too late
-      const tAt3 = tl.runTo('R1', tAt2, ONBAG[3].x, ONBAG[3].y, 17, 'stand');
-      const tBack = throwFrom(tl, 'CF', tOver + 2.3, { x: -1.2, y: 84.5, z: 3.4 }, 70);
-      tl.hold(tBack, tAt3 + 2, 'SS', 3);
-      tl.at(tBack, () => { tl.actors.SS.faceAt = { x: B3.x, y: B3.y }; });
-      return {
-        pause: tAt3 + 0.4,
-        cam: (t) => (t < tOver - 0.5 ? { x: 10, y: 40, ext: 56 } : t < tOver + 1.6 ? { x: 0, y: 92, ext: 58 } : { x: -14, y: 76, ext: 62 }),
-      };
-    },
-    steps(v, div) {
-      const local = div.id === 'AA' || div.id === 'AAA';
-      return [{
-        q: 'OVERTHROW ON THE STEAL — HE TOOK THIRD!',
-        sub: `No swing: it was a steal · ${div.full} game`,
-        options: [
-          { btn: 'A', id: 'back', label: 'SEND HIM BACK TO SECOND', sub: 'One base per steal' },
-          { btn: 'B', id: 'stay', label: 'HE STAYS AT THIRD', sub: 'Ball was live' },
-        ],
-        answer: local ? 'back' : 'stay',
-        card: local ? (div.id === 'AA' ? 'local-aa' : 'local-aaa') : 'local-aaa',
-        explain: local
-          ? `FXLL **${div.id} local rule**: on a **steal**, a runner may advance **only one base** — even if the catcher's throw goes into the outfield (or over the fence). Send him back to **second**. (This is only for steals. On a **batted ball**, runners can take as many bases as they can.)`
-          : 'In **Majors**, the one-base-per-steal local rule doesn\'t apply. The overthrow was a live ball, so he can advance at his own risk: **he stays at third**.',
-      }];
-    },
-  },
-
-  // ===== FXLL: NO STEALING HOME ON THE THROWBACK (AAA) =====
-  {
-    id: 'throwback', card: 'local-aaa', title: 'Sneaky Steal of Home', weight: 1, divs: ['AA', 'AAA', 'MAJ'],
-    variant() { return { airmail: chance(0.4) }; },
-    setup() { return { runners: [3], outs: 1, text: 'runner on 3rd · 1 out' }; },
-    build(tl, v) {
-      const tc = pitchHit(tl, { swing: false, catcher: true });
-      tl.hold(tc, tc + 0.9, 'C', 2.4);
-      tl.pose('C', tc + 0.6, 'throw', { dur: 0.4, facing: 1 });
-      if (v.airmail) {
-        tl.throwBall(tc + 0.9, tc + 1.9, { x: 0, y: -2, z: 4.6 }, { x: 2, y: 66, z: 10 });
-        tl.ground(tc + 1.9, tc + 3.0, { x: 2, y: 66 }, { x: 4, y: 96 });
-        tl.move('CF', tc, tc + 3.0, 4, 98, 'ready');
-      } else {
-        tl.throwBall(tc + 0.9, tc + 1.7, { x: 0, y: -2, z: 4.6 }, { x: 0.5, y: 43.5, z: 4.5 });
-        tl.hold(tc + 1.7, tc + 6, 'P', 4.5);
-        tl.at(tc + 1.7, () => audio.pop());
-      }
-      tl.pose('P', tc + 1.4, 'catchHigh');
-      const tHome = tl.runTo('R3', tc + 1.1, 0.6, 1.2, 17, 'stand');
-      tl.at(tHome, () => audio.thud());
-      return { pause: tHome + 0.4, cam: () => ({ x: -10, y: 24, ext: 44 }) };
-    },
-    steps(v, div) {
-      let ans, ex;
-      if (div.id === 'AA') { ans = 'back'; ex = 'FXLL **AA**: runners **may not steal home** at all. Send him back to third.'; }
-      else if (div.id === 'AAA') {
-        ans = v.airmail ? 'score' : 'back';
-        ex = v.airmail ? 'FXLL **AAA**: no stealing home on the throwback — **unless the catcher\'s throw completely air-mails the pitcher**. It sailed into center, so the run **counts**.' : 'FXLL **AAA**: a runner **may not steal home on the catcher\'s routine throwback** to the pitcher. Send him back to third.';
-      } else { ans = 'score'; ex = 'In **Majors** there\'s no throwback local rule — the ball is live and he can steal home. **Run scores.**'; }
-      return [{
-        q: 'HE BROKE FOR HOME ON THE THROWBACK!',
-        sub: `This is a ${div.full} game`,
-        options: [
-          { btn: 'A', id: 'score', label: 'RUN SCORES', sub: '' },
-          { btn: 'B', id: 'back', label: 'SEND HIM BACK TO THIRD', sub: '' },
-        ],
-        answer: ans,
-        card: div.id === 'AA' ? 'local-aa' : 'local-aaa',
-        explain: ex,
-      }];
-    },
-  },
-
-  // ===== FXLL: LEAVING EARLY (AA/AAA baseball) =====
-  {
-    id: 'leave-early', card: 'local-aa', title: 'Jumping the Gun', weight: 1, divs: ['AA', 'AAA'],
-    variant() { return { second: chance(0.5) }; },
-    setup(v) { return { runners: [1], outs: 0, text: v.second ? 'runner on 1st · already warned this inning' : 'runner on 1st · first time this inning' }; },
-    build(tl) {
-      tl.pose('P', 0.4, 'pitch', { dur: 1.0 });
-      tl.hold(0, 1.2, 'P', 5);
-      tl.fly(1.2, 1.8, { x: -1, y: 42, z: 5 }, { x: 0, y: -1.5, z: 2.5 }, 0.3);
-      tl.at(1.8, () => audio.pop());
-      tl.hold(1.8, 9, 'C', 2.4);
-      // runner takes off as the pitcher releases (before the pitch reaches the batter)
-      tl.runTo('R1', 1.15, 26, 58, 15, 'stand');
-      return { pause: 2.4, cam: () => ({ x: 22, y: 40, ext: 46 }) };
-    },
-    steps(v, div) {
-      return [{
-        q: 'HE LEFT FIRST BEFORE THE PITCH REACHED THE BATTER!',
-        sub: v.second ? 'He was already warned this inning' : 'First time this inning',
-        options: [
-          { btn: 'A', id: 'warn', label: 'WARNING — SEND HIM BACK', sub: '' },
-          { btn: 'B', id: 'out', label: "RUNNER'S OUT", sub: '' },
-          { btn: 'X', id: 'none', label: 'NOTHING — IT\'S A STEAL', sub: '' },
-        ],
-        answer: v.second ? 'out' : 'warn',
-        card: div.id === 'AA' ? 'local-aa' : 'local-aaa',
-        explain: `FXLL **${div.id}**: runners can't leave until the pitch reaches the batter. For leaving early, give **one warning**; the **second violation is an out**. ${v.second ? 'He was already warned, so he\'s **out**.' : 'This is the first one — **warn him** and send him back.'}`,
-      }];
-    },
-  },
-
-  // ===== SOFTBALL: LEAVING EARLY =====
-  {
-    id: 'sb-early', card: 'softball-early', title: 'Softball: Too Soon!', weight: 1, softball: true,
-    variant() { return { k: pick(['early', 'onRelease', 'minorsRelease']) }; },
-    setup(v) { return { runners: [1], outs: 1, text: 'runner on 1st · 1 out', divLabel: v.k === 'minorsRelease' ? 'Softball Minors game' : 'Softball Majors game' }; },
+    setup() { return { runners: [1], outs: 1, text: 'runner on 1st · 1 out' }; },
     build(tl, v) {
       tl.pose('P', 0.4, 'pitch', { dur: 1.0 });
-      tl.hold(0, 1.2, 'P', 4);
-      tl.fly(1.2, 1.75, { x: 1, y: 39, z: 2.5 }, { x: 0, y: -1.5, z: 2.5 }, 0.6);
+      tl.hold(0, 1.2, 'P', holdZ());
+      tl.fly(1.2, 1.75, releasePt(), { x: 0, y: -1.5, z: 2.5 }, 0.6);
       tl.at(1.75, () => audio.pop());
       tl.hold(1.75, 9, 'C', 2.4);
-      const leave = v.k === 'early' ? 0.85 : 1.22;
+      const leave = { early: 0.85, atRelease: 1.22, atBatter: 1.72 }[v.k];
       tl.runTo('R1', leave, 26, 58, 15, 'stand');
       return { pause: 2.3, cam: () => ({ x: 20, y: 40, ext: 46 }) };
     },
-    steps(v) {
-      const out = v.k === 'early' || v.k === 'minorsRelease';
+    steps(v, div) {
+      const out = v.k === 'early' || (v.minors && v.k === 'atRelease');
+      const when = { early: 'He left before the pitcher let go of the ball', atRelease: 'He left right as the ball was released', atBatter: 'He left as the pitch reached the batter' }[v.k];
+      const rule = v.minors
+        ? 'In softball **Minors**, runners may leave only when the pitch **reaches the batter**.'
+        : 'In softball **Majors and up**, runners may leave when the pitcher **releases** the ball.';
       return [{
         q: 'DID THE RUNNER LEAVE TOO SOON?',
-        sub: v.k === 'minorsRelease' ? 'Softball Minors — he left right at the release' : v.k === 'early' ? 'Softball Majors' : 'Softball Majors — he left right at the release',
+        sub: when,
         options: [
           { btn: 'A', id: 'out', label: "TIME! RUNNER'S OUT", sub: 'Left early' },
           { btn: 'B', id: 'ok', label: 'LEGAL — PLAY ON', sub: '' },
         ],
         answer: out ? 'out' : 'ok',
-        explain: {
-          early: 'In softball **Majors and up**, runners may leave when the pitcher **releases** the ball. He left **before the release** — that\'s an **immediate dead-ball out**.',
-          onRelease: 'In softball **Majors**, runners may leave **when the ball is released**. He left right at the release — **legal**.',
-          minorsRelease: 'In softball **Minors and below**, runners must wait until the pitch **reaches the batter**. Leaving at the release is too soon — **dead ball, runner out**.',
-        }[v.k],
+        explain: `${rule} ${out
+          ? 'He went too soon. In softball that\'s an **immediate dead-ball out**: call time, he\'s out, and the pitch is a no-pitch.'
+          : 'He waited long enough, so it\'s **legal**. Play on.'}`,
       }];
     },
   },
 
   // ===== SOFTBALL: LOOK-BACK =====
   {
-    id: 'sb-lookback', card: 'softball-lookback', title: 'Softball: Look-Back Rule', weight: 1, softball: true,
+    id: 'sb-lookback', card: 'softball-lookback', title: 'The Circle Rule', weight: 2, sport: 'softball',
     variant() { return { dance: chance(0.6) }; },
-    setup() { return { runners: [], outs: 1, text: 'batter-runner rounding first', divLabel: 'Softball game' }; },
+    setup() { return { runners: [], outs: 1, text: 'batter-runner rounding first' }; },
     build(tl, v) {
       const tc = pitchHit(tl);
       tl.ground(tc, tc + 1.3, { x: 0, y: 2 }, { x: 40, y: 110 });
       tl.move('RF', tc, tc + 1.3, 41, 108, 'ready');
       tl.hold(tc + 1.3, tc + 1.6, 'RF', 4);
-      const tIn = throwFrom(tl, 'RF', tc + 1.6, { x: 0.5, y: 44, z: 4 }, 70);
+      const tIn = throwFrom(tl, 'RF', tc + 1.6, { x: 0.5, y: POS.P.y, z: 4 }, 70);
       tl.hold(tIn, tIn + 9, 'P', 4);
       tl.pose('BAT', tc + 0.05, 'stand');
       tl.runTo('BAT', tc + 0.15, B1.x + 2, B1.y + 4, 15, 'run');
@@ -1175,13 +957,13 @@ export const SITUATIONS = [
         ],
         answer: v.dance ? 'out' : 'ok',
         explain: v.dance
-          ? 'Look-back rule: with the pitcher holding the ball in the circle (not making a play), a runner off base must **immediately** go or come back (about 3 seconds). He **stopped and faked back and forth** — **dead ball, runner out**.'
+          ? 'The **circle rule** (look-back): with the pitcher holding the ball in the circle and not making a play, a runner off base must **immediately** go or come back (about 3 seconds). He **stopped and faked back and forth** — **dead ball, runner out**.'
           : 'He went **straight back to first** right away. That\'s exactly what the look-back rule wants — **legal**.',
       }];
     },
   },
 ];
 
-export function situationsFor(div, { softball = SOFTBALL_ENABLED, bigField = true } = {}) {
-  return SITUATIONS.filter((s) => (!s.divs || s.divs.includes(div.id)) && (softball || !s.softball) && (bigField || !s.bigField));
+export function situationsFor(div) {
+  return SITUATIONS.filter((s) => (!s.divs || s.divs.includes(div.id)) && forSport(s));
 }

@@ -9,8 +9,9 @@ import { pitcherJoints, PITCHER_LIMBS } from './pitcher3d.js';
 import { solveLimbs, drawHero } from '../render3d/hero.js';
 import { Painter2D } from '../render/hero2d.js';
 import { POS, UMP_SPOTS, BASES } from '../render/field.js';
+import { sport, ballR, ballColor } from '../sport.js';
 
-const BALL_R = 0.121; // feet (2.9 in diameter)
+let BALL_R = 0.121; // feet: a baseball is 2.9 in across; set per game (the softball is bigger)
 const HALF = 0.708; // half of 17 in
 const GRAV = 32.17;
 const GLOVE_Y = -1.25;
@@ -187,6 +188,7 @@ export class AtBatEvent {
     this.state = 'setup';
     this.t = 0;
     this.allowMove = true;
+    BALL_R = ballR(this.div);
     this.pitcherHand = chance(0.8) ? 'R' : 'L';
     this.pitcherSkin = pick(SKINS);
     this.catcherSkin = pick(SKINS);
@@ -215,7 +217,7 @@ export class AtBatEvent {
     list.push({ x: spot.x, y: spot.y, kit: this.s.umpKit, skin: SKINS[1], pose: 'set' });
     const baseXY = { 1: BASES.first, 2: BASES.second, 3: BASES.third };
     for (const b of r) list.push({ x: baseXY[b].x + (b === 1 ? -1 : b === 3 ? 1 : 0), y: baseXY[b].y - 1, kit: KITS.off, skin: pick(SKINS), pose: 'stand' });
-    this.pitcher = { x: 0, y: 46.6, kit: KITS.def, skin: this.pitcherSkin, pose: 'stand', glove: 'F', mirror: this.pitcherHand === 'L' };
+    this.pitcher = { x: 0, y: sport.softball ? sport.rubber + 0.35 : 46.6, kit: KITS.def, skin: this.pitcherSkin, pose: 'stand', glove: 'F', mirror: this.pitcherHand === 'L' };
     list.push(this.pitcher);
     return list;
   }
@@ -327,10 +329,21 @@ export class AtBatEvent {
     this.pk = { kind, t: 0, released: false, called: null, callT: null, decided: false };
     const pk = this.pk;
     const mph = rand(d.mph[0], d.mph[1]) * (this.fast ? 1.05 : 1);
-    const pitchType = d.id === 'AA' ? 'fb' : weighted([['fb', 6], ['ch', 2], ['cb', d.id === 'MAJ' || d.id === 'AS' || d.id === 'WS' ? 2 : 0]]);
-    const brk = pitchType === 'fb' ? { lift: 12, ax: 0 } : pitchType === 'ch' ? { lift: 7, ax: 0 } : { lift: -7, ax: (this.pitcherHand === 'R' ? 1 : -1) * rand(3, 7) };
-    const speed = pitchType === 'fb' ? mph : mph * (pitchType === 'ch' ? 0.85 : 0.8);
-    const rel = { x: (this.pitcherHand === 'R' ? -1 : 1) * rand(0.9, 1.3), y: 42.0, z: rand(4.6, 5.2) };
+    const big = d.id === 'MAJ' || d.id === 'AS' || d.id === 'WS';
+    let pitchType, brk, speed, rel;
+    if (sport.softball) {
+      // Windmill: released low by the hip, so the ball climbs toward the zone. Drop balls dive,
+      // rise balls hop, change-ups float in slow.
+      pitchType = d.id === 'AA' ? 'fb' : weighted([['fb', 6], ['ch', 2], ['drop', big ? 2 : 1], ['rise', big ? 2 : 0]]);
+      brk = pitchType === 'drop' ? { lift: -9, ax: 0 } : pitchType === 'rise' ? { lift: 16, ax: 0 } : pitchType === 'ch' ? { lift: 3, ax: 0 } : { lift: 6, ax: (this.pitcherHand === 'R' ? -1 : 1) * rand(0, 2) };
+      speed = pitchType === 'ch' ? mph * 0.78 : pitchType === 'drop' ? mph * 0.95 : mph;
+      rel = { x: (this.pitcherHand === 'R' ? -1 : 1) * rand(0.68, 0.85), y: sport.rubber + 0.35 - rand(2.8, 3.1), z: rand(1.65, 2.0) };
+    } else {
+      pitchType = d.id === 'AA' ? 'fb' : weighted([['fb', 6], ['ch', 2], ['cb', big ? 2 : 0]]);
+      brk = pitchType === 'fb' ? { lift: 12, ax: 0 } : pitchType === 'ch' ? { lift: 7, ax: 0 } : { lift: -7, ax: (this.pitcherHand === 'R' ? 1 : -1) * rand(3, 7) };
+      speed = pitchType === 'fb' ? mph : mph * (pitchType === 'ch' ? 0.85 : 0.8);
+      rel = { x: (this.pitcherHand === 'R' ? -1 : 1) * rand(0.9, 1.3), y: 42.0, z: rand(4.6, 5.2) };
+    }
     pk.rel = rel;
     pk.pitchType = pitchType;
     const b = this.batter;
@@ -917,7 +930,7 @@ export class AtBatEvent {
       else if (s === 'hands') body = '**The hands are part of the batter, not the bat!** The batter didn\'t swing, so getting hit on the hands is a hit-by-pitch: dead ball, take your base.';
       else body = 'The pitch hit the batter, who didn\'t swing and tried to get out of the way, and it wasn\'t in the strike zone. **Time! Take your base.** Runners move up only if forced.';
     } else if (k === 'u3k') {
-      if (!this.div.u3k) body = `In **${this.div.full}**, the uncaught-third-strike rule **does not apply** (FXLL local rule). The batter is out even though the catcher didn't catch it.`;
+      if (!this.div.u3k) body = `In **${this.div.full}**, the uncaught-third-strike rule **does not apply**: Little League only uses it in **Majors and up**. The batter is out even though the catcher didn't catch it.`;
       else if (truth === 'run') body = `The pitch was **not legally caught** and ${this.runners.includes(1) ? '**there are two outs**' : '**first base is open**'} — the batter may run! Signal strike three **without an out call** and watch the play.`;
       else body = 'First base is **occupied with fewer than two outs**, so the batter is **out** even though the catcher didn\'t catch it. The ball stays live, so keep watching the runners!';
     }
@@ -1034,7 +1047,7 @@ export class AtBatEvent {
     return {
       hero: true, W,
       o: {
-        kit: KITS.off, skin: b.skin, battingGloves: true, gloveTone: b.gloveTone, helmet: true, lookDir: { x: 0, y: 1, z: 0 },
+        kit: KITS.off, skin: b.skin, battingGloves: true, gloveTone: b.gloveTone, helmet: true, ponytail: sport.softball, faceguard: sport.softball, lookDir: { x: 0, y: 1, z: 0 },
         num: b.num, team: 'Titans', teamColors: ['#ffffff', '#6d0d18'], numColors: ['#ffffff', '#6d0d18'],
         batColor: b.batColor, batAccent: b.batAccent, footDir: { x: f.x * 0.25, y: 1 },
       },
@@ -1057,7 +1070,7 @@ export class AtBatEvent {
         kit: KITS.def, skin: this.pitcherSkin, glove: lefty ? 'B' : 'F', gloveColor: '#5b3a1e',
         ballInHand: tau < tr ? (lefty ? 'F' : 'B') : null, lookDir: { x: -W.head.x * 0.05, y: -1 },
         team: 'Hawks', teamColors: ['#1f5fe0', '#0d2a6b'], num: this.pitcherNum, numColors: ['#1f5fe0', '#0d2a6b'],
-        feetAlong: false,
+        feetAlong: false, ponytail: sport.softball,
       },
     };
   }
@@ -1082,7 +1095,7 @@ export class AtBatEvent {
     };
     return {
       hero: true, W,
-      o: { kit: KITS.def, skin: this.catcherSkin, gear: 'catcher', glove: 'F', gloveColor: '#6b3f1d', noFace: true, num: this.catcherNum, numColors: ['#1f5fe0', '#0d2a6b'], footDir: { x: 0, y: 1 } },
+      o: { kit: KITS.def, skin: this.catcherSkin, gear: 'catcher', glove: 'F', gloveColor: '#6b3f1d', noFace: true, ponytail: sport.softball, num: this.catcherNum, numColors: ['#1f5fe0', '#0d2a6b'], footDir: { x: 0, y: 1 } },
     };
   }
 
@@ -1172,7 +1185,7 @@ export class AtBatEvent {
     if (!im) return;
     const p = cam.project(im.x, im.y, im.z);
     if (!p) return;
-    const r = Math.max(2, 0.121 * p.s);
+    const r = Math.max(2, BALL_R * p.s);
     g.save();
     g.globalAlpha = 0.55;
     g.fillStyle = im.color;
@@ -1219,7 +1232,7 @@ export class AtBatEvent {
     }
     g.fillStyle = 'rgba(255,255,255,0.35)';
     g.beginPath(); g.arc(p.x, p.y, r * 1.8, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#fff';
+    g.fillStyle = ballColor();
     g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill();
     if (r > 6) {
       g.strokeStyle = '#d0302f';

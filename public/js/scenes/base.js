@@ -8,6 +8,7 @@ import { KITS, SKINS } from '../render/figures.js';
 import { BASES, UMP_SPOTS, POS } from '../render/field.js';
 import { Timeline, setupDefense, setupRunners, setupBatter, BASE_XY } from './timeline.js';
 import { UmpCam, UmpCam3D } from './umpcam.js';
+import { releasePt, holdZ } from '../sport.js';
 
 const B1 = BASES.first, B2 = BASES.second, B3 = BASES.third, HOME = BASES.home;
 const BASE_NAME = { 1: '1ST BASE', 2: '2ND BASE', 3: '3RD BASE' };
@@ -169,11 +170,11 @@ export class BasePlayEvent {
     // Pitch
     tl.pose('P', tP, 'pitch');
     tl.actors.P.keys[tl.actors.P.keys.length - 1].dur = 1.0;
-    tl.hold(0, tP + 0.8, 'P', 5.0);
+    tl.hold(0, tP + 0.8, 'P', holdZ());
     const tPlate = tP + 0.8 + rand(0.55, 0.7);
     this.tPlate = tPlate;
     tl.pose('P', tP + 1.1, 'ready');
-    const pitchFrom = { x: -1, y: 42, z: 5 };
+    const pitchFrom = releasePt();
     const sp = this.div.id === 'AA' ? 0.8 : this.div.id === 'AAA' ? 0.9 : 1;
     const builders = { force1B: this._force1B, steal2B: this._steal, steal3B: this._steal, dp: this._dp, pickoff1B: this._pickoff };
     builders[play].call(this, tl, tPlate, pitchFrom, sp);

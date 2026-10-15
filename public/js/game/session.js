@@ -5,7 +5,8 @@ import { input } from '../input.js';
 import { confetti } from '../ui/confetti.js';
 import { pick, shuffle, weighted, clamp, chance, newSeed, seededRng, setRng } from '../util.js';
 import { DIV, DIVISIONS, gameRole, GAME_NAMES } from '../data/divisions.js';
-import { situationsFor, SITUATIONS, SOFTBALL_ENABLED } from '../data/situations.js';
+import { situationsFor, SITUATIONS } from '../data/situations.js';
+import { sport, forSport, rubberY } from '../sport.js';
 import { LIFE } from '../data/life.js';
 import { ACHIEVEMENTS } from '../data/achievements.js';
 import { levelFromXp, rankFor, saveProfile } from '../storage.js';
@@ -171,6 +172,7 @@ export class Session {
   // ---------- event flow ----------
   _make(spec) {
     if (spec.div) this.div = DIV[spec.div] || this.div;
+    this.app.setPitch(this.div);
     switch (spec.type) {
       case 'atbat': return new AtBatEvent(this, spec);
       case 'base': return new BasePlayEvent(this, spec);
@@ -494,12 +496,6 @@ export class Session {
 function pickSituations(div, n, exclude = []) {
   let pool = situationsFor(div).filter((s) => !exclude.includes(s.id));
   const out = [];
-  // AA/AAA games should feature their local rules
-  if (div.local) {
-    const local = pool.filter((s) => s.divs && s.divs.includes(div.id) && (s.card === 'local-aa' || s.card === 'local-aaa'));
-    if (local.length) out.push(pick(local));
-  }
-  pool = pool.filter((s) => !out.includes(s));
   while (out.length < n && pool.length) {
     const s = weighted(pool.map((x) => [x, x.weight || 1]));
     out.push(s);
@@ -531,10 +527,11 @@ export function buildCareer(divId, idx) {
   };
 }
 
-// Rookie Camp has two levels. New umps start in Minors (AA/AAA rules: no infield fly,
+// Rookie Camp has two levels. New umps start in Minors (AA/AAA: no infield fly quizzes,
 // no dropped third strike). Majors Camp adds those. Each camp is a full practice session:
 // stations of drills with a coach card between them, ending with a no-hints scrimmage.
 export function buildCamp(level = 'minors') {
+  const softball = (...evs) => (sport.softball ? evs : []);
   const sit = (id) => SITUATIONS.find((s) => s.id === id);
   const life = (id) => LIFE.find((l) => l.id === id);
   const card = (n, total, title, sub, body, rule) => ({ type: 'info', title: `STATION ${n} OF ${total}: ${title}`, sub, body, card: rule });
@@ -571,6 +568,8 @@ export function buildCamp(level = 'minors') {
         // 6 — rules that trip up rookies
         card(6, T, 'RULES THAT FOOL ROOKIES', 'Appeals, timing plays and interference', "Some plays freeze and ask **\"What's the call?\"** These are the ones that fool new umpires: **appeals** (say nothing until they appeal!), **timing plays** (does the run count?), and **interference** vs. **obstruction**.", 'appeal-tagup'),
         sq('tagup', 'MAJ'), sq('timing', 'MAJ'), sq('ci', 'MAJ'), sq('lane', 'MAJ'), sq('obs-rundown', 'MAJ'),
+        ...softball(card(6, T, 'SOFTBALL RULES', 'Leaving early and the circle rule', "In Majors softball, runners may leave **when the pitcher releases the ball**. Go any sooner and it's an **immediate dead-ball out**. And once the pitcher has the ball **in the circle**, a runner off base must go or come back right away: no stopping, no faking.", 'softball-early'),
+          sq('sb-early', 'MAJ'), sq('sb-early', 'MAJ'), sq('sb-lookback', 'MAJ'), sq('sb-lookback', 'MAJ')),
         // 7 — game management
         card(7, T, 'RUNNING THE GAME', 'Coaches, safety, and keeping your cool', 'Big games bring loud coaches and tough moments. Answer **rule** questions clearly, don\'t argue **judgment** calls, and **safety always comes first**.', 'handling-questions'),
         { type: 'life', def: life('rule-question') }, { type: 'life', def: life('lightning') }, { type: 'life', def: life('calm-ejection') },
@@ -615,9 +614,11 @@ export function buildCamp(level = 'minors') {
       // 5 — rules
       card(5, T, 'FAIR, FOUL, CATCH?', 'Calls the plate umpire owns', "The plate umpire has **every fair/foul call** and **every catch/no-catch call** on the field. Remember: the lines and bases are **fair**, and a catch needs **secure possession**.", 'fair-foul'),
       sq('fairfoul', 'AA'), sq('fairfoul', 'AA'), sq('catch', 'AA'), sq('catch', 'AA'),
-      // 6 — local rules + interference
-      card(6, T, 'MINORS RULES', 'FXLL local rules and contact plays', "Minors has its own **local rules**: one base per steal, no stealing home, an outfielder can't make an out at a base in AA, and a warning for leaving early. Plus: who has the right of way when a runner and fielder collide?", 'local-aa'),
-      sq('one-base', 'AA'), sq('aa-of', 'AA'), sq('leave-early', 'AAA'), sq('hit-runner', 'AA'), sq('obs-delayed', 'AA'),
+      // 6 — interference and obstruction
+      card(6, T, 'TRAFFIC JAMS', 'Interference and obstruction', "When a runner and a fielder get tangled up, who's at fault? **Interference** is the offense getting in the way. **Obstruction** is a fielder *without the ball* blocking a runner. A fielder making a play on a batted ball has the right of way.", 'interference'),
+      sq('hit-runner', 'AA'), sq('collide', 'AA'), sq('obs-delayed', 'AA'), sq('obs-rundown', 'AAA'),
+      ...softball(card(6, T, 'SOFTBALL: STAY ON THE BAG', 'Leaving early is an out', "In Minors softball, runners have to stay on the base until the pitch **reaches the batter**. Leave any sooner and it's an **immediate dead-ball out**: call time and the runner is out.", 'softball-early'),
+        sq('sb-early', 'AA'), sq('sb-early', 'AA'), sq('sb-early', 'AAA')),
       // 7 — game management
       card(7, T, 'COACHES & SAFETY', 'The part of umpiring nobody talks about', 'Stay calm, answer questions in a sentence or two, don\'t argue with the stands, and **always** stop the game for a safety problem.', 'handling-questions'),
       { type: 'life', def: life('tie-coach') }, { type: 'life', def: life('throat-guard') }, { type: 'life', def: life('parent') }, { type: 'life', def: life('signal-ball') },
@@ -655,7 +656,7 @@ export const ARCADE = {
 };
 
 export function buildRumble() {
-  const pool = SITUATIONS.filter((s) => SOFTBALL_ENABLED || !s.softball);
+  const pool = SITUATIONS.filter(forSport);
   const picks = shuffle(pool).slice(0, 12);
   const events = picks.map((def) => {
     const divs = def.divs ? def.divs : ['AA', 'AAA', 'MAJ', 'MAJ', 'AS', 'WS'];

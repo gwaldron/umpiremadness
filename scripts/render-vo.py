@@ -95,7 +95,13 @@ def lines():
     u('timeObstruction', "Time! That's obstruction!")
     u('catchOut', "That's a catch! He's out!")
     u('noCatch1', 'No catch!')
-    u('balk', "That's a balk!")
+    # softball: the players are girls (the game picks these groups when the sport is softball)
+    u('kSb', 'Strike three!', 0.92); u('kSb', "Strike three! You're out!"); u('kSb', 'Strike three! Ring her up!')
+    u('outSb', "She's out!"); u('outSb', 'Out!'); u('outSb', "You're out!")
+    u('outCloseSb', "She's out!", 0.85); u('outCloseSb', 'Out! She is out!'); u('outCloseSb', "Ohh, she's out!")
+    u('safeSb', 'Safe!'); u('safeSb', "She's safe!")
+    u('safeCloseSb', 'Safe! Safe!'); u('safeCloseSb', "She's safe!", 0.86); u('safeCloseSb', 'Safe, safe, safe!', 1.08)
+    u('catchOutSb', "That's a catch! She's out!")
 
     # --- stadium PA ---
     pa('nowBatting', 'Now batting,'); pa('steppingIn', 'Stepping in,'); pa('upNext', 'Up next,')
@@ -151,9 +157,14 @@ def lines():
     for t in ["Let's go, batter!", 'Hey batter batter!', 'Swing, batter!', 'You got this!', 'Good eye!',
               'Throw strikes!', "Let's go, defense!", 'Come on, buddy!', 'Here we go!', 'Two more outs!',
               'Nice and easy!', "Let's go, Hawks!", "Let's go, Titans!", 'Good hustle!', 'Eye on the ball!',
-              'Be a hitter!', 'Stay focused!', 'Make him pitch to you!']:
+              'Be a hitter!', 'Stay focused!']:
         for v in fans(2):
             fan('chatter', t, v, 1.05)
+    # sport-specific chatter
+    for g, ts in {'chatterBb': ['Make him pitch to you!'], 'chatterSb': ['Make her pitch to you!', "Let's go, girls!", 'Hit it to the fence!']}.items():
+        for t in ts:
+            for v in fans(2):
+                fan(g, t, v, 1.05)
     return L
 
 

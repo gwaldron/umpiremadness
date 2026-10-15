@@ -1,4 +1,5 @@
 // Small math + misc helpers shared by every module.
+import { txt } from './sport.js';
 
 export const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 export const lerp = (a, b, t) => a + (b - a) * t;
@@ -108,8 +109,9 @@ export function escapeHtml(s) {
 }
 
 // Tiny **bold** markdown for explanation text.
+// Markdown-ish **bold**; in softball, he/him/his read she/her
 export function mini(s) {
-  return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  return escapeHtml(txt(s)).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 }
 
 export const BOOTCAMP = 'https://umpirebootcamp.gwaldron.workers.dev/';

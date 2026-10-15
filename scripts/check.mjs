@@ -1,5 +1,5 @@
 // Headless sanity check for game content: run with `npm run check`.
-// Builds every rule situation for every division (many random variants) and verifies:
+// Builds every rule situation for every division in both sports (many random variants) and verifies:
 //   - each step's answer is one of its options
 //   - pause count matches the number of steps
 //   - actor keyframes are in time order (no teleporting runners)
@@ -13,13 +13,18 @@ import { RULE } from '../public/js/data/rules.js';
 import { Timeline, setupDefense, setupRunners, setupBatter, setupUmps } from '../public/js/scenes/timeline.js';
 import { KITS } from '../public/js/render/figures.js';
 import { preloadIsCurrent } from './preload.mjs';
+import { sport, setSport, forSport, rubberY } from '../public/js/sport.js';
 
 const problems = [];
 let built = 0;
+for (const sp of ['baseball', 'softball']) {
+setSport(sp);
 for (const def of SITUATIONS) {
   if (!RULE[def.card]) problems.push(`${def.id}: unknown rule card ${def.card}`);
+  if (!forSport(def)) continue;
   for (const div of DIVISIONS) {
     if (def.divs && !def.divs.includes(div.id)) continue;
+    sport.rubber = rubberY(div);
     for (let i = 0; i < 40; i++) {
       try {
         const v = def.variant ? def.variant(div) : {};
@@ -51,14 +56,16 @@ for (const def of SITUATIONS) {
         }
         built++;
       } catch (e) {
-        problems.push(`${def.id}/${div.id}: ${e.message}`);
+        problems.push(`${sp} ${def.id}/${div.id}: ${e.message}`);
       }
     }
   }
 }
+}
+setSport('baseball');
 // Minors (AA/AAA) never quiz the infield fly; the dropped third strike is off there too.
 for (const div of DIVISIONS) {
-  if (div.iff) continue;
+  if (div.id !== 'AA' && div.id !== 'AAA') continue;
   if (situationsFor(div).some((s) => s.card === 'infield-fly')) problems.push(`${div.id}: infield fly quizzed in a Minors division`);
   if (div.u3k) problems.push(`${div.id}: uncaught third strike enabled in a Minors division`);
 }

@@ -1,12 +1,18 @@
-# Umpire Madness ⚾
+# Umpire Madness ⚾🥎
 
-An arcade-style training game for young **Little League baseball** umpires. It's a companion to
+An arcade-style training game for young **Little League baseball and softball** umpires. It's a companion to
 [Umpire Bootcamp](https://umpirebootcamp.gwaldron.workers.dev/), and every rule card links straight to its Bootcamp lesson.
 
 **Make the call. Own the field.**
 
 ## What's in it
 
+- **Baseball or softball**: one switch on the title screen (or in Settings) changes the whole game. Softball moves
+  the pitcher into a flat, chalked 16-ft circle (35 ft in Minors, 40 ft in Majors and up), swaps in the big yellow
+  ball (11 in for Minors, 12 in for Majors and up), pitches underhand with a windmill delivery (rise balls, drop balls
+  and change-ups), puts ponytails and face-cage helmets on the players, and ends the career in Greenville. Softball
+  adds its own rules from Bootcamp: **leaving early** (an immediate out; Majors and up may leave on the release,
+  Minors when the pitch reaches the batter) and **the circle rule**.
 - **Behind the plate**: a first-person view through your mask. Get into the slot (the catcher's helmet really
   does block your view if you don't) and adjust any time during the at-bat; the slot is judged as each pitch
   reaches the plate. Track the pitch into the glove, then call **strike** or **ball**. The strike zone box over the plate
@@ -19,20 +25,22 @@ An arcade-style training game for young **Little League baseball** umpires. It's
   a fielder can block it, and standing far away pixelates it. Plays include force plays, steals, back-picks and
   double plays, with pulled feet, dropped balls, missed tags and empty-glove tags.
 - **Rule situations**: infield fly, obstruction (both kinds), interference, batter's and catcher's interference,
-  the running lane, base paths, fair/foul, catch/no catch, appeals, timing plays, balks (50/70), and
-  **FXLL AA/AAA local rules**.
+  the running lane, base paths, fair/foul, catch/no catch, appeals and timing plays (plus leaving early and the circle
+  rule in softball). Balks aren't included: they only apply on the 90-ft diamond, which the game doesn't cover yet.
 - **Ump life**: coaches, parents, lightning, missing throat guards, illegal bats.
 - **Rookie Camp** in two levels: **Minors** (AA/AAA rules, where new umps start) and **Majors**. The infield fly and the
   dropped third strike are only quizzed at Majors and above, since Minors doesn't use them.
 - **Little League mechanics**: on the 60-ft diamond the base umpire's B and C positions are outside the baselines.
-- **Gamification**: XP and ranks, a 5-division career (AA → AAA → Majors → All-Stars → Williamsport), stars,
+  The game uses general Little League rules, not any one league's local rules.
+- **Gamification**: XP and ranks, a 5-division career (AA → AAA → Majors → All-Stars → Williamsport, or Greenville in softball), stars,
   45 achievements, a collectible rule-card set, unlockable gear in the Locker Room, streak multipliers,
   and arcade modes (Blitz, Plate Survival, Base Hustle, Rulebook Rumble).
 - **Controls**: Xbox/standard gamepads (A/B/X/Y, RT = strike/out, LT = ball/safe, left stick to move, Menu to pause),
   keyboard (WASD/arrows, J K U I), or touch (on-screen buttons plus a floating thumbstick).
 
-Rules follow the Little League rulebook as taught in Umpire Bootcamp. **Baseball first; softball is a later phase.**
-The softball situations are drafted but switched off (`SOFTBALL_ENABLED` in `public/js/data/situations.js`).
+Rules follow the Little League rulebook as taught in Umpire Bootcamp. The sport switch lives in `public/js/sport.js`:
+situations and rule cards tagged `sport: 'softball'` (or `'baseball'`) only come up in that sport, and softball game
+text reads "she/her" (`txt()`).
 
 ## Run it locally
 

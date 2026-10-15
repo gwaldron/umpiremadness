@@ -14,6 +14,7 @@ import { confetti } from './ui/confetti.js';
 import { Screens } from './ui/screens.js';
 import { Session, buildCareer, buildCamp, buildRumble, ARCADE } from './game/session.js';
 import { Timeline } from './scenes/timeline.js';
+import { sport, setSport, rubberY, ballR } from './sport.js';
 
 const canvas = document.getElementById('game');
 const g = canvas.getContext('2d');
@@ -140,8 +141,17 @@ app.screens = new Screens(app);
 
 app.save = () => saveProfile(app.profile);
 
+// Where the pitcher works for this division: the mound at 46 ft, or softball's circle at 35/40 ft
+app.setPitch = (div) => {
+  sport.rubber = rubberY(div);
+  POS.P.y = sport.softball ? sport.rubber - 1.5 : 44;
+  if (app.field.setSport) app.field.setSport(sport.id, sport.rubber, ballR(div));
+};
+
 app.applySettings = () => {
   const s = app.profile.settings;
+  if ((s.sport || 'baseball') !== sport.id) setSport(s.sport);
+  app.setPitch(app.session ? app.session.div : null);
   audio.setVolume(s.volume);
   audio.voiceOn = s.voice;
   audio.setMusic(s.music);

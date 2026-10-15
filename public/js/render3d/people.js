@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { TOON_STEPS } from './engine.js';
 import { poseJoints } from '../render/figures.js';
+import { sport } from '../sport.js';
 
 const CAP = 3000;
 const HAIRS = ['#2b1d14', '#4a2f1b', '#1a1a1a', '#7a4b23', '#c9a25c', '#5a3a22', '#8b3a1a'];
@@ -51,8 +52,9 @@ export function solveIK(root, target, l1, l2, pole) {
   return add(add(root, mul(dir, a)), mul(q, h));
 }
 
-// Height of the ground (the pitcher's mound is raised 6 inches).
+// Height of the ground (the pitcher's mound is raised 6 inches; softball's circle is flat).
 export function groundZ(x, y) {
+  if (sport.softball) return 0;
   const d = Math.hypot(x, y - 46);
   if (d >= 5.6) return 0;
   return 0.5 * Math.min(1, (5.6 - d) / 4.0);

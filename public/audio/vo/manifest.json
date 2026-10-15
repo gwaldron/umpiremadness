@@ -289,13 +289,6 @@
 "t": "No catch!"
 }
 ],
-"u.balk": [
-{
-"f": "u/balk.mp3",
-"d": 0.82,
-"t": "That's a balk!"
-}
-],
 "pa.nowBatting": [
 {
 "f": "pa/nowbatting.mp3",
@@ -1650,6 +1643,93 @@
 "t": "You missed it, Blue!"
 }
 ],
+"u.kSb": [
+{
+"f": "u/ksb.mp3",
+"d": 0.958,
+"t": "Strike three!"
+},
+{
+"f": "u/ksb-2.mp3",
+"d": 1.168,
+"t": "Strike three! You're out!"
+},
+{
+"f": "u/ksb-3.mp3",
+"d": 1.311,
+"t": "Strike three! Ring her up!"
+}
+],
+"u.outSb": [
+{
+"f": "u/outsb.mp3",
+"d": 0.694,
+"t": "She's out!"
+},
+{
+"f": "u/outsb-2.mp3",
+"d": 0.507,
+"t": "Out!"
+},
+{
+"f": "u/outsb-3.mp3",
+"d": 0.672,
+"t": "You're out!"
+}
+],
+"u.outCloseSb": [
+{
+"f": "u/outclosesb.mp3",
+"d": 0.796,
+"t": "She's out!"
+},
+{
+"f": "u/outclosesb-2.mp3",
+"d": 0.9,
+"t": "Out! She is out!"
+},
+{
+"f": "u/outclosesb-3.mp3",
+"d": 0.854,
+"t": "Ohh, she's out!"
+}
+],
+"u.safeSb": [
+{
+"f": "u/safesb.mp3",
+"d": 0.553,
+"t": "Safe!"
+},
+{
+"f": "u/safesb-2.mp3",
+"d": 0.771,
+"t": "She's safe!"
+}
+],
+"u.safeCloseSb": [
+{
+"f": "u/safeclosesb.mp3",
+"d": 0.835,
+"t": "Safe! Safe!"
+},
+{
+"f": "u/safeclosesb-2.mp3",
+"d": 0.871,
+"t": "She's safe!"
+},
+{
+"f": "u/safeclosesb-3.mp3",
+"d": 1.024,
+"t": "Safe, safe, safe!"
+}
+],
+"u.catchOutSb": [
+{
+"f": "u/catchoutsb.mp3",
+"d": 1.216,
+"t": "That's a catch! She's out!"
+}
+],
 "crowd.chatter": [
 {
 "f": "crowd/chatter.mp3",
@@ -1688,7 +1768,7 @@
 },
 {
 "f": "crowd/chatter-8.mp3",
-"d": 1.0,
+"d": 1,
 "t": "You got this!"
 },
 {
@@ -1818,18 +1898,52 @@
 },
 {
 "f": "crowd/chatter-34.mp3",
-"d": 1.0,
+"d": 1,
 "t": "Stay focused!"
-},
+}
+],
+"crowd.chatterBb": [
 {
-"f": "crowd/chatter-35.mp3",
+"f": "crowd/chatterbb.mp3",
 "d": 1.313,
 "t": "Make him pitch to you!"
 },
 {
-"f": "crowd/chatter-36.mp3",
+"f": "crowd/chatterbb-2.mp3",
 "d": 1.002,
 "t": "Make him pitch to you!"
+}
+],
+"crowd.chatterSb": [
+{
+"f": "crowd/chattersb.mp3",
+"d": 1.336,
+"t": "Make her pitch to you!"
+},
+{
+"f": "crowd/chattersb-2.mp3",
+"d": 1.094,
+"t": "Make her pitch to you!"
+},
+{
+"f": "crowd/chattersb-3.mp3",
+"d": 1.262,
+"t": "Let's go, girls!"
+},
+{
+"f": "crowd/chattersb-4.mp3",
+"d": 1.265,
+"t": "Let's go, girls!"
+},
+{
+"f": "crowd/chattersb-5.mp3",
+"d": 1.225,
+"t": "Hit it to the fence!"
+},
+{
+"f": "crowd/chattersb-6.mp3",
+"d": 1.293,
+"t": "Hit it to the fence!"
 }
 ]
 }

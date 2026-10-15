@@ -1,5 +1,6 @@
 // Little League (46/60) ballpark drawn in perspective.
 import { drawFigure } from './figures.js';
+import { sport, ballColor, CIRCLE_R } from '../sport.js';
 
 const R2 = Math.SQRT1_2;
 export const BASE_DIST = 60;
@@ -166,7 +167,8 @@ export class FieldRenderer {
     cam.fillPoly(g, circlePts(B, B, 7, 20), COLORS.dirt);
     cam.fillPoly(g, circlePts(-B, B, 7, 20), COLORS.dirt);
     cam.fillPoly(g, circlePts(0, 2 * B, 7, 20), COLORS.dirt);
-    cam.fillPoly(g, circlePts(RUBBER.x, RUBBER.y, 5, 20), COLORS.dirtDark);
+    if (sport.softball) cam.fillPoly(g, circlePts(0, sport.rubber, CIRCLE_R + 0.6, 28), COLORS.dirt);
+    else cam.fillPoly(g, circlePts(RUBBER.x, RUBBER.y, 5, 20), COLORS.dirtDark);
 
     // Chalk
     g.strokeStyle = COLORS.chalk;
@@ -217,8 +219,14 @@ export class FieldRenderer {
     const pent = (k, z) => [[0, 0], [0.708, 0.706], [0.708, 1.414], [-0.708, 1.414], [-0.708, 0.706]].map(([x, y]) => [x * k, 0.75 + (y - 0.75) * k, z]);
     cam.fillPoly(g, pent(1.07, 0.01), '#1b1c21');
     cam.fillPoly(g, pent(0.97, 0.03), '#ffffff');
-    // Rubber
-    cam.fillPoly(g, [[-1, 46, 0.4], [1, 46, 0.4], [1, 46.5, 0.4], [-1, 46.5, 0.4]], '#ffffff');
+    // Rubber (softball: the pitcher's plate in a chalked 16-ft circle)
+    if (sport.softball) {
+      const ring = circlePts(0, sport.rubber, CIRCLE_R, 40);
+      g.lineWidth = chalkW([0, sport.rubber]) * 0.8;
+      for (let i = 0; i < ring.length; i++) if (cam.line(g, ring[i], ring[(i + 1) % ring.length])) g.stroke();
+      const y = sport.rubber;
+      cam.fillPoly(g, [[-1, y, 0.05], [1, y, 0.05], [1, y + 0.5, 0.05], [-1, y + 0.5, 0.05]], '#ffffff');
+    } else cam.fillPoly(g, [[-1, 46, 0.4], [1, 46, 0.4], [1, 46.5, 0.4], [-1, 46.5, 0.4]], '#ffffff');
 
     // Fence + foul-side fences
     this._fence(g, cam);
@@ -520,8 +528,8 @@ export class FieldRenderer {
     }
     const p = cam.project(b.x, b.y, b.z || 0);
     if (!p) return;
-    const r = Math.max(2.6, p.s * 0.2);
-    g.fillStyle = '#ffffff';
+    const r = Math.max(2.6, p.s * 0.2 * (sport.softball ? 1.3 : 1));
+    g.fillStyle = sport.softball ? ballColor() : '#ffffff';
     g.strokeStyle = 'rgba(0,0,0,0.45)';
     g.lineWidth = 1;
     g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill(); g.stroke();

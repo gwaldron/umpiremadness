@@ -3,8 +3,12 @@ import { el, escapeHtml, mini, lessonUrl, BOOTCAMP } from '../util.js';
 import { audio } from '../audio.js';
 import { input } from '../input.js';
 import { DIVISIONS, GAME_NAMES, gameRole } from '../data/divisions.js';
+import { sport } from '../sport.js';
+
+const LADDER = () => DIVISIONS.map((d) => d.name).join(' → ');
+const TOP = () => DIVISIONS[DIVISIONS.length - 1].name;
 import { ACHIEVEMENTS } from '../data/achievements.js';
-import { RULE, ACTIVE_RULES } from '../data/rules.js';
+import { RULE, activeRules } from '../data/rules.js';
 import { levelFromXp, xpForLevel, rankFor, SHIRT_UNLOCKS, CAP_UNLOCKS, randomName, careerStars, resetProfile } from '../storage.js';
 import { UMP_SHIRTS, UMP_CAPS, SKINS, KITS, drawFigure } from '../render/figures.js';
 import { Camera } from '../render/camera.js';
@@ -141,7 +145,7 @@ export class Screens {
     left.innerHTML = `
       <span class="logo-kicker">UMPIRE BOOTCAMP PRESENTS</span>
       <h1 class="logo">UMPIRE<span>MADNESS</span></h1>
-      <p class="tagline"><b>Make the call. Own the field.</b> Balls &amp; strikes, bang-bang plays, infield flies, obstruction, the works — from AA all the way to Williamsport.</p>
+      <p class="tagline"><b>Make the call. Own the field.</b> Balls &amp; strikes, bang-bang plays, infield flies, obstruction, the works — from AA all the way to ${TOP()}.</p>
       <div class="profile-chip">
         <div class="lvl">${lvl}</div>
         <div class="who"><div class="name">${escapeHtml(p.name || 'Rookie')}</div><div class="rank">${rankFor(lvl)} · ${p.xp.toLocaleString()} XP</div>
@@ -154,13 +158,29 @@ export class Screens {
       </div>
       <p class="footer-note">📖 Learn the rules first at <a href="${BOOTCAMP}" target="_blank" rel="noopener">Umpire Bootcamp</a>. Progress saves on this device.</p>`;
     const menu = el('div', { class: 'menu' });
+    // Baseball or softball: the whole game switches (field, ball, pitcher, players, rules)
+    const sw = el('div', { class: 'sport-switch', role: 'group', 'aria-label': 'Sport' });
+    for (const [id, ico, label] of [['baseball', '⚾', 'BASEBALL'], ['softball', '🥎', 'SOFTBALL']]) {
+      const b = el('button', { class: `sport-opt ${id}${sport.id === id ? ' on' : ''}`, 'data-nav': '', type: 'button', 'aria-pressed': String(sport.id === id) });
+      b.innerHTML = `<span class="ico">${ico}</span>${label}`;
+      b.addEventListener('click', () => {
+        if (sport.id === id) return;
+        p.settings.sport = id;
+        app.applySettings();
+        app.save();
+        audio.select();
+        s.refresh();
+      });
+      sw.append(b);
+    }
+    menu.append(sw);
     const main = (cls, ico, t, d, fn, extra = {}) => {
       const b = el('button', { class: `menu-main ${cls}`, 'data-nav': '', type: 'button', onclick: fn, ...extra });
       b.innerHTML = `<span class="ico">${ico}</span><span><div class="t">${t}</div><div class="d">${d}</div></span>`;
       return b;
     };
     if (!campDone) menu.append(main('hero', '🎓', 'ROOKIE CAMP', 'New here? Start with Minors Camp: 7 training stations + a scrimmage.', () => this.push(this.campChooser()), { 'data-autofocus': '' }));
-    menu.append(main(campDone ? 'hero' : '', '🏆', 'CAREER', `AA → AAA → Majors → All-Stars → Williamsport · ${careerStars(p)}★ earned`, () => this.push(this.career()), campDone ? { 'data-autofocus': '' } : {}));
+    menu.append(main(campDone ? 'hero' : '', '🏆', 'CAREER', `${LADDER()} · ${careerStars(p)}★ earned`, () => this.push(this.career()), campDone ? { 'data-autofocus': '' } : {}));
     menu.append(main('', '🕹️', 'ARCADE', 'Plate Survival · Base Hustle · Rulebook Rumble · Blitz', () => this.push(this.arcade())));
     const row = el('div', { class: 'menu-row' });
     const mini = (ico, t, fn, badge) => {
@@ -171,7 +191,7 @@ export class Screens {
     row.append(
       mini('👕', 'Locker', () => this.push(this.locker())),
       mini('🏅', `Trophies`, () => this.push(this.trophies()), `${ach}/${ACHIEVEMENTS.length}`),
-      mini('🗂️', 'Rule Cards', () => this.push(this.cards()), `${Math.min(cards, ACTIVE_RULES.length)}/${ACTIVE_RULES.length}`),
+      mini('🗂️', 'Rule Cards', () => this.push(this.cards()), `${activeRules().filter((r) => p.cards[r.id]).length}/${activeRules().length}`),
       mini('📊', 'Stats', () => this.push(this.stats())),
       mini('❓', 'How to Play', () => this.push(this.howto())),
       mini('🎓', 'Rookie Camp', () => this.push(this.campChooser())),
@@ -236,7 +256,7 @@ export class Screens {
       card('⚡', 'Strike Zone Blitz', '60 seconds of rapid-fire balls and strikes. Wrong calls cost 3 seconds. How many can you get?', `${b.blitz || 0} calls`, () => app.startArcade('blitz')),
       card('🧑‍⚖️', 'Plate Survival', 'Endless at-bats that get faster and nastier. Three missed calls and you\'re ejected!', (b.plate || 0).toLocaleString(), () => app.startArcade('plate')),
       card('🏃', 'Base Hustle', 'Endless plays on the bases. Get your angle, sell the call. Three misses = ejected.', (b.bases || 0).toLocaleString(), () => app.startArcade('bases')),
-      card('📕', 'Rulebook Rumble', '12 rule situations from every division — infield fly, obstruction, appeals, local rules and more.', (b.rumble || 0).toLocaleString(), () => app.startArcade('rumble')),
+      card('📕', 'Rulebook Rumble', '12 rule situations from every division — infield fly, obstruction, appeals, timing plays and more.', (b.rumble || 0).toLocaleString(), () => app.startArcade('rumble')),
     );
     wrapEl.append(grid);
     return this.screen('dim', wrapEl);
@@ -261,11 +281,12 @@ export class Screens {
   // ---------- RULE CARDS ----------
   cards() {
     const p = this.app.profile;
-    const got = ACTIVE_RULES.filter((r) => p.cards[r.id]).length;
-    const wrapEl = el('div', { class: 'wrap' }, this.topbar(`RULE CARDS · ${got}/${ACTIVE_RULES.length}`));
+    const rules = activeRules();
+    const got = rules.filter((r) => p.cards[r.id]).length;
+    const wrapEl = el('div', { class: 'wrap' }, this.topbar(`RULE CARDS · ${got}/${rules.length}`));
     wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-6px', marginBottom: '14px' } }, 'Unlock a card by meeting its situation in a game. Get it right 3 times to make it ⭐ GOLD.'));
     const grid = el('div', { class: 'grid' });
-    for (const r of ACTIVE_RULES) {
+    for (const r of rules) {
       const c = p.cards[r.id];
       const gold = c && c.correct >= 3;
       const b = el('button', { class: `card${c ? '' : ' locked'}${gold ? ' gold' : ''}`, 'data-nav': '', type: 'button', onclick: () => c && this.push(this.cardDetail(r)) });
@@ -394,7 +415,7 @@ export class Screens {
         const row = el('div', { class: 'swatches' });
         for (const u of list) {
           const unlocked = u.ach ? !!p.achievements[u.ach] : lvl >= u.level;
-          const b = el('button', { class: `swatch${p.look[key] === u.id ? ' on' : ''}${unlocked ? '' : ' locked'}`, 'data-nav': '', type: 'button', title: unlocked ? u.name : (u.ach ? 'Win the Williamsport Championship' : `Reach level ${u.level}`), style: { background: colors[u.id] } });
+          const b = el('button', { class: `swatch${p.look[key] === u.id ? ' on' : ''}${unlocked ? '' : ' locked'}`, 'data-nav': '', type: 'button', title: unlocked ? u.name : (u.ach ? `Win the ${TOP()} Championship` : `Reach level ${u.level}`), style: { background: colors[u.id] } });
           b.addEventListener('click', () => {
             if (!unlocked) { audio.wrong(); app.toastMini(u.ach ? '🔒 Win the World Series Championship to unlock!' : `🔒 Reach level ${u.level} to unlock ${u.name}`); return; }
             p.look[key] = u.id;
@@ -493,7 +514,7 @@ export class Screens {
       return c;
     };
     grid.append(
-      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules · about 15 minutes. 7 stations: balls & strikes, the slot, A/B/C positions, seeing the play, fair/foul & catches, Minors local rules, coaches & safety, then a no-hints scrimmage. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
+      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules · about 15 minutes. 7 stations: balls & strikes, the slot, A/B/C positions, seeing the play, fair/foul & catches, interference & obstruction, coaches & safety, then a no-hints scrimmage. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
       card('🔥', 'Majors Camp', 'Full Little League rules · about 15 minutes. 7 stations: faster pitching, the dropped third strike, the infield fly, double plays, steals & back-picks, appeals & timing plays, game management, then a no-hints scrimmage.', p.career['camp-majors'], () => app.startCamp('majors')),
     );
     wrapEl.append(grid);
@@ -511,7 +532,7 @@ export class Screens {
       c('🏃 On the bases', 'Run to <b>A, B or C</b> before the pitch. When the ball is hit, move for a <b>90° angle</b> to the throw (force) or the slide (tag) and <b>stop</b> before the play. Better angle = clearer UMP CAM.'),
       c('📕 Rule situations', 'Some plays freeze and ask for the ruling. You collect a <b>rule card</b> for each — and every card links to its Umpire Bootcamp lesson.'),
       c('🔥 Streaks & scoring', 'Right calls build a streak: x2 at 5, x3 at 10, x4 at 15. Bonuses for perfect timing, painted corners, the right starting spot, and bang-bang plays.'),
-      c('🏆 Career', 'Earn stars to unlock divisions: AA → AAA → Majors → All-Stars → Williamsport. AA and AAA use the FXLL local rules from Bootcamp — no infield fly, no dropped third strike!'),
+      c('🏆 Career', `Earn stars to unlock divisions: ${LADDER()}. Majors and up add the infield fly and the dropped third strike!`),
     );
     wrapEl.append(g);
     return this.screen('dim', wrapEl);
@@ -547,6 +568,7 @@ export class Screens {
     seg('Announcer & commentary', 'Stadium PA and TV color commentary', [[true, 'On'], [false, 'Off']], 'announcer', (v) => v && voices.announce('Now batting... number seven!', { seq: [{ g: 'pa.nowBatting', gap: 0.22 }, 'pa.num.7'] }));
     seg('Voice style', 'How your umpire sounds', [['classic', 'Classic'], ['bigleague', 'Big League'], ['hype', 'Hype'], ['robot', 'Robo-Ump']], 'voiceStyle', () => voices.call('k'));
     seg('Music & organ', 'Menu theme song and ballpark organ', [[true, 'On'], [false, 'Off']], 'music', (v) => v && audio.charge());
+    seg('Sport', 'Baseball or softball: the field, the ball, the pitcher, the players and the rules', [['baseball', '⚾ Baseball'], ['softball', '🥎 Softball']], 'sport');
     seg('Hints', 'Ghost spots and coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
     seg('Strike zone box', 'Smart: pops up after a miss, then fades away', [['smart', 'Smart'], ['on', 'Always'], ['off', 'Never']], 'zoneBox');
     seg('Screen shake', 'Big-moment camera shake', [[true, 'On'], [false, 'Off']], 'shake');
@@ -574,7 +596,7 @@ export class Screens {
     })));
     resetRow.append(rb);
     list.append(resetRow);
-    wrapEl.append(list, el('p', { class: 'footer-note' }, 'Umpire Madness is a companion to Umpire Bootcamp. Little League baseball rules; FXLL local rules for AA and AAA. Your league\'s current written rules always win.'));
+    wrapEl.append(list, el('p', { class: 'footer-note' }, 'Umpire Madness is a companion to Umpire Bootcamp. Little League rules; your league\'s local rules always win.'));
     return this.screen('dim', wrapEl);
   }
 

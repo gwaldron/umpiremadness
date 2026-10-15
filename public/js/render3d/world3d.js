@@ -6,6 +6,7 @@ import { Stadium } from './stadium.js';
 import { People, vec3 } from './people.js';
 import { drawHero } from './hero.js';
 import { ballTexture, labelTexture, glowTexture } from './textures.js';
+import { ballColor } from '../sport.js';
 import { Dust, onDirt } from './dust.js';
 
 const { V } = vec3;
@@ -100,6 +101,17 @@ export class Field3D {
   }
 
   setTimeOfDay(mode) { this.engine.setTimeOfDay(mode); }
+  // Baseball or softball: mound or circle, white ball or the big yellow one
+  setSport(id, rubber, ballR) {
+    this.stadium.setSport(id, rubber);
+    this.ballR = ballR;
+    if (this.ballSport === id) return;
+    this.ballSport = id;
+    const old = this.ball.material.map;
+    this.ball.material.map = ballTexture(id === 'softball' ? ballColor() : '#fbfbf6');
+    this.ball.material.needsUpdate = true;
+    old.dispose();
+  }
   setQuality(q) { this.engine.setQuality(q); }
   resize(cssW, cssH, dpr) { this.engine.resize(cssW, cssH, dpr); }
   cheer(amount = 1) { this.excite = Math.max(this.excite, amount); }
@@ -209,7 +221,7 @@ export class Field3D {
     // never smaller than a few screen pixels (more on phones), whatever the camera distance
     const fc = this._focalCss || 900;
     const minPx = Math.min(this.engine.cssW, this.engine.cssH) < 500 ? 6.2 : 4.6;
-    const r = Math.max(0.121 * (b.scale || 1), (d * minPx) / fc);
+    const r = Math.max((this.ballR || 0.121) * (b.scale || 1), (d * minPx) / fc);
     this.ball.position.set(b.x, b.y, Math.max(r * 0.6, b.z || 0));
     this.ball.scale.setScalar(r);
     this.ball.rotation.x += 0.4;
@@ -295,7 +307,7 @@ export class Field3D {
     this.imprint.visible = !!im;
     if (im) {
       this.imprint.position.set(im.x, im.y, im.z);
-      this.imprintBall.scale.setScalar(0.121);
+      this.imprintBall.scale.setScalar(this.ballR || 0.121);
       this.imprintBall.material.color.set(im.color);
       this.imprintRing.material.color.set(im.color);
       this.imprintRing.scale.setScalar(0.42);

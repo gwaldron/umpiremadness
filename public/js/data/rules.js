@@ -1,4 +1,5 @@
 // Rule cards: collectible, each linked to an Umpire Bootcamp lesson (#lesson-id deep link).
+import { forSport } from '../sport.js';
 export const RULES = [
   { id: 'strike-zone', icon: '🎯', title: 'The Strike Zone', lesson: 'strike-zone', group: 'Plate',
     text: 'Over home plate, from the batter\'s **armpits** to the **top of the knees** in a natural stance. Any part of the ball through any part of the zone is a strike. Judge where it crossed the plate — not where the catcher caught it.' },
@@ -17,7 +18,7 @@ export const RULES = [
   { id: 'myth-hands', icon: '✋', title: 'Myth: Hands Are Part of the Bat', lesson: 'top-five-rule-myths', group: 'Myths',
     text: 'Nope! The hands are part of the **batter**. Hit on the hands without swinging = hit by pitch.' },
   { id: 'uncaught-third-strike', icon: '🏃', title: 'Uncaught Third Strike', lesson: 'uncaught-third-strike', group: 'Plate',
-    text: 'If strike three isn\'t legally caught, the batter may run when **first base is open** or there are **two outs**. With first occupied and fewer than two outs, the batter is out. FXLL: not used in AA or AAA.' },
+    text: 'If strike three isn\'t legally caught, the batter may run when **first base is open** or there are **two outs**. With first occupied and fewer than two outs, the batter is out. Little League uses it in **Majors and up** only.' },
   { id: 'abc', icon: '🔤', title: 'A, B & C Positions', lesson: 'a-position-bases-empty', group: 'Bases',
     text: 'On Little League\'s 60-ft diamond, work from outside the baselines. **A**: bases empty, foul ground behind first. **B**: runner on first only — outside the 1B–2B baseline and behind the infielders, back by the edge of the outfield grass, anywhere from halfway between first and second up to second base. **C**: any runner on second or third — outside the 2B–3B baseline, behind the infielders by the outfield grass, anywhere between second and third.' },
   { id: 'angles', icon: '📐', title: 'Angle Over Distance', lesson: 'working-the-bases', group: 'Bases',
@@ -31,7 +32,7 @@ export const RULES = [
   { id: 'double-play', icon: '✌️', title: 'Double Plays', lesson: 'force-plays-and-tag-plays', group: 'Bases',
     text: 'Make the call at second, then turn and get the best angle you can for the relay to first. Two calls, one smooth crew.' },
   { id: 'infield-fly', icon: '🪁', title: 'Infield Fly', lesson: 'infield-fly', group: 'Rules',
-    text: 'Fewer than **2 outs**, runners on **1st & 2nd** or **bases loaded**, a fair **fly ball** (not a line drive or bunt) an infielder can catch with **ordinary effort** → "Infield fly, batter\'s out!" Ball stays live. FXLL: not used in AA or AAA.' },
+    text: 'Fewer than **2 outs**, runners on **1st & 2nd** or **bases loaded**, a fair **fly ball** (not a line drive or bunt) an infielder can catch with **ordinary effort** → "Infield fly, batter\'s out!" Ball stays live. Check your division: lower levels may not use it.' },
   { id: 'interference', icon: '🚧', title: 'Interference', lesson: 'interference', group: 'Rules',
     text: 'The **offense** hinders the defense. A fielder fielding a batted ball has the right of way. Runner hit by a fair batted ball before it passes an infielder = runner out, dead ball.' },
   { id: 'obstruction', icon: '🧱', title: 'Obstruction', lesson: 'obstruction', group: 'Rules',
@@ -58,15 +59,9 @@ export const RULES = [
     text: 'No mandatory slide. A runner must avoid a fielder who has the ball waiting — by sliding **or** going around. Barreling into the fielder is out.' },
   { id: 'myth-bunt', icon: '🪵', title: 'Myth: Pull Back the Bat', lesson: 'top-five-rule-myths', group: 'Myths',
     text: 'Just holding the bat over the plate isn\'t a bunt attempt. The umpire judges whether the batter offered at the pitch.' },
-  { id: 'balk', icon: '🫨', title: 'Balks (50/70 & up)', lesson: 'balk', group: 'Rules',
-    text: 'In divisions with leadoffs: faking a throw to first from the rubber, not stopping in the set, or turning the shoulders after coming set = balk. Faking to 2B or 3B is legal.' },
-  { id: 'local-aa', icon: '🅰️', title: 'FXLL AA Local Rules', lesson: 'local-rules-aa', group: 'Local',
-    text: 'One base per steal. No stealing home. No IFF, illegal-pitch, or uncaught-third-strike rule. An outfielder can\'t make an out at a base. Leaving early: one warning, then out.' },
-  { id: 'local-aaa', icon: '🅰️', title: 'FXLL AAA Local Rules', lesson: 'local-rules-aaa', group: 'Local',
-    text: 'One base per steal. No stealing home on the throwback to the pitcher (unless it\'s air-mailed). No IFF or uncaught third strike. Leaving early: warning, then out.' },
-  { id: 'softball-early', softball: true, icon: '🥎', title: 'Softball: Leaving Early', lesson: 'softball-vs-baseball', group: 'Softball',
+  { id: 'softball-early', sport: 'softball', icon: '🥎', title: 'Softball: Leaving Early', lesson: 'softball-vs-baseball', group: 'Softball',
     text: 'In Little League softball, leaving the base too soon is an **immediate dead-ball out**. Majors and up: may leave on release.' },
-  { id: 'softball-lookback', softball: true, icon: '⭕', title: 'Softball: Look-Back Rule', lesson: 'softball-circle-rule', group: 'Softball',
+  { id: 'softball-lookback', sport: 'softball', icon: '⭕', title: 'Softball: The Circle Rule', lesson: 'softball-circle-rule', group: 'Softball',
     text: 'Pitcher has the ball in the circle and isn\'t making a play: a runner off base must immediately go or return. Stopping or faking = out.' },
   { id: 'handling-questions', icon: '🗣️', title: 'Handling Coaches', lesson: 'handling-questions', group: 'Game Mgmt',
     text: 'Listen, answer the real question in a sentence or two, stay calm, and get the game going. Judgment calls aren\'t votes.' },
@@ -79,5 +74,5 @@ export const RULES = [
 ];
 
 export const RULE = Object.fromEntries(RULES.map((r) => [r.id, r]));
-// Cards shown in the collection (softball cards return with the softball phase).
-export const ACTIVE_RULES = RULES.filter((r) => !r.softball);
+// Cards in the collection for the sport being played (leaving early and the circle rule are softball's)
+export const activeRules = () => RULES.filter(forSport);

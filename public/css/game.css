@@ -244,6 +244,13 @@ body[data-input="touch"] [data-nav].focus { outline: none; box-shadow: none; }
 .menu-main .d { color: var(--muted); font-size: 13.5px; margin-top: 3px; }
 .menu-main.hero { background: linear-gradient(135deg, #ff9a2e, #ff5a1f); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25), 0 6px 0 #9c3008, 0 12px 26px rgba(0,0,0,0.35); }
 .menu-main.hero .d { color: #ffe6cf; }
+.sport-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; border-radius: 16px; background: rgba(8,14,34,0.6); border: 2px solid rgba(255,255,255,0.12); }
+.sport-opt { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 8px; border-radius: 11px; border: 0; cursor: pointer;
+  font-family: var(--display); font-size: clamp(15px, 2vw, 19px); letter-spacing: 1px; color: var(--muted); background: transparent; }
+.sport-opt .ico { font-size: 1.35em; }
+.sport-opt.on.baseball { background: linear-gradient(180deg, #2f6bff, #1b3fa8); color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,0.3); }
+.sport-opt.on.softball { background: linear-gradient(180deg, #e4f23c, #b9c814); color: #24280a; box-shadow: 0 4px 0 rgba(0,0,0,0.3); }
+.sport-opt:not(.on):hover, .sport-opt:not(.on):focus-visible { color: #fff; background: rgba(255,255,255,0.08); }
 .menu-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
 .menu-mini {
   border: 0; border-radius: 14px; padding: 12px 6px; cursor: pointer;
@@ -720,6 +727,7 @@ body.ingame.portrait .rotate-hint { display: block; animation: toastOut 0.5s eas
   .menu-main .t { font-size: 16px; }
   .menu-main .d { font-size: 11.5px; }
   .menu-row { gap: 6px; }
+  .sport-opt { padding: 6px 8px; font-size: 14px; }
   .menu-mini { padding: 6px 4px; font-size: 11px; border-radius: 10px; }
   .menu-mini .ico { font-size: 17px; }
   .screen { padding-top: calc(8px + var(--safe-top)); }

@@ -1,12 +1,13 @@
 // Dirt puffs: slides, dives, running on the infield dirt, ball bounces.
 import * as THREE from 'three';
+import { sport, CIRCLE_R } from '../sport.js';
 
 const MAX = 600;
 
 export function onDirt(x, y) {
   if (Math.hypot(x, y) <= 11) return true; // home plate circle
   for (const [bx, by] of [[42.4, 42.4], [0, 84.85], [-42.4, 42.4]]) if (Math.hypot(x - bx, y - by) <= 7.5) return true;
-  if (Math.hypot(x, y - 46) <= 6) return true; // mound
+  if (sport.softball ? Math.hypot(x, y - sport.rubber) <= CIRCLE_R + 0.7 : Math.hypot(x, y - 46) <= 6) return true; // mound / circle
   const inArc = Math.hypot(x, y - 46) <= 50 && y > Math.abs(x) - 2;
   const inGrass = Math.abs(x) / 38.2 + Math.abs(y - 42.4) / 38.2 < 1;
   return inArc && !inGrass;
