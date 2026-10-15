@@ -5,6 +5,8 @@ import { voices, playerName } from '../voice.js';
 import { input } from '../input.js';
 import { clamp, lerp, rand, randInt, pick, chance, weighted, easeOut } from '../util.js';
 import { drawFigure, KITS, SKINS } from '../render/figures.js';
+import { pitcherJoints, PITCHER_LIMBS } from './pitcher3d.js';
+import { solveLimbs } from '../render3d/hero.js';
 import { POS, UMP_SPOTS, BASES } from '../render/field.js';
 
 const BALL_R = 0.121; // feet (2.9 in diameter)
@@ -36,6 +38,9 @@ export function makeBatter(div, opts = {}) {
     skin: opts.skin || pick(SKINS),
     num: randInt(1, 42),
     name: playerName(),
+    batColor: pick(['#2a3550', '#1b1d22', '#5a1220', '#1d4a3a']),
+    batAccent: pick(['#d62839', '#ffd34d', '#35d07f', '#4da3ff']),
+    gloveTone: pick(['#f1f1f1', '#1b1d22', '#d62839']),
     line: `BATS ${hand} · AVG .${randInt(180, 455)} · ${pick(FUN_FACTS)}`,
   };
 }
@@ -184,6 +189,8 @@ export class AtBatEvent {
     this.pitcherHand = chance(0.8) ? 'R' : 'L';
     this.pitcherSkin = pick(SKINS);
     this.catcherSkin = pick(SKINS);
+    this.pitcherNum = randInt(1, 40);
+    this.catcherNum = randInt(2, 40);
     this.catcherX = 0;
     this.glove = { x: 0, z: 2.2, y: GLOVE_Y };
     this.armAnim = -1;
@@ -245,6 +252,7 @@ export class AtBatEvent {
     const hud = this.s.hud;
     const handTxt = this.batter.hand === 'R' ? 'Right-handed batter' : 'Left-handed batter';
     hud.prompt(this.pitchNo === 0 ? 'GET IN THE SLOT' : 'RESET YOUR STANCE', `${handTxt} · move with ${this.s.moveHint()} · then Play Ball!`);
+    hud.setMode('slot');
     hud.options([{ btn: 'A', id: 'ready', label: 'PLAY BALL!', big: true }], () => this._afterSetup());
     if (this.pitchNo === 0 && !this.fast) {
       setTimeout(() => voices.batter(this.batter), 250);
@@ -252,11 +260,14 @@ export class AtBatEvent {
     }
     if (this.s.hints && !this.spec.exam && !this.setupHinted && (this.s.slotTips = (this.s.slotTips || 0) + 1) <= 2) {
       this.setupHinted = true;
+      this.slotTip = 0;
       hud.tip('<b>The slot</b> is the gap between the batter and the catcher. Put your head there with your chin just above the catcher\'s helmet so you can see the whole plate.');
     }
   }
 
   _afterSetup() {
+    this.s.hud.setMode(null);
+    this.slotTip = null;
     const si = this.slotInfo();
     this.s.lastSlot = { ...this.eye };
     this.slotOk = si.ok;
@@ -289,7 +300,8 @@ export class AtBatEvent {
     const pitchType = d.id === 'AA' ? 'fb' : weighted([['fb', 6], ['ch', 2], ['cb', d.id === 'MAJ' || d.id === 'AS' || d.id === 'WS' ? 2 : 0]]);
     const brk = pitchType === 'fb' ? { lift: 12, ax: 0 } : pitchType === 'ch' ? { lift: 7, ax: 0 } : { lift: -7, ax: (this.pitcherHand === 'R' ? 1 : -1) * rand(3, 7) };
     const speed = pitchType === 'fb' ? mph : mph * (pitchType === 'ch' ? 0.85 : 0.8);
-    const rel = { x: (this.pitcherHand === 'R' ? -1 : 1) * rand(0.9, 1.4), y: 41.5, z: rand(4.6, 5.3) };
+    const rel = { x: (this.pitcherHand === 'R' ? -1 : 1) * rand(0.9, 1.3), y: 42.0, z: rand(4.6, 5.2) };
+    pk.rel = rel;
     pk.pitchType = pitchType;
     const b = this.batter;
     const zone = this.zone;
@@ -461,6 +473,11 @@ export class AtBatEvent {
       this.eye.z = clamp(this.eye.z + m.y * dt * 1.3, 2.9, 4.9);
       const si = this.slotInfo();
       hud.promptSub(`${si.ok ? '✅' : '⚠️'} ${si.msg}`);
+      // the slot tip gets out of the way once you start moving (or after a few seconds)
+      if (this.slotTip !== null && this.slotTip !== undefined) {
+        this.slotTip += dt * (Math.abs(m.x) + Math.abs(m.y) > 0.15 ? 6 : 1);
+        if (this.slotTip > 8) { hud.tip(null); this.slotTip = null; }
+      }
       return;
     }
     if (this.state === 'pre') {
@@ -816,12 +833,12 @@ export class AtBatEvent {
   _render3d(g, cam, t, ball) {
     const s = this.s;
     const b = this.batter;
-    const bodies = [this._batterBody(t), this._catcherBody()];
+    const bodies = [this._batterBody(t), this._catcherBody(), this._pitcherBody()];
     const showZone = this._zoneShown();
     s.field.draw(g, cam, {
-      actors: this.bg,
+      actors: this.bg.filter((a) => a !== this.pitcher),
       bodies,
-      ball: ball ? { ...ball, scale: 1.15 } : null,
+      ball: ball ? { ...ball, scale: 1.15, halo: 0.45 } : null,
       zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 1.0 } : null,
       extra: (P) => this._arm3d(P, cam),
       overlay: (gg) => {
@@ -831,25 +848,57 @@ export class AtBatEvent {
     });
   }
 
+  // The batter as a realistic "hero" body. The pose's F joints are the lead side (toward the pitcher):
+  // the batter's left for a righty, right for a lefty. The lead arm holds the bottom hand.
   _batterBody(t) {
     const b = this.batter;
     const J = this._batterPose(t);
     const f = { x: -b.side, y: 0, z: 0 };
     const L = { x: -f.y, y: f.x, z: 0 };
     const S = b.H / 5;
-    const handsDir = { x: J.batTip[0] - J.hands[0], y: J.batTip[1] - J.hands[1], z: J.batTip[2] - J.hands[2] };
-    const hl = Math.hypot(handsDir.x, handsDir.y, handsDir.z) || 1;
     const P3 = (a) => ({ x: a[0], y: a[1], z: a[2] });
     const hands = P3(J.hands);
-    const upperHand = { x: hands.x + (handsDir.x / hl) * 0.28, y: hands.y + (handsDir.y / hl) * 0.28, z: hands.z + (handsDir.z / hl) * 0.28 };
-    const W = {
-      f, L, S,
-      hip: P3(J.hip), neck: P3(J.neck), head: P3(J.head),
-      kneeF: P3(J.kneeF), kneeB: P3(J.kneeB), footF: P3(J.footF), footB: P3(J.footB),
-      shF: P3(J.shF), shB: P3(J.shB), elF: P3(J.elF), elB: P3(J.elB),
-      handF: upperHand, handB: hands, batTip: P3(J.batTip),
+    const tip = P3(J.batTip);
+    const dl = Math.hypot(tip.x - hands.x, tip.y - hands.y, tip.z - hands.z) || 1;
+    const dir = { x: (tip.x - hands.x) / dl, y: (tip.y - hands.y) / dl, z: (tip.z - hands.z) / dl };
+    const along = (k) => ({ x: hands.x + dir.x * k, y: hands.y + dir.y * k, z: hands.z + dir.z * k });
+    const lead = b.side < 0 ? 'F' : 'B', rear = lead === 'F' ? 'B' : 'F';
+    const W = { f, L, S, hip: P3(J.hip), neck: P3(J.neck), head: P3(J.head), knob: along(-0.17), batTip: tip };
+    W['knee' + lead] = P3(J.kneeF); W['foot' + lead] = P3(J.footF);
+    W['knee' + rear] = P3(J.kneeB); W['foot' + rear] = P3(J.footB);
+    W['sh' + lead] = P3(J.shF); W['sh' + rear] = P3(J.shB);
+    W['el' + lead] = P3(J.elF); W['el' + rear] = P3(J.elB);
+    W['hand' + lead] = hands; W['hand' + rear] = along(0.27);
+    solveLimbs(W);
+    return {
+      hero: true, W,
+      o: {
+        kit: KITS.off, skin: b.skin, battingGloves: true, gloveTone: b.gloveTone, helmet: true, lookDir: { x: 0, y: 1, z: 0 },
+        num: b.num, team: 'Titans', teamColors: ['#ffffff', '#6d0d18'], numColors: ['#ffffff', '#6d0d18'],
+        batColor: b.batColor, batAccent: b.batAccent, footDir: { x: f.x * 0.25, y: 1 },
+      },
     };
-    return { W, o: { kit: KITS.off, skin: b.skin, battingGloves: true, lookDir: { x: 0, y: 1, z: 0 }, pose: 'bat' } };
+  }
+
+  // The pitcher's 3D delivery. It starts during the short "pre" beat, so the ball leaves the hand at release.
+  _pitcherBody() {
+    const pk = this.pk;
+    const pre = this.fast ? 0.25 : 0.55;
+    const tr = pre + (pk ? pk.tRelease : 0.8);
+    let tau = 0;
+    if (this.state === 'pre') tau = this.t;
+    else if (pk && this.state !== 'setup') tau = pre + pk.t;
+    const lefty = this.pitcherHand === 'L';
+    const W = solveLimbs(pitcherJoints((0.8 * tau) / tr, { hand: this.pitcherHand, rel: pk && pk.rel }), PITCHER_LIMBS);
+    return {
+      hero: true, W,
+      o: {
+        kit: KITS.def, skin: this.pitcherSkin, glove: lefty ? 'B' : 'F', gloveColor: '#5b3a1e',
+        ballInHand: tau < tr ? (lefty ? 'F' : 'B') : null, lookDir: { x: -W.head.x * 0.05, y: -1 },
+        team: 'Hawks', teamColors: ['#1f5fe0', '#0d2a6b'], num: this.pitcherNum, numColors: ['#1f5fe0', '#0d2a6b'],
+        feetAlong: false,
+      },
+    };
   }
 
   _catcherBody() {
@@ -860,7 +909,7 @@ export class AtBatEvent {
     const S = 0.92;
     const V = (x, y, z) => ({ x, y, z });
     const glove = V(this.glove.x, this.glove.y, this.glove.z);
-    const shF = V(cx - 0.62, -2.25, 1.9 + lift), shB = V(cx + 0.62, -2.25, 1.9 + lift);
+    const shF = V(cx - 0.5, -2.25, 1.92 + lift), shB = V(cx + 0.5, -2.25, 1.92 + lift);
     const elF = V((shF.x + glove.x) / 2 - 0.25, (shF.y + glove.y) / 2, Math.min(shF.z, glove.z) - 0.25);
     const W = {
       f, L, S,
@@ -870,7 +919,10 @@ export class AtBatEvent {
       shF, shB, elF, handF: glove,
       elB: V(cx + 0.9, -2.15, 1.55 + lift), handB: V(cx + 0.75, -1.9, 1.25 + lift),
     };
-    return { W, o: { kit: KITS.def, skin: this.catcherSkin, gear: 'catcher', glove: 'F', pose: 'catcher', gloveColor: '#7a4a22', noFace: true } };
+    return {
+      hero: true, W,
+      o: { kit: KITS.def, skin: this.catcherSkin, gear: 'catcher', glove: 'F', gloveColor: '#6b3f1d', noFace: true, num: this.catcherNum, numColors: ['#1f5fe0', '#0d2a6b'], footDir: { x: 0, y: 1 } },
+    };
   }
 
   // First-person strike mechanic: your right arm hammers up into view.
@@ -886,12 +938,14 @@ export class AtBatEvent {
     const sh = at(0.75, -1.1 - drop, 0.15);
     const el = at(0.62 - 0.08 * k, -0.85 + 0.45 * k - drop, 0.75);
     const fist = at(0.5 - 0.05 * k, -0.6 + 0.85 * k + punch - drop, 0.95);
-    P.ow = 0.012;
+    P.ow = 0.008;
+    P.useFamily('hero');
     const sleeve = this.s.umpKit.jersey;
-    P.limb(sh, el, 0.16, sleeve);
-    P.sphere(el, 0.14, sleeve);
-    P.limb(el, fist, 0.11, this.s.umpSkin);
-    P.sphere(fist, 0.15, this.s.umpSkin);
+    P.taper(sh, el, 0.17, sleeve);
+    P.sphere(el, 0.125, sleeve, false);
+    P.taper(el, fist, 0.12, this.s.umpSkin);
+    P.ellipsoid(fist, cam.r, cam.u, cam.f, 0.13, 0.16, 0.12, this.s.umpSkin);
+    P.useFamily('toon');
   }
 
   _zoneLabels(g, cam) {
@@ -997,17 +1051,20 @@ export class AtBatEvent {
     const rot = swing * 1.2 + bunt * 1.1; // shoulders open toward the pitcher
     const shoulderZ = ap + 0.3;
     const rotP = (dx, dy) => {
-      // rotate a (dx toward plate, dy toward pitcher) offset around the body
+      // rotate a (dx toward plate, dy toward pitcher) offset around the body: the lead shoulder
+      // pulls away from the plate and the chest turns to face the pitcher
       const c = Math.cos(rot), sn = Math.sin(rot);
-      const rx = dx * c + dy * sn, ry = -dx * sn + dy * c;
+      const rx = dx * c - dy * sn, ry = dx * sn + dy * c;
       return [bx + f * rx, by + ry];
     };
     const J = {};
+    // weight shifts forward and the back foot pivots ("squish the bug") as the swing turns
+    const turn = Math.max(swing, bunt * 0.3);
     J.footF = [bx, by + 1.05, 0.05];
-    J.footB = [bx - f * 0.05, by - 1.05, 0.05];
+    J.footB = [bx - f * 0.05, by - 1.05 + 0.1 * turn, 0.05 + 0.13 * turn];
     J.kneeF = [bx + f * 0.32, by + 0.8, kn - 0.06];
-    J.kneeB = [bx + f * 0.3, by - 0.75, kn - 0.08];
-    J.hip = [bx - f * 0.05, by, hipZ];
+    J.kneeB = [bx + f * (0.3 + 0.38 * turn), by - 0.75 + 0.4 * turn, kn - 0.08 - 0.12 * turn];
+    J.hip = [bx - f * 0.05 + f * 0.06 * turn, by + 0.18 * turn, hipZ - 0.05 * turn];
     const sF = rotP(0.1, 0.62), sB = rotP(0.05, -0.62);
     J.shF = [sF[0], sF[1], shoulderZ];
     J.shB = [sB[0], sB[1], shoulderZ];

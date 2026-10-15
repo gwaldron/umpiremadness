@@ -19,18 +19,24 @@ const canvas = document.getElementById('game');
 const g = canvas.getContext('2d');
 
 // 3D ballpark on a WebGL canvas underneath; the 2D canvas on top is a transparent overlay.
+// If 3D failed on this device before, the next load tries a lighter "safe" 3D, then plain 2D.
+const GFX_KEY = 'umpiremadness.gfx';
+const gfxState = (() => { try { return JSON.parse(localStorage.getItem(GFX_KEY) || 'null'); } catch (e) { return null; } })();
+const profile = loadProfile();
 let field;
 try {
   if (new URLSearchParams(location.search).get('gl') === '0') throw new Error('2D requested');
-  field = new Field3D(document.getElementById('game3d'));
+  if (profile.settings.gfx === '2d') throw new Error('2D chosen in Settings');
+  if (gfxState && gfxState.mode === '2d') throw new Error('3D failed on this device before: ' + gfxState.reason);
+  field = new Field3D(document.getElementById('game3d'), { safe: !!(gfxState && gfxState.mode === 'safe') });
 } catch (err) {
-  console.warn('WebGL unavailable, using the 2D renderer', err);
-  document.getElementById('game3d').remove();
+  console.warn('Using the 2D renderer:', err.message || err);
+  document.getElementById('game3d').style.display = 'none';
   field = new FieldRenderer();
 }
 
 const app = {
-  profile: loadProfile(),
+  profile,
   cam: new Camera(),
   field,
   hud: new Hud(),
@@ -38,6 +44,33 @@ const app = {
   dpr: 1,
 };
 app.rig = new FieldRig(app.cam);
+app.gfxState = gfxState;
+
+// The 3D view stopped drawing: switch to the 2D renderer right away, and remember for next time.
+function switchTo2D(reason) {
+  const f3 = app.field;
+  if (!f3.is3d) return;
+  const gpu = f3.engine.gpu;
+  const next = { mode: f3.safe ? '2d' : 'safe', reason, gpu, err: (f3.engine.health.errors[0] || '').slice(0, 160), t: Date.now() };
+  try { localStorage.setItem(GFX_KEY, JSON.stringify(next)); } catch (e) { /* private mode */ }
+  app.gfxState = next;
+  const f2 = new FieldRenderer();
+  app.field = f2;
+  if (app.session) app.session.field = f2;
+  document.getElementById('game3d').style.display = 'none';
+  try { f3.engine.renderer.dispose(); } catch (e) { /* already gone */ }
+  resize();
+  app.toast({
+    icon: '🖥️', kicker: 'GRAPHICS', title: 'Switched to 2D graphics',
+    desc: f3.safe ? `3D doesn't work on this device (${reason}).` : `3D had trouble on this device (${reason}). Next time we'll try a lighter 3D mode.`,
+  });
+}
+if (field.is3d) field.onFail = switchTo2D;
+// Settings: forget a past failure and try full 3D again
+app.retry3D = () => {
+  try { localStorage.removeItem(GFX_KEY); } catch (e) { /* private mode */ }
+  location.reload();
+};
 app.screens = new Screens(app);
 
 app.save = () => saveProfile(app.profile);
@@ -51,7 +84,7 @@ app.applySettings = () => {
   voices.enabled = s.voice;
   voices.style = s.voiceStyle;
   voices.extras = s.announcer !== false;
-  if (app.field.setQuality) {
+  if (app.field.setQuality && s.gfx !== '2d') {
     const coarse = matchMedia('(pointer: coarse)').matches;
     app.field.setQuality(s.gfx === 'auto' || !s.gfx ? (coarse ? 'medium' : 'high') : s.gfx);
   }

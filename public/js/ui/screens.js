@@ -549,7 +549,19 @@ export class Screens {
     seg('Music & organ', 'Menu theme song and ballpark organ', [[true, 'On'], [false, 'Off']], 'music', (v) => v && audio.charge());
     seg('Hints', 'Zone box, ghost spots, coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
     seg('Screen shake', 'Big-moment camera shake', [[true, 'On'], [false, 'Off']], 'shake');
-    if (app.field.is3d) seg('Graphics', 'Lower it if the game feels slow', [['auto', 'Auto'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']], 'gfx');
+    {
+      // Graphics: 3D quality levels, or classic 2D. Switching between 3D and 2D reloads the page.
+      const gs = app.gfxState;
+      const errs = app.field.is3d ? app.field.engine.health.errors : [];
+      let info = app.field.is3d
+        ? `3D${app.field.safe ? ' (safe mode)' : ''} · ${app.field.engine.gpu}${app.field.people.noHero ? ' · simple players' : ''}`
+        : gs && gs.reason ? `2D — 3D had trouble here: ${gs.reason}${gs.gpu ? ' · ' + gs.gpu : ''}${gs.err ? ' · ' + gs.err : ''}` : '2D';
+      if (errs.length) info += ` · ⚠️ ${errs.length} shader error${errs.length > 1 ? 's' : ''}: ${errs[0].slice(0, 140)}`;
+      seg('Graphics', `Lower it if the game feels slow. Now: ${escapeHtml(info)}`, [['auto', 'Auto'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low'], ['2d', '2D']], 'gfx', (v) => {
+        if (v === '2d' && app.field.is3d) location.reload();
+        else if (v !== '2d' && !app.field.is3d) app.retry3D();
+      });
+    }
     const resetRow = el('div', { class: 'setting' });
     resetRow.innerHTML = `<div class="lbl"><b>Reset progress</b><small>Erase your profile, stars and trophies on this device</small></div>`;
     const rb = el('button', { class: 'btn ghost', 'data-nav': '', type: 'button' }, 'Reset…');

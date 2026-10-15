@@ -1,6 +1,7 @@
 // Small standalone 3D preview of your umpire (Locker Room).
 import * as THREE from 'three';
 import { People } from './people.js';
+import { drawHero } from './hero.js';
 import { KITS } from '../render/figures.js';
 
 export class UmpPreview {
@@ -47,7 +48,9 @@ export class UmpPreview {
     const actor = { x: 0, y: 0, kit, skin: colors.skin, pose, phase: 1, heading: Math.atan2(this.camera.position.y, this.camera.position.x), vis: 1 };
     const P = this.people;
     P.begin(this.camera, h * this.renderer.getPixelRatio() / 2 / Math.tan((30 * Math.PI) / 360));
-    P.drawActor(actor);
+    // the locker shows your ump up close, so use the realistic body
+    const W = P.jointsFor(actor);
+    drawHero(P, W, { kit, skin: colors.skin, slacks: true, protector: true, lookDir: { x: this.camera.position.x, y: this.camera.position.y } });
     P.end();
     this.renderer.render(this.scene, this.camera);
   }

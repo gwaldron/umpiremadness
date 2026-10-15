@@ -4,17 +4,23 @@ import * as THREE from 'three';
 import { Engine } from './engine.js';
 import { Stadium } from './stadium.js';
 import { People, vec3 } from './people.js';
+import { drawHero } from './hero.js';
 import { ballTexture, labelTexture, glowTexture } from './textures.js';
 import { Dust, onDirt } from './dust.js';
 
 const { V } = vec3;
 
 export class Field3D {
-  constructor(canvas) {
-    this.engine = new Engine(canvas);
+  constructor(canvas, opts = {}) {
+    this.engine = new Engine(canvas, opts);
+    this.safe = !!opts.safe;
+    this.frame = 0;
+    this.blank = 0;
+    this.failed = null;
     this.scene = this.engine.scene;
     this.stadium = new Stadium(this.engine);
     this.people = new People(this.engine);
+    if (opts.safe) this.people.noHero = true; // safe mode: simpler shaders for everyone
     this.dust = new Dust(this.scene);
     this.track = new WeakMap();
     this.prevBall = null;
@@ -26,13 +32,29 @@ export class Field3D {
 
     // Ball + blob shadow + trail
     const bt = ballTexture();
-    this.ball = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshLambertMaterial({ map: bt, emissive: '#2a2a2a' }));
+    // drawn in the transparent pass so it sits between its halo (behind) and outline ring (in front)
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshLambertMaterial({ map: bt, emissive: '#2a2a2a', transparent: true }));
+    this.ball.renderOrder = 7;
     this.ball.castShadow = true;
     this.scene.add(this.ball);
     const shadowTex = glowTexture('0,0,0');
     this.ballShadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55 }));
     this.ballShadow.renderOrder = 5;
     this.scene.add(this.ballShadow);
+    // soft halo so a far-away ball pops against grass and dirt
+    this.ballGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffe066', transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+    this.ballGlow.renderOrder = 6;
+    this.scene.add(this.ballGlow);
+    // thin dark outline so the ball still reads on white chalk and light dirt
+    const rc = document.createElement('canvas');
+    rc.width = rc.height = 64;
+    const rg = rc.getContext('2d');
+    rg.strokeStyle = 'rgba(10,14,28,0.9)';
+    rg.lineWidth = 7;
+    rg.beginPath(); rg.arc(32, 32, 27, 0, Math.PI * 2); rg.stroke();
+    this.ballRing = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(rc), transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+    this.ballRing.renderOrder = 8;
+    this.scene.add(this.ballRing);
     this.trail = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35, depthWrite: false }), 12);
     this.trail.frustumCulled = false;
     this.trail.count = 0;
@@ -112,11 +134,14 @@ export class Field3D {
 
   _ball(b, camPos) {
     const show = !!b && b.visible !== false;
-    this.ball.visible = this.ballShadow.visible = show;
+    this.ball.visible = this.ballShadow.visible = this.ballGlow.visible = this.ballRing.visible = show;
     this.trail.count = 0;
     if (!show) return;
     const d = Math.hypot(b.x - camPos.x, b.y - camPos.y, (b.z || 0) - camPos.z);
-    const r = Math.max(0.121, d * 0.0032) * (b.scale || 1);
+    // never smaller than a few screen pixels (more on phones), whatever the camera distance
+    const fc = this._focalCss || 900;
+    const minPx = Math.min(this.engine.cssW, this.engine.cssH) < 500 ? 6.2 : 4.6;
+    const r = Math.max(0.121 * (b.scale || 1), (d * minPx) / fc);
     this.ball.position.set(b.x, b.y, Math.max(r * 0.6, b.z || 0));
     this.ball.scale.setScalar(r);
     this.ball.rotation.x += 0.4;
@@ -126,6 +151,14 @@ export class Field3D {
     this.ballShadow.position.set(b.x, b.y, 0.09);
     this.ballShadow.scale.set(sr * 2, sr * 2, 1);
     this.ballShadow.material.opacity = Math.max(0.12, 0.55 - h * 0.012);
+    this.ballGlow.position.copy(this.ball.position);
+    this.ballGlow.scale.setScalar(r * 6);
+    const far = Math.max(0, Math.min(1, (d - 15) / 30));
+    const halo = b.halo ?? 1;
+    this.ballGlow.material.opacity = 0.7 * far * halo;
+    this.ballRing.position.copy(this.ball.position);
+    this.ballRing.scale.setScalar(r * 2.45);
+    this.ballRing.material.opacity = far * Math.min(1, halo * 1.4);
     if (b.trail && b.trail.length > 1) {
       const n = Math.min(12, b.trail.length);
       for (let i = 0; i < n; i++) {
@@ -175,7 +208,10 @@ export class Field3D {
       P.drawActor(a);
       if (a.ring) markers.push({ x: a.x, y: a.y, r: 2.4, color: a.ring === true ? '#ffd34d' : a.ring, pulse: true });
     }
-    for (const body of world.bodies || []) P.drawBody(body.W, body.o);
+    for (const body of world.bodies || []) {
+      if (body.hero) drawHero(P, body.W, body.o);
+      else P.drawBody(body.W, body.o);
+    }
     if (world.extra) world.extra(P, t);
     P.end();
     this._markers(markers, t);
@@ -199,12 +235,42 @@ export class Field3D {
     e.syncCamera(cam);
     this.stadium.update(dt, t, { excite: this.excite, board: this.board });
     const focal = cam.focal;
+    this._focalCss = (e.cssH / 2) / Math.tan((e.camera.fov * Math.PI) / 360);
     this._emitDust(world, dt);
     this.dust.update(dt);
     this.dust.setView(e.cssH * e.renderer.getPixelRatio(), e.camera.fov * Math.PI / 180);
     this._populate(world, e.camera, focal, t);
     e.render();
+    this._watch(now);
     if (world.overlay) world.overlay(g, cam);
+  }
+
+  // Watch for a GPU that silently draws nothing; onFail(reason) lets the app switch to 2D.
+  _watch(now) {
+    if (this.failed) return;
+    const h = this.engine.health;
+    if (h.errors.length && !this.people.noHero) {
+      // a shader failed to build on this GPU: keep going with the simpler cartoon shading
+      this.people.noHero = true;
+      console.warn('Realistic players off after a shader error on', this.engine.gpu);
+    }
+    const gap = now - (this._lastDraw || now);
+    this._lastDraw = now;
+    if (h.lost) {
+      if (gap > 400) h.lostAt = now; // we were in the background: give the browser time to restore it
+      if (now - h.lostAt > 4000) this._fail('lost the graphics context');
+      return;
+    }
+    const f = ++this.frame;
+    if (f < 4 || (f < 300 ? f % 3 : f % 120)) return;
+    if (this.engine.probe()) { this.blank = 0; this.lit = true; return; }
+    if (++this.blank >= (this.lit ? 8 : 20)) this._fail(h.errors.length ? 'shader error' : 'nothing drawn');
+  }
+
+  _fail(reason) {
+    this.failed = reason;
+    console.warn('3D renderer failed:', reason, this.engine.gpu, this.engine.health.errors);
+    if (this.onFail) this.onFail(reason);
   }
 
   // Render an inset view (UMP CAM). view: { eye, target, fov(rad) }, rect in CSS px.
@@ -216,6 +282,7 @@ export class Field3D {
     c.lookAt(view.target.x, view.target.y, view.target.z);
     c.fov = (view.fov * 180) / Math.PI;
     const focal = (rect.h / 2) / Math.tan(view.fov / 2);
+    this._focalCss = focal;
     const t = (performance.now() - this.t0) / 1000;
     this._populate(world, c, focal, t);
     this.dust.setView(rect.h * e.renderer.getPixelRatio() / block, view.fov);

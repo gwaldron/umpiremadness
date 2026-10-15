@@ -65,12 +65,12 @@ It deploys to `https://umpiremadness.<your-subdomain>.workers.dev`.
 | --- | --- |
 | `public/js/main.js` | Boot, main loop, input routing, attract mode |
 | `public/js/game/session.js` | Scoring, streaks, lives/timers, stats, achievements, career and arcade builders |
-| `public/js/scenes/plate.js` | Plate umpire: pitch physics, strike zone, batter and catcher, K-Zone |
+| `public/js/scenes/plate.js` + `pitcher3d.js` | Plate umpire: pitch physics, strike zone, batter and catcher, K-Zone, and the pitcher's 3D delivery |
 | `public/js/scenes/base.js` | Base umpire: play generation, positioning and angle scoring |
 | `public/js/scenes/umpcam.js` | Slow-motion close-up whose clarity depends on your angle, plus the Call Cam that cuts to your umpire selling the call |
 | `public/js/scenes/situation.js` + `data/situations.js` | Scripted rule situations |
-| `public/js/render3d/*` | three.js ballpark (bloom and color grade, waving flags, birds, night stars), cel-shaded instanced players with IK and faces, dirt-dust particles, Ump Cam inset rendering, Locker Room preview |
-| `public/js/render/*` | Game camera and constants, plus the 2D fallback renderer (used if WebGL is unavailable or with `?gl=0`) |
+| `public/js/render3d/*` | three.js ballpark (bloom and color grade, waving flags, birds, night stars), cel-shaded instanced players with IK and faces, realistic close-up players for the plate view (`hero.js`: soft shading, real gear, jersey numbers), dirt-dust particles, Ump Cam inset rendering, Locker Room preview |
+| `public/js/render/*` | Game camera and constants, plus the 2D fallback renderer (used if WebGL is unavailable, with `?gl=0`, or when the 3D view stops drawing on a device: the engine probes its own pixels, switches to 2D, and tries a lighter "safe" 3D on the next load; Settings → Graphics shows the GPU and can retry 3D) |
 | `public/vendor/three/` | Vendored three.js (MIT) |
 | `public/js/ui/*` | HUD and menus (gamepad-navigable), TV-style batter lower-third, confetti |
 | `public/js/audio.js` + `voice.js` | Synthesized sound and music; umpire calls, PA announcer and TV commentary from pre-rendered voice clips (`public/audio/vo/`, made by `scripts/render-vo.py`) |

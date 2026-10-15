@@ -545,59 +545,58 @@ export const SITUATIONS = [
     setup() { return { runners: [], outs: pick([0, 1, 2]), text: 'bases empty' }; },
     build(tl, v) {
       const tc = pitchHit(tl);
+      // batted-ball time runs a little slow so the ball is easy to follow, even on a phone
+      const T = (x) => tc + x * 1.5;
       tl.pose('BAT', tc + 0.05, 'stand');
       tl.runTo('BAT', tc + 0.15, 16, 15, 15, 'run');
       const L = (d, off) => ({ x: -d * Math.SQRT1_2 - off * Math.SQRT1_2, y: d * Math.SQRT1_2 - off * Math.SQRT1_2 }); // along 3B line; off>0 = foul side
       const R = (d, off) => ({ x: d * Math.SQRT1_2 + off * Math.SQRT1_2, y: d * Math.SQRT1_2 - off * Math.SQRT1_2 }); // along 1B line
-      let pause;
       switch (v.k) {
         case 'rollFoul': {
           // lands fair in front of third, spins foul before the bag and stops
           const a = L(40, -2.5), b = L(52, 3), c2 = L(54, 6);
-          tl.ground(tc, tc + 1.0, { x: 0, y: 2 }, a);
-          tl.ground(tc + 1.0, tc + 1.9, a, b);
-          tl.ground(tc + 1.9, tc + 2.5, b, c2);
-          tl.move('3B', tc, tc + 2.6, B3.x - 4, B3.y + 4, 'ready');
-          pause = tc + 2.6;
-          tl.rest(tc + 2.5, tc + 9, { ...c2, z: 0.12 });
-          tl.at(pause - 0.1, () => {});
-          return { pause, cam: () => ({ x: -36, y: 34, ext: 26 }) };
+          tl.ground(tc, T(1.0), { x: 0, y: 2 }, a);
+          tl.ground(T(1.0), T(1.9), a, b);
+          tl.ground(T(1.9), T(2.5), b, c2);
+          tl.move('3B', tc, T(2.6), B3.x - 4, B3.y + 4, 'ready');
+          tl.rest(T(2.5), T(9), { ...c2, z: 0.12 });
+          return { pause: T(2.6), cam: () => ({ x: -36, y: 34, ext: 26 }) };
         }
         case 'overBag': {
           const a = L(48, -1.0), b = L(60.5, -0.2), c2 = L(78, 9);
-          tl.ground(tc, tc + 1.0, { x: 0, y: 2 }, a);
-          tl.ground(tc + 1.0, tc + 1.3, a, b);
-          tl.ground(tc + 1.3, tc + 2.3, b, c2);
-          tl.move('3B', tc, tc + 0.6, -44, 50, 'ready');
-          tl.move('LF', tc, tc + 2.8, c2.x - 2, c2.y + 2, 'ready');
-          return { pause: tc + 1.9, cam: () => ({ x: -44, y: 44, ext: 30 }) };
+          tl.ground(tc, T(1.0), { x: 0, y: 2 }, a);
+          tl.ground(T(1.0), T(1.3), a, b);
+          tl.ground(T(1.3), T(2.3), b, c2);
+          tl.move('3B', tc, T(0.6), -44, 50, 'ready');
+          tl.move('LF', tc, T(2.8), c2.x - 2, c2.y + 2, 'ready');
+          return { pause: T(1.9), cam: () => ({ x: -44, y: 44, ext: 30 }) };
         }
         case 'flyBounce': {
           const a = R(115, -2), b = R(135, 14);
-          tl.fly(tc, tc + 2.0, { x: 0, y: 1.5, z: 3 }, { ...a, z: 0.2 }, 30);
-          tl.ground(tc + 2.0, tc + 3.0, a, b);
-          tl.move('RF', tc, tc + 3.0, b.x - 3, b.y + 3, 'ready');
-          tl.move('1B', tc, tc + 1.2, 54, 60, 'stand');
-          return { pause: tc + 2.6, cam: () => ({ x: 74, y: 88, ext: 44 }) };
+          tl.fly(tc, T(2.0), { x: 0, y: 1.5, z: 3 }, { ...a, z: 0.2 }, 30);
+          tl.ground(T(2.0), T(3.0), a, b);
+          tl.move('RF', tc, T(3.0), b.x - 3, b.y + 3, 'ready');
+          tl.move('1B', tc, T(1.2), 54, 60, 'stand');
+          return { pause: T(2.6), cam: () => ({ x: 74, y: 88, ext: 44 }) };
         }
         case 'touchedFoul': {
           // slow roller up the first-base line, pitcher touches it while the ball is in foul ground
           const a = R(26, 1.6);
-          tl.ground(tc, tc + 1.6, { x: 0.6, y: 1.5 }, a);
-          tl.move('P', tc, tc + 1.5, a.x - 2.3, a.y + 1.4, 'tag', 'run');
-          tl.hold(tc + 1.6, tc + 6, 'P', 0.7);
-          tl.at(tc + 1.6, () => audio.pop());
-          return { pause: tc + 1.8, cam: () => ({ x: 18, y: 20, ext: 22 }) };
+          tl.ground(tc, T(1.6), { x: 0.6, y: 1.5 }, a);
+          tl.move('P', tc, T(1.5), a.x - 2.3, a.y + 1.4, 'tag', 'run');
+          tl.hold(T(1.6), T(6), 'P', 0.7);
+          tl.at(T(1.6), () => audio.pop());
+          return { pause: T(1.8), cam: () => ({ x: 18, y: 20, ext: 22 }) };
         }
         default: {
           // ball hits the third-base bag and bounds foul
           const a = L(56, -0.3), b = L(60, -0.1), c2 = L(72, 12);
-          tl.ground(tc, tc + 0.85, { x: 0, y: 2 }, a);
-          tl.ground(tc + 0.85, tc + 0.95, a, b);
-          tl.at(tc + 0.95, () => audio.tick());
-          tl.ground(tc + 0.95, tc + 1.9, b, c2);
-          tl.move('3B', tc, tc + 0.8, -46, 54, 'ready');
-          return { pause: tc + 1.6, cam: () => ({ x: -44, y: 44, ext: 28 }) };
+          tl.ground(tc, T(0.85), { x: 0, y: 2 }, a);
+          tl.ground(T(0.85), T(0.95), a, b);
+          tl.at(T(0.95), () => audio.tick());
+          tl.ground(T(0.95), T(1.9), b, c2);
+          tl.move('3B', tc, T(0.8), -46, 54, 'ready');
+          return { pause: T(1.6), cam: () => ({ x: -44, y: 44, ext: 28 }) };
         }
       }
     },

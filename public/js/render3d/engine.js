@@ -60,9 +60,11 @@ void main() {
 }`;
 
 export class Engine {
-  constructor(canvas) {
+  // opts.safe: a lighter setup for GPUs that struggled before (no MSAA; the caller also forces low quality)
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', alpha: false });
+    this.safe = !!opts.safe;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.safe, powerPreference: this.safe ? 'default' : 'high-performance', alpha: false });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -71,6 +73,21 @@ export class Engine {
     renderer.autoClear = true;
     this.renderer = renderer;
     this.maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+    // Health: some phone GPUs create a context but then draw nothing (lost context, driver trouble).
+    // We record shader errors and context loss, and probe pixels so the game can fall back to 2D.
+    const gl = renderer.getContext();
+    this.gl = gl;
+    this.gpu = Engine.gpuName(gl);
+    this.health = { errors: [], lost: false, lostAt: 0 };
+    renderer.debug.onShaderError = (g, program, vs, fs) => {
+      const msg = ((g.getShaderInfoLog(fs) || '') + (g.getShaderInfoLog(vs) || '') + (g.getProgramInfoLog(program) || '')).trim().slice(0, 400) || 'shader error';
+      this.health.errors.push(msg);
+      console.error('WebGL shader error:', msg);
+    };
+    canvas.addEventListener('webglcontextlost', () => { this.health.lost = true; this.health.lostAt = performance.now(); });
+    canvas.addEventListener('webglcontextrestored', () => { this.health.lost = false; });
+    this._px = new Uint8Array(4);
 
     const scene = new THREE.Scene();
     this.scene = scene;
@@ -147,8 +164,31 @@ export class Engine {
     this.composer.setSize(this.cssW, this.cssH);
   }
 
+  static gpuName(gl) {
+    try {
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)).slice(0, 80);
+    } catch (e) {
+      return 'unknown GPU';
+    }
+  }
+
+  // Did the frame we just rendered draw anything? (Must run right after render().)
+  probe() {
+    const gl = this.gl;
+    if (gl.isContextLost()) return false;
+    this.renderer.setRenderTarget(null);
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.75], [0.75, 0.75], [0.3, 0.3], [0.7, 0.2]]) {
+      gl.readPixels(Math.floor(w * fx), Math.floor(h * fy), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, this._px);
+      if (this._px[0] + this._px[1] + this._px[2] > 12) return true;
+    }
+    return false;
+  }
+
   // 'high' | 'medium' | 'low'
   setQuality(q) {
+    if (this.safe) q = 'low';
     this.quality = q;
     if (q === 'high' && !this.composer) {
       try { this._makeComposer(); } catch (e) { console.warn('post-processing unavailable', e); this.composer = null; }

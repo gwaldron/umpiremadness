@@ -23,7 +23,7 @@ export class UmpCam {
     this.flash = 0;
     this.fx = [];
     // Comic sound-effect words only show up when you actually had a good look at the play
-    this.clear = this.q.angle >= 0.6 && !this.q.occl && this.q.distS >= 0.7 && !this.q.moving;
+    this.clear = this.q.angle >= 0.45 && !this.q.occl && this.q.distS >= 0.7 && !this.q.moving;
   }
 
   _word(text, u, z, color) {

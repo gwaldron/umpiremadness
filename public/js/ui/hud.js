@@ -22,8 +22,14 @@ export class Hud {
   }
 
   show() { this.root.hidden = false; }
+  // Layout modes for the HUD (e.g. 'slot': keep the bottom of the screen clear while you set up behind the plate)
+  setMode(m) {
+    if (m) this.root.dataset.mode = m;
+    else delete this.root.dataset.mode;
+  }
   hide() {
     this.root.hidden = true;
+    this.setMode(null);
     this.options(null);
     this.verdict(null);
     this.dialog(null);

@@ -23,17 +23,19 @@ function insideDiamond(p) {
 function cross(a, b) { return a.x * b.y - a.y * b.x; }
 
 // How good is the view of the critical moment from point p?
+// Graded generously: a view about 50 degrees or more to the play counts as a full-credit angle.
 export function viewScore(p, crit, moving = false) {
   const d = dist(p, crit.base);
   const sight = norm(sub(crit.base, p));
   const angle = Math.abs(cross(sight, crit.motion));
+  const angleS = 0.35 + 0.65 * Math.min(1, angle / 0.78);
   let distS;
-  if (d < 6) distS = 0.45;
-  else if (d < 11) distS = lerp(0.65, 1, (d - 6) / 5);
-  else if (d <= 30) distS = 1;
-  else if (d <= 50) distS = lerp(1, 0.7, (d - 30) / 20);
-  else if (d <= 90) distS = lerp(0.7, 0.35, (d - 50) / 40);
-  else distS = 0.3;
+  if (d < 5) distS = 0.6;
+  else if (d < 8) distS = lerp(0.75, 1, (d - 5) / 3);
+  else if (d <= 40) distS = 1;
+  else if (d <= 60) distS = lerp(1, 0.82, (d - 40) / 20);
+  else if (d <= 100) distS = lerp(0.82, 0.5, (d - 60) / 40);
+  else distS = 0.45;
   let occl = false;
   if (crit.fielder) {
     const fv = sub(crit.fielder, p);
@@ -45,7 +47,7 @@ export function viewScore(p, crit, moving = false) {
   }
   const lane = crit.throwSeg ? segDist(p, crit.throwSeg[0], crit.throwSeg[1]).d < 4 : false;
   const runway = crit.runSeg ? segDist(p, crit.runSeg[0], crit.runSeg[1]).d < 3 : false;
-  const score = (0.25 + 0.75 * angle) * distS * (occl ? 0.4 : 1) * (lane ? 0.6 : 1) * (runway ? 0.7 : 1) * (moving ? 0.7 : 1);
+  const score = angleS * distS * (occl ? 0.6 : 1) * (lane ? 0.8 : 1) * (runway ? 0.85 : 1) * (moving ? 0.85 : 1);
   return { score, angle, distS, occl, lane, runway, d, moving };
 }
 
@@ -70,13 +72,13 @@ function idealSpot(crit, from, maxTravel = 200) {
 }
 
 function gradeFor(r) {
-  if (r >= 0.85) return 'A';
-  if (r >= 0.7) return 'B';
-  if (r >= 0.5) return 'C';
-  if (r >= 0.35) return 'D';
+  if (r >= 0.75) return 'A';
+  if (r >= 0.55) return 'B';
+  if (r >= 0.38) return 'C';
+  if (r >= 0.22) return 'D';
   return 'F';
 }
-const GRADE_PTS = { A: 100, B: 70, C: 40, D: 15, F: 0 };
+const GRADE_PTS = { A: 100, B: 75, C: 50, D: 25, F: 5 };
 const GRADE_COLOR = { A: '#2fd67b', B: '#b9f36b', C: '#ffd34d', D: '#ff9a3c', F: '#ff4d5a' };
 
 export class BasePlayEvent {
@@ -763,9 +765,9 @@ export class BasePlayEvent {
     if (v.occl) tips.push('A fielder\'s body **blocked your view**. Step so you can see daylight between glove and runner.');
     if (v.lane) tips.push('You were **in the throwing lane**. Stay out of the ball\'s path.');
     if (c.moving) tips.push('You were **still moving** at the moment of the play. Get set — stop — then watch.');
-    if (v.angle < 0.55 && !v.occl) tips.push(`Poor angle: you were looking **along** the ${c.type === 'force' ? 'throw' : 'runner\'s path'}. Aim for about **90°** to it.`);
-    if (v.d > 50) tips.push('You were **too far away**. Close the distance while the ball is in the air.');
-    if (v.d < 7) tips.push('You were **too close** — back off so you can see the whole play.');
+    if (v.angle < 0.4 && !v.occl) tips.push(`Poor angle: you were looking **along** the ${c.type === 'force' ? 'throw' : 'runner\'s path'}. Aim for about **90°** to it.`);
+    if (v.d > 60) tips.push('You were **too far away**. Close the distance while the ball is in the air.');
+    if (v.d < 5) tips.push('You were **too close** — back off so you can see the whole play.');
     if (!tips.length) tips.push('Great positioning: good angle, good distance, and you were set.');
     let extra = `<div class="vcall">📐 Angle grade: <b style="color:${GRADE_COLOR[c.grade]}">${c.grade}</b> · ${Math.round(c.ratio * 100)}% of the best view${this.critIdx === 0 ? ` · Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be <b>${this.expectSpot}</b>`}` : ''}<br>${tips.join(' ')}</div>`;
     if (timing === 'early') extra += '<div class="vcall">⏱️ <b>Quick trigger!</b> You called it before the play was over. Let it finish, pause, then sell it.</div>';
@@ -818,7 +820,7 @@ export class BasePlayEvent {
       const w = portrait ? W * 0.94 : Math.min(W * 0.62, H * 1.25);
       const h = portrait ? w * 0.68 : w * 0.56;
       const rect = { x: (W - w) / 2, y: portrait ? H * 0.2 : Math.max(H * 0.17, (H - h) / 2 - H * 0.06), w, h };
-      if (!this.cam.three) { this.cam.render(g, rect, s.app.dpr); return; }
+      if (!this.cam.three || !s.field.is3d) { this.cam.render(g, rect, s.app.dpr); return; }
       const dpr = s.app.dpr;
       const css = { x: rect.x / dpr, y: rect.y / dpr, w: rect.w / dpr, h: rect.h / dpr };
       const c = this.crits[this.critIdx];

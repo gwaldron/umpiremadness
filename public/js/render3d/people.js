@@ -75,27 +75,47 @@ export class People {
       scene.add(m);
       return m;
     };
-    const fill = new THREE.MeshToonMaterial({ color: '#ffffff', gradientMap: TOON_STEPS });
     const ol = new THREE.MeshBasicMaterial({ color: OUTLINE, side: THREE.BackSide });
     this.geo = {
       sphere: new THREE.SphereGeometry(1, 16, 11),
+      sphereHi: new THREE.SphereGeometry(1, 24, 16),
       sphereLo: new THREE.SphereGeometry(1, 12, 8),
       cyl: new THREE.CylinderGeometry(1, 1, 1, 12, 1, false),
+      cylHi: new THREE.CylinderGeometry(1, 1, 1, 18, 1, false),
       cylOpen: new THREE.CylinderGeometry(1, 1, 1, 10, 1, true),
       dome: new THREE.SphereGeometry(1, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+      domeHi: new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+      // tapered limb: full radius at the start, 68% at the end
+      taper: new THREE.CylinderGeometry(0.68, 1, 1, 18, 1, false),
+      taperOpen: new THREE.CylinderGeometry(0.68, 1, 1, 10, 1, true),
     };
-    this.fills = {
-      sphere: mk(this.geo.sphere, fill, true),
-      cyl: mk(this.geo.cyl, fill, true),
-      dome: mk(this.geo.dome, fill, true),
+    const fam = (mat, hi) => ({
+      sphere: mk(hi ? this.geo.sphereHi : this.geo.sphere, mat, true),
+      cyl: mk(hi ? this.geo.cylHi : this.geo.cyl, mat, true),
+      dome: mk(hi ? this.geo.domeHi : this.geo.dome, mat, true),
+      taper: mk(this.geo.taper, mat, true),
+    });
+    this.fam = {
+      toon: fam(new THREE.MeshToonMaterial({ color: '#ffffff', gradientMap: TOON_STEPS }), false),
+      hero: fam(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.82, metalness: 0 }), true),
+      gloss: fam(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.28, metalness: 0.15 }), true),
     };
+    this.family = 'toon';
+    this.fills = this.fam.toon;
     this.outlines = {
       sphere: mk(this.geo.sphereLo, ol, false),
       cyl: mk(this.geo.cylOpen, ol, false),
       dome: mk(this.geo.dome, ol, false),
+      taper: mk(this.geo.taperOpen, ol, false),
     };
-    this.n = { sphere: 0, cyl: 0, dome: 0 };
-    this.on = { sphere: 0, cyl: 0, dome: 0 };
+    this.n = {};
+    for (const f in this.fam) for (const k in this.fam[f]) this.n[f + k] = 0;
+    this.on = { sphere: 0, cyl: 0, dome: 0, taper: 0 };
+    // decals (jersey numbers and lettering)
+    this.decalGeo = new THREE.PlaneGeometry(1, 1);
+    this.decals = [];
+    this.nDecal = 0;
+    this.decalTex = new Map();
     this._m = new THREE.Matrix4();
     this._c = new THREE.Color();
     this.state = new WeakMap(); // per-actor heading smoothing
@@ -115,8 +135,10 @@ export class People {
   }
 
   begin(camera, focalPx) {
-    this.n.sphere = this.n.cyl = this.n.dome = 0;
-    this.on.sphere = this.on.cyl = this.on.dome = 0;
+    for (const k in this.n) this.n[k] = 0;
+    for (const k in this.on) this.on[k] = 0;
+    this.nDecal = 0;
+    this.useFamily('toon');
     this.camPos = camera.position;
     this.focal = focalPx;
     this.nb = 0;
@@ -125,14 +147,56 @@ export class People {
   end() {
     this.blobs.count = this.nb;
     this.blobs.instanceMatrix.needsUpdate = true;
-    for (const k of ['sphere', 'cyl', 'dome']) {
-      const f = this.fills[k], o = this.outlines[k];
-      f.count = this.n[k];
-      o.count = this.on[k];
-      f.instanceMatrix.needsUpdate = true;
-      o.instanceMatrix.needsUpdate = true;
-      if (f.instanceColor) f.instanceColor.needsUpdate = true;
+    for (const fname in this.fam) {
+      for (const k in this.fam[fname]) {
+        const f = this.fam[fname][k];
+        f.count = this.n[fname + k];
+        f.instanceMatrix.needsUpdate = true;
+        if (f.instanceColor) f.instanceColor.needsUpdate = true;
+      }
     }
+    for (const k in this.outlines) {
+      const o = this.outlines[k];
+      o.count = this.on[k];
+      o.instanceMatrix.needsUpdate = true;
+    }
+    for (let i = this.nDecal; i < this.decals.length; i++) this.decals[i].visible = false;
+  }
+
+  // Switch the material family for the parts that follow: 'toon' | 'hero' | 'gloss'
+  useFamily(name) {
+    if (this.noHero) name = 'toon'; // the realistic shaders failed on this GPU: draw everyone cartoon-style
+    this.family = name;
+    this.fills = this.fam[name];
+  }
+
+  // A textured plane on a body (jersey number, lettering). n = outward normal, up = the decal's up.
+  decal(c, n, up, w, h, key, paint) {
+    if (this.noHero) return;
+    let tex = this.decalTex.get(key);
+    if (!tex) {
+      tex = new THREE.CanvasTexture(paint());
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      this.decalTex.set(key, tex);
+    }
+    let m = this.decals[this.nDecal];
+    if (!m) {
+      m = new THREE.Mesh(this.decalGeo, new THREE.MeshStandardMaterial({ roughness: 0.85, transparent: true, alphaTest: 0.35, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, depthWrite: false }));
+      m.matrixAutoUpdate = false;
+      m.receiveShadow = true;
+      m.renderOrder = 3;
+      this.engine.scene.add(m);
+      this.decals.push(m);
+    }
+    if (m.material.map !== tex) { m.material.map = tex; m.material.needsUpdate = true; }
+    const right = norm(cross(up, n));
+    const u2 = cross(n, right);
+    const p = add(c, mul(n, 0.015));
+    m.matrix.set(right.x * w, u2.x * h, n.x, p.x, right.y * w, u2.y * h, n.y, p.y, right.z * w, u2.z * h, n.z, p.z, 0, 0, 0, 1);
+    m.matrixWorldNeedsUpdate = true;
+    m.visible = true;
+    this.nDecal++;
   }
 
   // outline thickness in feet so it stays ~1.6 px on screen
@@ -145,16 +209,17 @@ export class People {
     const m = this._m;
     // keep a right-handed basis (all our shapes are symmetric across local z)
     if (dot(X, cross(Y, Z)) < 0) Z = mul(Z, -1);
-    if (this.n[kind] < CAP) {
+    const nk = this.family + kind;
+    if (this.n[nk] < CAP) {
       m.set(X.x, Y.x, Z.x, c.x, X.y, Y.y, Z.y, c.y, X.z, Y.z, Z.z, c.z, 0, 0, 0, 1);
-      this.fills[kind].setMatrixAt(this.n[kind], m);
-      this.fills[kind].setColorAt(this.n[kind], this._c.set(color));
-      this.n[kind]++;
+      this.fills[kind].setMatrixAt(this.n[nk], m);
+      this.fills[kind].setColorAt(this.n[nk], this._c.set(color));
+      this.n[nk]++;
     }
     if (outline && this.on[kind] < CAP) {
       const t = this.ow;
       const sx = len(X), sy = len(Y), sz = len(Z);
-      const kx = (sx + t) / sx, ky = kind === 'cyl' ? 1 : (sy + t) / sy, kz = (sz + t) / sz;
+      const kx = (sx + t) / sx, ky = kind === 'cyl' || kind === 'taper' ? 1 : (sy + t) / sy, kz = (sz + t) / sz;
       m.set(X.x * kx, Y.x * ky, Z.x * kz, c.x, X.y * kx, Y.y * ky, Z.y * kz, c.y, X.z * kx, Y.z * ky, Z.z * kz, c.z, 0, 0, 0, 1);
       this.outlines[kind].setMatrixAt(this.on[kind]++, m);
     }
@@ -181,6 +246,18 @@ export class People {
     X = norm(X);
     const Z = cross(X, Y);
     this._put('cyl', mul(X, r), mul(Y, l), mul(Z, r), lerp3(a, b, 0.5), color, outline);
+  }
+
+  // Tapered limb: radius r at a, 0.68 r at b
+  taper(a, b, r, color, outline = true) {
+    const d = sub(b, a);
+    const l = len(d);
+    if (l < 1e-4) return;
+    const Y = mul(d, 1 / l);
+    let X = cross(Y, Math.abs(Y.z) < 0.9 ? UP : V(1, 0, 0));
+    X = norm(X);
+    const Z = cross(X, Y);
+    this._put('taper', mul(X, r), mul(Y, l), mul(Z, r), lerp3(a, b, 0.5), color, outline);
   }
 
   // ---------- characters ----------
