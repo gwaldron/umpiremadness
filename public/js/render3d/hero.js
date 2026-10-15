@@ -1,19 +1,12 @@
 // "Hero" bodies: the realistic, close-up players in the plate umpire's view (batter, catcher, pitcher).
 // Softer shading, tapered limbs, real gear (two-flap batting helmet, aluminum bat, catcher's gear),
 // knicker pants with team socks, and jersey numbers/lettering.
-import { vec3, solveIK } from './people.js';
+import { vec3, solveIK, hairOf } from './people.js';
 import { sport, ballColor } from '../sport.js';
 
 const { V, add, sub, mul, dot, cross, len, norm, lerp3 } = vec3;
 const UP = V(0, 0, 1);
-const HAIRS = ['#2b1d14', '#4a2f1b', '#1a1a1a', '#7a4b23', '#c9a25c', '#5a3a22', '#8b3a1a'];
 const GEAR = '#1f3f9e';
-
-function hashStr(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return Math.abs(h);
-}
 
 // ---------- jersey art ----------
 function numberCanvas(num, fill, stroke) {
@@ -188,6 +181,39 @@ export function drawHero(P, W, o) {
     if (o.ballInHand && ((o.ballInHand === 'F' && side > 0) || (o.ballInHand === 'B' && side < 0))) P.sphere(add(hand, mul(hd, (sport.softball ? 0.14 : 0.1) * S)), sport.softball ? 0.16 : 0.12, ballColor());
   }
 
+  if (!o.headless) heroHead(P, W, o, Ft, body);
+
+  // ----- aluminum bat -----
+  if (W.batTip && W.knob) {
+    const d = sub(W.batTip, W.knob);
+    const Lb = len(d);
+    const dir = mul(d, 1 / Lb);
+    let bx = cross(dir, UP);
+    bx = len(bx) < 0.1 ? V(1, 0, 0) : norm(bx);
+    const bz = cross(bx, dir);
+    const at = (k) => add(W.knob, mul(dir, k));
+    P.ellipsoid(W.knob, bx, dir, bz, 0.075, 0.03, 0.075, '#121316', false); // knob
+    P.limb(at(0.02), at(0.72), 0.042, '#1a1b20'); // grip tape
+    P.useFamily('gloss');
+    const alloy = o.batColor || '#2a3550';
+    P.limb(at(0.72), at(1.02), 0.039, alloy);
+    P.taper(at(1.42), at(1.18), 0.11, alloy);
+    P.taper(at(1.18), at(1.0), 0.064, alloy);
+    P.limb(at(1.42), at(Lb - 0.02), 0.11, '#b9bfc9');
+    P.limb(at(1.72), at(1.9), 0.112, o.batAccent || '#d62839', false);
+    P.ellipsoid(at(Lb - 0.01), bx, dir, bz, 0.105, 0.022, 0.105, '#121316', false); // end cap
+    P.useFamily('hero');
+  }
+  P.useFamily('toon');
+}
+
+// The head, face, headgear and softball hair, from shapes (rig.js draws the Blender-built head
+// instead once it has loaded: o.headless)
+function heroHead(P, W, o, Ft, body) {
+  const kit = o.kit;
+  const S = W.S || 1;
+  const skin = o.skin || '#e0ac69';
+  const catcher = o.gear === 'catcher';
   // ----- neck + head -----
   const headC = W.head;
   if (body) P.taper(W.neck, lerp3(W.neck, headC, 0.6), 0.13 * S, skin, false);
@@ -197,7 +223,7 @@ export function drawHero(P, W, o) {
   const hl = cross(UP, hf);
   P.ellipsoid(headC, hl, hf, UP, hr * 0.9, hr * 0.98, hr * 1.06, skin);
   P.ellipsoid(add(add(headC, mul(hf, hr * 0.28)), mul(UP, -hr * 0.52)), hl, hf, UP, hr * 0.6, hr * 0.62, hr * 0.44, skin, false); // jaw
-  const hair = o.hair || HAIRS[hashStr(String(o.skin) + (o.num ?? '') + (jersey || '')) % HAIRS.length];
+  const hair = hairOf(o);
   if (!catcher) P.ellipsoid(add(add(headC, mul(hf, -hr * 0.2)), mul(UP, -hr * 0.06)), hl, hf, UP, hr * 0.96, hr * 0.9, hr * 0.9, hair, false);
   for (const s of [1, -1]) P.ellipsoid(add(add(headC, mul(hl, s * hr * 0.88)), mul(hf, -hr * 0.05)), hl, hf, UP, hr * 0.12, hr * 0.18, hr * 0.26, skin, false);
   if (!o.noFace) {
@@ -281,29 +307,6 @@ export function drawHero(P, W, o) {
     }
     P.limb(add(add(headC, mul(hf, hr * 1.24)), mul(UP, hr * 0.05)), add(add(headC, mul(hf, hr * 1.2)), mul(UP, -hr * 0.85)), hr * 0.045, cage, false);
   }
-
-  // ----- aluminum bat -----
-  if (W.batTip && W.knob) {
-    const d = sub(W.batTip, W.knob);
-    const Lb = len(d);
-    const dir = mul(d, 1 / Lb);
-    let bx = cross(dir, UP);
-    bx = len(bx) < 0.1 ? V(1, 0, 0) : norm(bx);
-    const bz = cross(bx, dir);
-    const at = (k) => add(W.knob, mul(dir, k));
-    P.ellipsoid(W.knob, bx, dir, bz, 0.075, 0.03, 0.075, '#121316', false); // knob
-    P.limb(at(0.02), at(0.72), 0.042, '#1a1b20'); // grip tape
-    P.useFamily('gloss');
-    const alloy = o.batColor || '#2a3550';
-    P.limb(at(0.72), at(1.02), 0.039, alloy);
-    P.taper(at(1.42), at(1.18), 0.11, alloy);
-    P.taper(at(1.18), at(1.0), 0.064, alloy);
-    P.limb(at(1.42), at(Lb - 0.02), 0.11, '#b9bfc9');
-    P.limb(at(1.72), at(1.9), 0.112, o.batAccent || '#d62839', false);
-    P.ellipsoid(at(Lb - 0.01), bx, dir, bz, 0.105, 0.022, 0.105, '#121316', false); // end cap
-    P.useFamily('hero');
-  }
-  P.useFamily('toon');
 }
 
 // Keep limb lengths honest: re-solve elbows/knees with IK, using the authored joints as pole hints.

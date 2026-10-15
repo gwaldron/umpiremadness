@@ -69,7 +69,7 @@ While the game loads, `index.html` shows an inline splash screen (logo, spinning
 
 ## 3D art (Blender)
 
-The ballpark kit, the ballplayer body and the bleacher fan are modeled in Blender **from code**: each asset is a Python script in `art/` that builds the model and exports it to `public/models/`. Edit the script, then rebuild (Blender 4.2 or newer):
+The ballpark kit, the ballplayer body, the players' heads and headgear, and the bleacher fan are modeled in Blender **from code**: each asset is a Python script in `art/` that builds the model and exports it to `public/models/`. Edit the script, then rebuild (Blender 4.2 or newer):
 
 ```bash
 blender --background --factory-startup --python art/ballpark.py
@@ -80,13 +80,18 @@ blender --background --factory-startup --python art/player.py
 ```
 
 ```bash
+blender --background --factory-startup --python art/head.py
+```
+
+```bash
 blender --background --factory-startup --python art/fan.py
 ```
 
-Each also saves a `.blend` to `art/out/` (not committed) to open in Blender.
+Each also saves a `.blend` to `art/out/` (not committed) to open in Blender. `art/head.py` can also render Workbench previews of every head, hair style and piece of headgear: add `-- --preview <folder>`.
 
 - **`art/ballpark.py` → `ballpark.glb`**: dugouts (cinder block, team-colored roofs, helmet cubbies, bat rack, water cooler), aluminum bleachers with aisles and rails, the backstop with padding and a netting hood, light towers, the scoreboard with its marquee, foul poles, and tree models. It uses the game's own coordinates (feet, Z up, home plate at the origin). The game swaps in its chain-link texture, live scoreboard canvas and night lamps by material name, and instances the trees. Repeated pieces (the six bleacher sections, four light towers and both dugout bodies) are built once and placed several times, so the file stores each mesh only once (about 420 KB). The script also bakes ambient occlusion by ray casting (under seats and roofs, inside the dugouts, where parts meet the ground) into a per-corner `_AO` attribute, which the game uses to shade the kit's sky light. Until it loads (or if it can't), the procedural stand-ins in `render3d/stadium.js` stay.
-- **`art/player.py` → `player.glb`**: a smooth kid ballplayer in uniform. The body is fused from overlapping shapes (voxel remesh), with clean seams at the belt, sleeves and socks, and auto-weighted to 18 bones. Each face stores its uniform region (jersey, pants, socks, cleats, skin...) in a vertex color, so one shader colors any team and a whole player is one draw call. `render3d/rig.js` poses the bones every frame from the joints the game already computes, so every player on the field uses it. The head, face, caps and helmets, gloves, bat, catcher's gear and softball bubble braids still draw on top.
+- **`art/player.py` → `player.glb`**: a smooth kid ballplayer in uniform. The body is fused from overlapping shapes (voxel remesh), with clean seams at the belt, sleeves and socks, and auto-weighted to 18 bones. Each face stores its uniform region (jersey, pants, socks, cleats, skin...) in a vertex color, so one shader colors any team and a whole player is one draw call. `render3d/rig.js` poses the bones every frame from the joints the game already computes, so every player on the field uses it. Gloves, the bat, and the catcher's and plate umpire's protectors still draw on top.
+- **`art/head.py` → `head.glb`**: the players' heads and headgear. A kid's head with a friendly cartoon face (glossy eyes with a sparkle, brows, button nose, a big smile, rosy cheeks, ears); hair styles (crew cut, shaggy, curly, and for softball a combed-back ponytail, a low ponytail and a bubble braid); a six-panel ball cap with a curved bill (a short bill for the plate umpire); the two-flap Little League batting helmet and its softball face cage; the hockey-style catcher's helmet with mask and throat guard; the plate umpire's mask; and team letters for the caps and helmets. Every part has a lighter `_lo` version for the players out on the field views. Faces store their region (skin, hair, eyes, team shell, cage...) in a vertex color, with the ponytail swing and cheek blush in the other channels. `rig.js` merges the parts each player wears into one mesh (a second draw call), colors it from that player's palette (skin, hair, eye color, team cap or helmet), and moves it with the head so the face looks where the player looks. Until it loads, and in the 2D view, the old shape-built heads draw instead.
 - **`art/fan.py` → `fan.glb`**: a low-poly seated fan (about 350 triangles plus an optional cap), split into parts: shirt, pants, shoes, head, hair, cap, and arms that pivot at the shoulder. The game draws the whole crowd with one instanced mesh per part, gives each fan their own colors (some kids, some caps), and swings the arms up into a waving V when the crowd cheers.
 
 ## Deploy (Cloudflare Workers static assets)

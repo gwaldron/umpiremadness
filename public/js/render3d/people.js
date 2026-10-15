@@ -7,10 +7,14 @@ import { sport } from '../sport.js';
 
 const CAP = 3000;
 const HAIRS = ['#2b1d14', '#4a2f1b', '#1a1a1a', '#7a4b23', '#c9a25c', '#5a3a22', '#8b3a1a'];
-function hashStr(str) {
+export function hashStr(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
   return Math.abs(h);
+}
+// A player's hair color: their own (o.hair), else one picked from their looks
+export function hairOf(o) {
+  return o.hair || HAIRS[hashStr(String(o.skin) + (o.num ?? '') + ((o.kit && o.kit.jersey) || '')) % HAIRS.length];
 }
 function blobTexture() {
   const c = document.createElement('canvas');
@@ -476,6 +480,22 @@ export class People {
       }
       if (o.ballInHand && ((o.ballInHand === 'F' && side > 0) || (o.ballInHand === 'B' && side < 0))) this.sphere(add(hand, mul(UP, 0.08 * S)), 0.13, '#fbfbf6');
     }
+    if (!o.headless) this._head(W, o, Ft, body);
+    // bat
+    if (W.batTip && W.handB) {
+      const knob = W.handB;
+      const mid = lerp3(knob, W.batTip, 0.42);
+      this.limb(knob, mid, 0.06, '#c7924f');
+      this.limb(mid, W.batTip, 0.11, '#d9a865');
+      this.sphere(W.batTip, 0.11, '#b9864a');
+    }
+  }
+
+  // The head, face, cap or helmet and softball hair, from shapes (rig.js draws the Blender-built head
+  // instead once it has loaded: o.headless)
+  _head(W, o, Ft, body) {
+    const kit = o.kit, S = W.S || 1, f = W.f;
+    const skin = o.skin || '#e0ac69';
     // neck + head
     const headC = W.head;
     if (body) this.limb(W.neck, lerp3(W.neck, headC, 0.6), 0.14 * S, skin, false);
@@ -486,7 +506,7 @@ export class People {
     const hl = cross(UP, hf);
     this.sphere(headC, hr, skin);
     // hair peeking out under the cap (back of the head)
-    const hair = o.hair || HAIRS[hashStr(String(o.skin) + (o.num ?? '') + (kit.jersey || '')) % HAIRS.length];
+    const hair = hairOf(o);
     if (o.gear !== 'catcher') this.ellipsoid(add(add(headC, mul(hf, -hr * 0.22)), mul(UP, -hr * 0.04)), hl, hf, UP, hr * 1.04, hr * 0.92, hr * 0.88, hair, false);
     // ears
     for (const s of [1, -1]) this.ellipsoid(add(headC, mul(hl, s * hr * 0.96)), hl, hf, UP, hr * 0.16, hr * 0.2, hr * 0.26, skin, false);
@@ -537,14 +557,6 @@ export class People {
         else this.limb(p, add(p, step), r * (1 - i * 0.3), hair, false);
         p = add(p, step);
       }
-    }
-    // bat
-    if (W.batTip && W.handB) {
-      const knob = W.handB;
-      const mid = lerp3(knob, W.batTip, 0.42);
-      this.limb(knob, mid, 0.06, '#c7924f');
-      this.limb(mid, W.batTip, 0.11, '#d9a865');
-      this.sphere(W.batTip, 0.11, '#b9864a');
     }
   }
 }
