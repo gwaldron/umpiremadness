@@ -565,6 +565,8 @@ export function buildCamp(level = 'minors') {
         // 5 — steals and back-picks
         card(5, T, 'RUNNERS ON THE MOVE', 'Tag plays: watch the glove AND the bag', "On steals and back-picks it's a **tag play**. You need **daylight** between the glove and the runner. Watch for **missed tags**, **dropped balls**, and the sneaky **empty glove** (ball still in his other hand!).", 'tag-play'),
         bp('steal2B'), bp('steal3B'), bp('pickoff1B'), bp('force1B'),
+        card(5, T, 'FIRST TO THIRD', 'Ball to the outfield? Come in!', 'On a hit to the outfield, move **into the infield** (the **working area**), pivot to watch the runner touch the bag, then get your angle on the play at **third**.', 'working-area'),
+        bp('hit3B'), bp('hit3B'),
         // 6 — rules that trip up rookies
         card(6, T, 'RULES THAT FOOL ROOKIES', 'Appeals, timing plays and interference', "Some plays freeze and ask **\"What's the call?\"** These are the ones that fool new umpires: **appeals** (say nothing until they appeal!), **timing plays** (does the run count?), and **interference** vs. **obstruction**.", 'appeal-tagup'),
         sq('tagup', 'MAJ'), sq('timing', 'MAJ'), sq('ci', 'MAJ'), sq('lane', 'MAJ'), sq('obs-rundown', 'MAJ'),
@@ -611,6 +613,8 @@ export function buildCamp(level = 'minors') {
       // 4 — angles
       card(4, T, 'SEE THE PLAY', 'The UMP CAM shows what YOU can see', "When the ball is hit, **move so you can see the bag and the glove**, stay out of the throwing lane, and **STOP** before the play. Get set, watch the play happen, then sell your call!", 'angles'),
       bp('force1B'), bp('force1B', { runners: [2] }), bp('pickoff1B'), bp('steal2B'),
+      card(4, T, 'THE WORKING AREA', 'Ball stays in? Stay out. Ball goes out? Come in!', 'On a clean hit to the **outfield**, run **into the infield** (the **working area**), pivot to watch the batter-runner touch first, and be ready for a play at **second**. Stand still and your UMP CAM goes fuzzy!', 'working-area'),
+      bp('hit2B'), bp('hit2B'),
       // 5 — rules
       card(5, T, 'FAIR, FOUL, CATCH?', 'Calls the plate umpire owns', "The plate umpire has **every fair/foul call** and **every catch/no-catch call** on the field. Remember: the lines and bases are **fair**, and a catch needs **secure possession**.", 'fair-foul'),
       sq('fairfoul', 'AA'), sq('fairfoul', 'AA'), sq('catch', 'AA'), sq('catch', 'AA'),

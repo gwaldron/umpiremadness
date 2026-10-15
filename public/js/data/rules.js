@@ -23,6 +23,8 @@ export const RULES = [
     text: 'On Little League\'s 60-ft diamond, work from outside the baselines. **A**: bases empty, foul ground behind first. **B**: runner on first only — outside the 1B–2B baseline and behind the infielders, back by the edge of the outfield grass, anywhere from halfway between first and second up to second base. **C**: any runner on second or third — outside the 2B–3B baseline, behind the infielders by the outfield grass, anywhere between second and third.' },
   { id: 'angles', icon: '📐', title: 'Angle Over Distance', lesson: 'working-the-bases', group: 'Bases',
     text: 'Move while the play develops, then **stop** before the critical moment. Get about 90° to the throw (force) or the runner (tag). Stay out of throwing lanes and runners\' paths.' },
+  { id: 'working-area', icon: '🧭', title: 'The Working Area', lesson: 'working-area-and-pivot', group: 'Bases',
+    text: 'Ball stays in the infield → **stay out**. Ball goes to the outfield → **come in!** Move into the infield, pivot to watch the batter-runner touch first, and be ready for the play at second or third. Stay out of the runners\' paths and the throwing lanes.' },
   { id: 'force-play', icon: '👟', title: 'Force Plays', lesson: 'force-plays-at-first', group: 'Bases',
     text: 'Watch the runner\'s foot and the base; **hear** the ball hit the glove. The fielder needs secure possession while touching the base before the runner gets there. A pulled foot or dropped ball = safe.' },
   { id: 'tag-play', icon: '🤚', title: 'Tag Plays', lesson: 'tags-and-offline-throws', group: 'Bases',

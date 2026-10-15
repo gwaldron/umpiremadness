@@ -21,6 +21,14 @@ function insideDiamond(p) {
   return p.y > Math.abs(p.x) + 2 && p.y < BASES.second.y - Math.abs(p.x) - 2;
 }
 
+// The working area: the middle of the infield. On a ball hit to the outfield the base umpire comes in
+// here and pivots (Bootcamp "Working area pivot": ball stays in the infield, stay out; ball goes to the
+// outfield, come in).
+export function inWorkingArea(p) {
+  return insideDiamond(p) && p.y > 22;
+}
+const WORK_POLY = [{ x: 0, y: 26 }, { x: 24, y: 48 }, { x: 10, y: 70 }, { x: -10, y: 70 }, { x: -24, y: 48 }];
+
 function cross(a, b) { return a.x * b.y - a.y * b.x; }
 
 // How good is the view of the critical moment from point p?
@@ -65,7 +73,7 @@ function idealSpot(crit, from, maxTravel = 200) {
       // prefer spots that don't require a marathon, and fair territory near the infield
       // Foul ground between home and first/third is the runner's lane — never a good spot
       const foul = Math.abs(p.x) > p.y;
-      const s = v.score - dist(p, from) * 0.0015 - (foul && p.y < 44 ? 0.3 : foul ? 0.05 : 0) - (insideDiamond(p) ? 0.15 : 0);
+      const s = v.score - dist(p, from) * 0.0015 - (foul && p.y < 44 ? 0.3 : foul ? 0.05 : 0) - (insideDiamond(p) ? (crit.working ? -0.1 : 0.15) : 0);
       if (!best || s > best.s) best = { ...p, s, v };
     }
   }
@@ -119,6 +127,7 @@ export class BasePlayEvent {
     this.kind = 'base';
     this.play = spec.play || weighted([
       ['force1B', 5], ['steal2B', 3], ['dp', this.div.id === 'AA' ? 1 : 3], ['pickoff1B', 2], ['steal3B', 2],
+      ['hit2B', 3], ['hit3B', 2],
     ]);
     this.outs = spec.outs ?? randInt(0, 1);
     this.ump = { x: 0, y: 0, vx: 0, vy: 0, still: 0 };
@@ -159,6 +168,7 @@ export class BasePlayEvent {
     if (play === 'force1B') runners = this.spec.runners || pick([[], [], [], [], [2], [3], [2, 3]]);
     if (play === 'steal2B' || play === 'pickoff1B' || play === 'dp') runners = [1];
     if (play === 'steal3B') runners = [2];
+    if (play === 'hit3B') runners = [1];
     this.runners = runners;
     this.expectSpot = runners.includes(2) || runners.includes(3) ? 'C' : runners.includes(1) ? 'B' : 'A';
     setupDefense(tl);
@@ -176,7 +186,7 @@ export class BasePlayEvent {
     tl.pose('P', tP + 1.1, 'ready');
     const pitchFrom = releasePt();
     const sp = this.div.id === 'AA' ? 0.8 : this.div.id === 'AAA' ? 0.9 : 1;
-    const builders = { force1B: this._force1B, steal2B: this._steal, steal3B: this._steal, dp: this._dp, pickoff1B: this._pickoff };
+    const builders = { force1B: this._force1B, steal2B: this._steal, steal3B: this._steal, dp: this._dp, pickoff1B: this._pickoff, hit2B: this._outfieldHit, hit3B: this._outfieldHit };
     builders[play].call(this, tl, tPlate, pitchFrom, sp);
     tl.sample(0);
   }
@@ -305,6 +315,106 @@ export class BasePlayEvent {
       missed, empty, dropped, dropT: tt + 0.09, slide: 'feet',
       what: missed ? 'missed' : empty ? 'empty' : dropped ? 'dropped' : null,
       card: 'tag-play',
+    });
+  }
+
+  // A clean hit to the outfield. Bases empty: the batter stretches it into a double and the play is
+  // at second. Runner on first: he goes first to third on the single and the play is at third. Either
+  // way the base umpire should come into the working area, pivot, and take the play from inside.
+  _outfieldHit(tl, tPlate, pitchFrom, sp) {
+    const toThird = this.play === 'hit3B';
+    tl.fly(1.1, tPlate, pitchFrom, { x: 0, y: 1, z: 2.6 }, 0.3);
+    tl.actors.BAT.swingAt = tPlate - 0.17;
+    tl.at(tPlate, () => audio.crack());
+    // where it goes and who runs it down
+    const spots = {
+      LF: { of: 'LF', land: { x: -60, y: 116 } }, LC: { of: 'CF', land: { x: -28, y: 138 } },
+      RC: { of: 'CF', land: { x: 28, y: 138 } }, RF: { of: 'RF', land: { x: 60, y: 116 } },
+    };
+    const where = pick(toThird ? ['RF', 'RF', 'RC'] : ['LF', 'LC', 'RC', 'RF']);
+    const S = spots[where];
+    const land = { x: S.land.x + rand(-6, 6), y: S.land.y + rand(-6, 6) };
+    const tLand = tPlate + rand(1.0, 1.35);
+    tl.fly(tPlate, tLand, { x: 0, y: 1.5, z: 3 }, land, rand(5, 11));
+    // the runner and the base the play is at
+    const target = toThird ? B3 : B2;
+    const vr = rand(15, 18.5) * (this.div.id === 'AA' ? 0.92 : 1);
+    let rid, start, pts;
+    if (toThird) {
+      rid = 'R1';
+      const R = tl.actors.R1;
+      start = { x: R.x, y: R.y, t: tPlate + 0.05 };
+      pts = [{ x: B2.x + 1.0, y: B2.y + 1.6 }, { x: lerp(B2.x, B3.x, 0.82), y: lerp(B2.y, B3.y, 0.82) }];
+      // the batter-runner takes first and rounds the bag
+      tl.pose('BAT', tPlate + 0.3, 'stand');
+      const tb1 = tl.runTo('BAT', tPlate + 0.35, B1.x + 4, B1.y - 1.5, 16, 'run');
+      tl.runTo('BAT', tb1, B1.x + 1.2, B1.y - 0.8, 6, 'stand');
+    } else {
+      rid = 'BAT';
+      start = { x: tl.actors.BAT.x, y: tl.actors.BAT.y, t: tPlate + 0.35 };
+      tl.pose('BAT', tPlate + 0.3, 'stand');
+      // a wide turn at first, then on to second
+      pts = [{ x: B1.x + 2.2, y: B1.y - 1.2 }, { x: lerp(B1.x, B2.x, 0.82), y: lerp(B1.y, B2.y, 0.82) }];
+    }
+    const bagEnd = toThird ? { x: B3.x + 0.6, y: B3.y + 0.6 } : { x: B2.x + 0.5, y: B2.y - 0.6 };
+    let t = start.t, p = start;
+    const legs = [];
+    for (const q of pts) { const d = dist(p, q); legs.push({ q, t0: t, t1: t + d / vr }); t += d / vr; p = q; }
+    let tr = t + dist(p, bagEnd) / (vr * 0.8);
+    // the throw is timed off the runner: a bang-bang play at the base
+    const dt = this._bang();
+    const sweep = rand(0.12, 0.22);
+    const cover = toThird ? '3B' : (where === 'LF' || where === 'LC' ? '2B' : 'SS');
+    const gloveAt = toThird ? { x: target.x + 1.2, y: target.y + 0.4, z: 2.8 } : { x: target.x + 0.9, y: target.y - 0.7, z: 2.8 };
+    const coverSpot = toThird ? { x: target.x + 1.6, y: target.y + 0.8 } : { x: target.x + 1.4, y: target.y - 0.6 };
+    const vt = rand(52, 70) * sp;
+    // the outfielder runs it down: roll the ball out to where he picks it up
+    const dir = norm(sub(land, { x: 0, y: 0 }));
+    let field = { x: land.x + dir.x * 14, y: land.y + dir.y * 14 };
+    let ft = dist(field, gloveAt) / vt;
+    let tt = tr - dt, tb = tt - sweep, tThrow = tb - ft, tField = tThrow - rand(0.35, 0.5);
+    if (tField < tLand + 0.7) {
+      // runner was too quick for a close play: slow the runner down (kids get tired going two bases)
+      const shift = tLand + 0.7 - tField;
+      tr += shift; tt += shift; tb += shift; tThrow += shift; tField += shift;
+      const k = (tr - start.t) / (tr - shift - start.t);
+      t = start.t;
+      for (const L of legs) { const d = (L.t1 - L.t0) * k; L.t0 = t; L.t1 = t + d; t += d; }
+    } else if ((tField - tLand) * 7 > 14) {
+      // a long roll: the ball gets farther out toward the fence before he gets to it
+      const far = Math.min((tField - tLand) * 7, 48);
+      field = { x: land.x + dir.x * far, y: land.y + dir.y * far };
+      if (Math.hypot(field.x, field.y) > 188) { const s2 = 188 / Math.hypot(field.x, field.y); field = { x: field.x * s2, y: field.y * s2 }; }
+      ft = dist(field, gloveAt) / vt;
+      tThrow = tb - ft; tField = tThrow - rand(0.35, 0.5);
+    }
+    tl.ground(tLand, tField, land, field);
+    tl.move(S.of, tPlate + 0.1, tField - 0.05, field.x, field.y, 'ready');
+    tl.hold(tField, tThrow, S.of, 3.4);
+    tl.pose(S.of, tThrow - 0.3, 'throw', { facing: gloveAt.x > field.x ? 1 : -1 });
+    tl.actors[S.of].keys[tl.actors[S.of].keys.length - 1].dur = 0.4;
+    tl.pose(S.of, tThrow + 0.4, 'ready');
+    tl.throwBall(tThrow, tb, { x: field.x, y: field.y, z: 5 }, gloveAt);
+    // the fielder covering the base
+    tl.move(cover, tPlate + 0.2, Math.max(tPlate + 0.8, tb - 0.4), coverSpot.x, coverSpot.y, 'ready');
+    tl.pose(cover, tb + 0.02, 'tag', { facing: 1 });
+    tl.hold(tb, tb + 3, cover, 2.4);
+    tl.pose(cover, tt + 0.6, 'stand');
+    // the runner: around the bag, then slide in
+    for (let i = 0; i < legs.length; i++) tl.move(rid, legs[i].t0, legs[i].t1, legs[i].q.x, legs[i].q.y, 'run');
+    tl.move(rid, legs[legs.length - 1].t1, tr, bagEnd.x, bagEnd.y, 'slide', 'slide');
+    tl.pose(rid, tr + 0.9, 'stand');
+    const missed = chance(0.08);
+    const empty = !missed && chance(0.05);
+    const dropped = !missed && !empty && chance(0.08);
+    const from = pts[pts.length - 1];
+    this.crits.push({
+      key: this.play, type: 'tag', baseNum: toThird ? 3 : 2, base: target, motion: norm(sub(target, from)),
+      throwSeg: [{ x: field.x, y: field.y, z: 5 }, gloveAt], runSeg: [from, target], fielderId: cover, runnerId: rid,
+      tb, tr, tt, out: !missed && !empty && !dropped && tt < tr, dt: tr - tt,
+      missed, empty, dropped, dropT: tt + 0.09, slide: 'feet',
+      what: missed ? 'missed' : empty ? 'empty' : dropped ? 'dropped' : null,
+      card: 'working-area', working: true, tLand,
     });
   }
 
@@ -448,6 +558,9 @@ export class BasePlayEvent {
       if (d < nd) { nd = d; nearest = k; }
     }
     this.startOk = inStartZone(this.expectSpot, this.ump);
+    this.startPos = { x: this.ump.x, y: this.ump.y };
+    this.wentIn = false;
+    this.inCalled = false;
     this.startNearest = nd < 14 ? nearest : null;
     hud.floater(this.startOk ? `✓ ${this.expectSpot} POSITION` : `✗ SHOULD BE IN ${this.expectSpot}`, !this.startOk);
     if (this.startOk) audio.correct(); else audio.wrong();
@@ -608,6 +721,14 @@ export class BasePlayEvent {
         if (until <= 0.32) return this._openCam(c);
       } else this.timeScale = 1;
       this.t += dt * this.timeScale;
+      // a ball to the outfield: did the umpire come into the working area?
+      if (c && c.working && this.state === 'live') {
+        if (this.t > this.tPlate && inWorkingArea(this.ump)) this.wentIn = true;
+        if (!this.inCalled && this.t >= c.tLand) {
+          this.inCalled = true;
+          if ((this.s.hints || this.spec.tutorial) && !this.spec.exam && !this.wentIn) hud.floater('OUTFIELD! COME IN!', false, 50, 30);
+        }
+      }
       this.tl.sample(this.t);
       this._overrides(this.t);
       this._checkLane();
@@ -674,6 +795,14 @@ export class BasePlayEvent {
     const v = viewScore(this.ump, { ...c, fielder: fpos }, moving);
     c.view = v;
     c.moving = moving;
+    // Didn't move to the play? The UMP CAM gets grainy and washed out (the farther you should have
+    // gone and the less you went, the worse it gets). Not coming in on a ball to the outfield counts too.
+    const sp0 = this.startPos || this.ump;
+    const need = dist(sp0, c.ideal || c.base);
+    const went = dist(sp0, this.ump);
+    let lazy = need > 12 ? clamp(1 - went / need, 0, 1) : 0;
+    if (c.working && !this.wentIn) lazy = Math.max(lazy, 0.65);
+    c.lazy = lazy;
     // which way is the runner going in the umpire's view? (mirror the close-up if needed)
     const sight = norm(sub(c.base, this.ump));
     const runDir = norm(sub(c.runSeg[1], c.runSeg[0]));
@@ -689,7 +818,7 @@ export class BasePlayEvent {
       points: { bag: { x: bag.x, y: bag.y, z: BAG_TOP + 0.2 }, glove: glovePt, tag: this._tagPoint(c) },
       type: c.type, tb: c.tb, tr: c.tr, tt: c.tt, pulled: c.pulled, dropped: c.dropped, dropT: c.dropT,
       missed: c.missed, empty: c.empty, slide: c.slide, mirror,
-      quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving },
+      quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving, lazy },
       baseName: BASE_NAME[c.baseNum], speed: 0.4,
       skin: pick(SKINS),
     });
@@ -743,6 +872,8 @@ export class BasePlayEvent {
       if (this.startOk) bonus.push({ label: `Started in ${this.expectSpot}`, pts: 50 });
       else bonus.push({ label: `Wrong start spot`, pts: -25 });
     }
+    if (c.working) bonus.push(this.wentIn ? { label: 'Into the working area', pts: 50 } : { label: 'Stayed out on a ball to the outfield', pts: -25 });
+    else if (c.lazy > 0.6) bonus.push({ label: "Didn't move to the play", pts: -25 });
     if (c.view.lane) bonus.push({ label: 'In the throwing lane', pts: -25 });
     if (c.moving) bonus.push({ label: 'Called it on the move', pts: -25 });
     for (const p of this.penalties) bonus.push(p);
@@ -752,6 +883,7 @@ export class BasePlayEvent {
       kind: 'base', sub: c.key, correct, timing, card: c.card,
       extraCards: [
         { id: 'abc', correct: !!this.startOk },
+        ...(c.working ? [{ id: 'tag-play', correct }] : []),
         // good positioning: set, a clear view, and out of the throwing lane
         { id: 'angles', correct: !c.moving && !c.view.occl && !c.view.lane },
         ...(bang ? [{ id: 'bang-bang', correct }] : []),
@@ -790,6 +922,9 @@ export class BasePlayEvent {
     if (v.occl) tips.push('A fielder\'s body **blocked your view**. Step so you can see daylight between glove and runner.');
     if (v.lane) tips.push('You were **in the throwing lane**. Stay out of the ball\'s path.');
     if (c.moving) tips.push('You were **still moving** at the moment of the play. Get set — stop — then watch.');
+    if (c.working && !this.wentIn) tips.unshift('Ball to the outfield → **come in!** Move into the infield (the **working area**), pivot to watch the runner touch the bag, and be ready for the play at second or third.');
+    else if (c.working) tips.unshift('You came into the **working area** on the hit to the outfield. That\'s the move!');
+    else if (c.lazy > 0.6) tips.unshift('You **barely moved**. Go get an angle while the play develops, then stop and watch.');
     if (this.critIdx === 0 && !this.startOk) tips.unshift(`Start in ${ZONE_HELP[this.expectSpot]}`);
     if (!tips.length) tips.push('Nice — you were set and could see the play.');
     const start = this.critIdx === 0 ? `Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be in <b>${this.expectSpot}</b>`}` : '';
@@ -834,6 +969,7 @@ export class BasePlayEvent {
     }
     if (this.state === 'live' && (s.hints || this.spec.tutorial) && !this.spec.exam) {
       const c = this.crits[this.critIdx];
+      if (c && c.working && this.t >= c.tLand - 0.4) markers.push({ poly: WORK_POLY, color: '#ffd34d', dash: [6, 5], label: 'WORKING AREA' });
       if (c && c.ideal && this.t > this.tPlate - 0.2) markers.push({ x: c.ideal.x, y: c.ideal.y, r: 3.5, color: 'rgba(255,211,77,0.9)', dash: [5, 4] });
     }
     s.field.draw(g, s.cam, { actors, ball: this.tl.ball, markers });
@@ -869,7 +1005,7 @@ export class BasePlayEvent {
       const tt = performance.now() / 1000;
       const eye = { x: v.eye.x + Math.sin(tt * 31) * jit, y: v.eye.y + Math.cos(tt * 27) * jit, z: v.eye.z + Math.sin(tt * 23) * jit };
       const q = this.cam.q;
-      const block = q.distS >= 0.85 ? 1 : Math.round(lerp(7, 2, clamp((q.distS - 0.3) / 0.55, 0, 1)));
+      const block = Math.max(q.distS >= 0.85 ? 1 : Math.round(lerp(7, 2, clamp((q.distS - 0.3) / 0.55, 0, 1))), Math.round(1 + (q.lazy || 0) * 5));
       s.field.drawInset({ eye, target: v.target, fov }, css, { actors: this.tl.list(), ball: this.tl.ball }, block);
       this.cam.renderOverlay(g, rect, dpr, (pt) => {
         const pp = s.field.projectInset(pt, css);
