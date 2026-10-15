@@ -109,7 +109,58 @@ export class Field3D {
     return this.labelCache.get(key);
   }
 
-  _markers(list, t) {
+  // flat highlighted polygons on the ground (e.g. the B/C start zones)
+  _bands(list, t) {
+    if (!this.bandPool) this.bandPool = [];
+    let i = 0;
+    for (const m of list) {
+      let e = this.bandPool[i];
+      if (!e) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(18), 3));
+        const lg = new THREE.BufferGeometry();
+        lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(15), 3));
+        e = {
+          // pulled toward the camera so the ground planes (which use their own polygon offset) can't hide it
+          fill: new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0.22, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -60 })),
+          edge: new THREE.Line(lg, new THREE.LineBasicMaterial({ transparent: true, depthTest: false })),
+          label: new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })),
+        };
+        e.fill.renderOrder = e.edge.renderOrder = 6;
+        e.fill.frustumCulled = e.edge.frustumCulled = false;
+        this.scene.add(e.fill, e.edge, e.label);
+        this.bandPool[i] = e;
+      }
+      const [a, b, c, d] = m.poly;
+      const z = 0.09;
+      const fp = e.fill.geometry.attributes.position;
+      [a, b, c, a, c, d].forEach((p, k) => fp.setXYZ(k, p.x, p.y, z));
+      fp.needsUpdate = true;
+      const lp = e.edge.geometry.attributes.position;
+      [a, b, c, d, a].forEach((p, k) => lp.setXYZ(k, p.x, p.y, z + 0.01));
+      lp.needsUpdate = true;
+      const color = new THREE.Color(m.color || '#ffd34d');
+      e.fill.material.color.copy(color);
+      e.fill.material.opacity = 0.3 + 0.1 * Math.sin(t * 4);
+      e.edge.material.color.copy(color);
+      e.fill.visible = e.edge.visible = true;
+      if (m.label) {
+        e.label.visible = true;
+        e.label.material.map = this._label(m.label, m.color || '#ffd34d');
+        e.label.position.set((a.x + b.x + c.x + d.x) / 4, (a.y + b.y + c.y + d.y) / 4, 3.2 + Math.sin(t * 3) * 0.3);
+        e.label.scale.set(3.2, 3.2, 1);
+      } else e.label.visible = false;
+      i++;
+    }
+    for (; i < this.bandPool.length; i++) {
+      const e = this.bandPool[i];
+      e.fill.visible = e.edge.visible = e.label.visible = false;
+    }
+  }
+
+  _markers(all, t) {
+    this._bands(all.filter((m) => m.poly), t);
+    const list = all.filter((m) => !m.poly);
     let i = 0;
     for (const m of list) {
       let e = this.markerPool[i];

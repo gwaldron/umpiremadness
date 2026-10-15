@@ -438,6 +438,29 @@ export class FieldRenderer {
   }
 
   _marker(g, cam, m) {
+    if (m.poly) {
+      // a highlighted band on the ground (e.g. the B/C start zones)
+      if (!cam.polyPath(g, m.poly.map((p) => [p.x, p.y, 0.05]))) return;
+      g.fillStyle = 'rgba(255,211,77,0.2)';
+      g.fill();
+      g.lineWidth = m.width || 2.5;
+      g.strokeStyle = m.color || 'rgba(255,211,77,0.95)';
+      if (m.dash) g.setLineDash(m.dash);
+      g.stroke();
+      g.setLineDash([]);
+      if (m.label) {
+        const cx = m.poly.reduce((s, p) => s + p.x, 0) / m.poly.length, cy = m.poly.reduce((s, p) => s + p.y, 0) / m.poly.length;
+        const p = cam.project(cx, cy, 0);
+        if (p) {
+          g.fillStyle = m.color || '#fff';
+          g.font = `${Math.max(11, p.s * 3.2)}px Bungee, Impact, sans-serif`;
+          g.textAlign = 'center';
+          g.textBaseline = 'middle';
+          g.fillText(m.label, p.x, p.y);
+        }
+      }
+      return;
+    }
     const pts = circlePts(m.x, m.y, m.r || 3, 24, 0.05);
     if (!cam.polyPath(g, pts)) return;
     g.lineWidth = m.width || 2.5;

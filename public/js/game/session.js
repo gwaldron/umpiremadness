@@ -574,12 +574,12 @@ export function buildCamp(level = 'minors') {
       ab({ maxPitches: 6 }),
       ab({ maxPitches: 6 }),
       // 3 — the base positions
-      card(3, T, 'A, B & C', 'Where the base umpire starts', "Before each pitch, run to your **starting spot**. **A**: bases empty, foul ground behind first. **B**: runner on 1st only. **C**: runner on 2nd or 3rd. On Little League's 60-foot diamond, **B and C are outside the baselines**.", 'abc'),
+      card(3, T, 'A, B & C', 'Where the base umpire starts', "Before each pitch, run to your **starting spot**. **A**: bases empty, foul ground behind first. **B**: runner on 1st only — just outside the baseline, anywhere from **halfway between first and second up to second base**. **C**: runner on 2nd or 3rd — just outside the baseline, anywhere **between second and third**. On Little League's 60-foot diamond, **B and C are outside the baselines**.", 'abc'),
       bp('force1B', { runners: [] }),
       bp('steal2B'),
       bp('steal3B'),
       // 4 — angles
-      card(4, T, 'GET THE ANGLE', 'The UMP CAM shows what YOU can see', "When the ball is hit, **move for an angle** — about **90°** to the throw on a force play, or to the slide on a tag. Then **STOP** before the play. A great angle gives you a crystal-clear UMP CAM. A bad one... good luck! The gold ring shows a great spot while you learn.", 'angles'),
+      card(4, T, 'SEE THE PLAY', 'The UMP CAM shows what YOU can see', "When the ball is hit, **move so you can see the bag and the glove**, stay out of the throwing lane, and **STOP** before the play. Get set, watch the play happen, then sell your call!", 'angles'),
       bp('force1B'), bp('force1B', { runners: [2] }), bp('pickoff1B'), bp('steal2B'),
       // 5 — rules
       card(5, T, 'FAIR, FOUL, CATCH?', 'Calls the plate umpire owns', "The plate umpire has **every fair/foul call** and **every catch/no-catch call** on the field. Remember: the lines and bases are **fair**, and a catch needs **secure possession**.", 'fair-foul'),

@@ -493,7 +493,7 @@ export class Screens {
       return c;
     };
     grid.append(
-      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules · about 15 minutes. 7 stations: balls & strikes, the slot, A/B/C positions, angles, fair/foul & catches, Minors local rules, coaches & safety, then a no-hints scrimmage. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
+      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules · about 15 minutes. 7 stations: balls & strikes, the slot, A/B/C positions, seeing the play, fair/foul & catches, Minors local rules, coaches & safety, then a no-hints scrimmage. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
       card('🔥', 'Majors Camp', 'Full Little League rules · about 15 minutes. 7 stations: faster pitching, the dropped third strike, the infield fly, double plays, steals & back-picks, appeals & timing plays, game management, then a no-hints scrimmage.', p.career['camp-majors'], () => app.startCamp('majors')),
     );
     wrapEl.append(grid);

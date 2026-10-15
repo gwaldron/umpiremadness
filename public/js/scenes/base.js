@@ -71,6 +71,43 @@ function idealSpot(crit, from, maxTravel = 200) {
   return best;
 }
 
+// Where the base umpire starts. A is a spot in foul ground behind first. On Little League's 60-ft
+// diamond, B and C are stretches just outside the baselines: B anywhere from halfway between first
+// and second up to second base, C anywhere between second and third.
+const START_ZONES = {
+  B: { from: BASES.second, to: BASES.first, s0: -3, s1: 32 },
+  C: { from: BASES.second, to: BASES.third, s0: -3, s1: 63 },
+};
+const ZONE_HELP = {
+  A: '**A**: in foul ground behind first base.',
+  B: '**B**: just outside the baseline, anywhere from halfway between first and second up to second base.',
+  C: '**C**: just outside the baseline, anywhere between second and third.',
+};
+function zoneAxes(z) {
+  const dx = z.to.x - z.from.x, dy = z.to.y - z.from.y;
+  const L = Math.hypot(dx, dy);
+  const u = { x: dx / L, y: dy / L };
+  let n = { x: u.y, y: -u.x };
+  if (n.x * z.from.x + n.y * z.from.y < 0) n = { x: -n.x, y: -n.y }; // the side away from home plate
+  return { u, n };
+}
+export function inStartZone(k, p) {
+  const z = START_ZONES[k];
+  if (!z) return dist(p, UMP_SPOTS[k]) < 10;
+  const { u, n } = zoneAxes(z);
+  const rx = p.x - z.from.x, ry = p.y - z.from.y;
+  const s = rx * u.x + ry * u.y, d = rx * n.x + ry * n.y;
+  return s >= z.s0 && s <= z.s1 && d >= 1 && d <= 18;
+}
+// the band to highlight on the field while you get set
+function startZonePoly(k) {
+  const z = START_ZONES[k];
+  if (!z) return null;
+  const { u, n } = zoneAxes(z);
+  const P = (s, d) => ({ x: z.from.x + u.x * s + n.x * d, y: z.from.y + u.y * s + n.y * d });
+  return [P(z.s0 + 1, 2), P(z.s1 - 1, 2), P(z.s1 - 1, 12), P(z.s0 + 1, 12)];
+}
+
 function gradeFor(r) {
   if (r >= 0.75) return 'A';
   if (r >= 0.55) return 'B';
@@ -85,6 +122,8 @@ export class BasePlayEvent {
   constructor(session, spec = {}) {
     this.s = session;
     this.div = session.div;
+    // Minors (AA/AAA) keeps it simple: no angle grade, just get set and see the play
+    this.noGrade = this.div.id === 'AA' || this.div.id === 'AAA';
     this.spec = spec;
     this.kind = 'base';
     this.play = spec.play || weighted([
@@ -399,7 +438,7 @@ export class BasePlayEvent {
     hud.options([{ btn: 'A', id: 'set', label: "I'M SET — PITCH!", big: true }], () => this._go());
     if (this.s.hints && !this.spec.exam) {
       const spot = this.expectSpot;
-      const why = { A: 'Bases empty → start in <b>A</b>: foul ground behind first base.', B: 'Runner on 1st only → start in <b>B</b>: outside the baseline between first and second, near second base.', C: 'Runner on 2nd or 3rd → start in <b>C</b>: outside the baseline between second and third, near second base.' }[spot];
+      const why = { A: 'Bases empty → start in <b>A</b>: foul ground behind first base.', B: 'Runner on 1st only → start in <b>B</b>: just outside the baseline, anywhere from halfway between first and second up to second base.', C: 'Runner on 2nd or 3rd → start in <b>C</b>: just outside the baseline, anywhere between second and third.' }[spot];
       hud.tip(`${why} Move with ${this.s.moveHint()}.`);
     }
     this.s.rig.set({ x: 8, y: 52 }, 62, 0.72);
@@ -417,7 +456,7 @@ export class BasePlayEvent {
       const d = dist(this.ump, UMP_SPOTS[k]);
       if (d < nd) { nd = d; nearest = k; }
     }
-    this.startOk = nearest === this.expectSpot && nd < 10;
+    this.startOk = inStartZone(this.expectSpot, this.ump);
     this.startNearest = nd < 14 ? nearest : null;
     hud.floater(this.startOk ? `✓ ${this.expectSpot} POSITION` : `✗ SHOULD BE IN ${this.expectSpot}`, !this.startOk);
     if (this.startOk) audio.correct(); else audio.wrong();
@@ -665,7 +704,7 @@ export class BasePlayEvent {
       missed: c.missed, empty: c.empty, slide: c.slide, mirror,
       quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving },
       baseName: BASE_NAME[c.baseNum], speed: 0.4,
-      gradeLabel: `ANGLE ${c.grade}`, gradeColor: GRADE_COLOR[c.grade],
+      gradeLabel: this.noGrade ? null : `ANGLE ${c.grade}`, gradeColor: GRADE_COLOR[c.grade],
       skin: pick(SKINS),
     });
     this.cam.three = !!this.s.field.is3d;
@@ -718,7 +757,7 @@ export class BasePlayEvent {
       if (this.startOk) bonus.push({ label: `Started in ${this.expectSpot}`, pts: 50 });
       else bonus.push({ label: `Wrong start spot`, pts: -25 });
     }
-    bonus.push({ label: `Angle grade ${c.grade}`, pts: GRADE_PTS[c.grade] });
+    if (!this.noGrade) bonus.push({ label: `Angle grade ${c.grade}`, pts: GRADE_PTS[c.grade] });
     if (c.view.lane) bonus.push({ label: 'In the throwing lane', pts: -25 });
     if (c.moving) bonus.push({ label: 'Called it on the move', pts: -25 });
     for (const p of this.penalties) bonus.push(p);
@@ -728,10 +767,10 @@ export class BasePlayEvent {
       kind: 'base', sub: c.key, correct, timing, card: c.card,
       extraCards: [
         { id: 'abc', correct: !!this.startOk },
-        { id: 'angles', correct: c.grade === 'A' || c.grade === 'B' },
+        ...(this.noGrade ? [] : [{ id: 'angles', correct: c.grade === 'A' || c.grade === 'B' }]),
         ...(bang ? [{ id: 'bang-bang', correct }] : []),
       ],
-      bonus, grade: c.grade, startOk: this.critIdx === 0 ? this.startOk : undefined, bangBang: bang && correct,
+      bonus, grade: this.noGrade ? undefined : c.grade, startOk: this.critIdx === 0 ? this.startOk : undefined, bangBang: bang && correct,
       call: id, truth, division: this.div.id,
     };
     const scored = this.s.record(res);
@@ -765,14 +804,20 @@ export class BasePlayEvent {
     if (v.occl) tips.push('A fielder\'s body **blocked your view**. Step so you can see daylight between glove and runner.');
     if (v.lane) tips.push('You were **in the throwing lane**. Stay out of the ball\'s path.');
     if (c.moving) tips.push('You were **still moving** at the moment of the play. Get set — stop — then watch.');
-    if (v.angle < 0.4 && !v.occl) tips.push(`Poor angle: you were looking **along** the ${c.type === 'force' ? 'throw' : 'runner\'s path'}. Aim for about **90°** to it.`);
-    if (v.d > 60) tips.push('You were **too far away**. Close the distance while the ball is in the air.');
-    if (v.d < 5) tips.push('You were **too close** — back off so you can see the whole play.');
-    if (!tips.length) tips.push('Great positioning: good angle, good distance, and you were set.');
-    let extra = `<div class="vcall">📐 Angle grade: <b style="color:${GRADE_COLOR[c.grade]}">${c.grade}</b> · ${Math.round(c.ratio * 100)}% of the best view${this.critIdx === 0 ? ` · Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be <b>${this.expectSpot}</b>`}` : ''}<br>${mini(tips.join(' '))}</div>`;
+    if (!this.noGrade) {
+      if (v.angle < 0.4 && !v.occl) tips.push(`Poor angle: you were looking **along** the ${c.type === 'force' ? 'throw' : 'runner\'s path'}. Aim for about **90°** to it.`);
+      if (v.d > 60) tips.push('You were **too far away**. Close the distance while the ball is in the air.');
+      if (v.d < 5) tips.push('You were **too close** — back off so you can see the whole play.');
+    }
+    if (this.critIdx === 0 && !this.startOk) tips.unshift(`Start in ${ZONE_HELP[this.expectSpot]}`);
+    if (!tips.length) tips.push(this.noGrade ? 'Nice — you were set and could see the play.' : 'Great positioning: good angle, good distance, and you were set.');
+    const start = this.critIdx === 0 ? `Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be in <b>${this.expectSpot}</b>`}` : '';
+    let extra = this.noGrade
+      ? `<div class="vcall">${start ? `📍 ${start}<br>` : ''}${mini(tips.join(' '))}</div>`
+      : `<div class="vcall">📐 Angle grade: <b style="color:${GRADE_COLOR[c.grade]}">${c.grade}</b> · ${Math.round(c.ratio * 100)}% of the best view${start ? ` · ${start}` : ''}<br>${mini(tips.join(' '))}</div>`;
     if (timing === 'early') extra += '<div class="vcall">⏱️ <b>Quick trigger!</b> You called it before the play was over. Let it finish, pause, then sell it.</div>';
     // Show the best spot on the field
-    this.showIdeal = c.ideal;
+    this.showIdeal = this.noGrade ? null : c.ideal;
     this.s.showVerdict({
       correct,
       title: correct ? pick(['GREAT CALL!', 'RIGHT ON!', 'SOLD IT!', 'MONEY!']) : 'MISSED CALL',
@@ -781,7 +826,7 @@ export class BasePlayEvent {
       extraHtml: extra,
       card: c.card,
       scored,
-      note: 'The gold ring on the field shows a great spot for that play.',
+      note: this.noGrade ? '' : 'The gold ring on the field shows a great spot for that play.',
     }, () => {
       this.showIdeal = null;
       this.signalPose = null;
@@ -805,8 +850,12 @@ export class BasePlayEvent {
     const actors = [...this.tl.list(), this.umpActor];
     const markers = [];
     if (this.state === 'position' && (s.hints || this.spec.tutorial) && !this.spec.exam) {
-      const sp = UMP_SPOTS[this.expectSpot];
-      markers.push({ x: sp.x, y: sp.y, r: 4, color: 'rgba(255,211,77,0.95)', dash: [6, 5], label: this.expectSpot });
+      const poly = startZonePoly(this.expectSpot);
+      if (poly) markers.push({ poly, color: '#ffd34d', dash: [6, 5], label: this.expectSpot });
+      else {
+        const sp = UMP_SPOTS[this.expectSpot];
+        markers.push({ x: sp.x, y: sp.y, r: 4, color: 'rgba(255,211,77,0.95)', dash: [6, 5], label: this.expectSpot });
+      }
     }
     if (this.state === 'live' && (s.hints || this.spec.tutorial) && !this.spec.exam) {
       const c = this.crits[this.critIdx];
