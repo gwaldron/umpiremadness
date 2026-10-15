@@ -72,16 +72,18 @@ function idealSpot(crit, from, maxTravel = 200) {
 }
 
 // Where the base umpire starts. A is a spot in foul ground behind first. On Little League's 60-ft
-// diamond, B and C are stretches just outside the baselines: B anywhere from halfway between first
-// and second up to second base, C anywhere between second and third.
+// diamond, B and C are outside the baselines and BEHIND the infielders (who play about 8 ft back),
+// out toward the edge of the outfield grass: B anywhere from halfway between first and second up to
+// second base, C anywhere between second and third. d0..d1 = feet behind the baseline that count;
+// b0..b1 = the band we highlight while you get set.
 const START_ZONES = {
-  B: { from: BASES.second, to: BASES.first, s0: -3, s1: 32 },
-  C: { from: BASES.second, to: BASES.third, s0: -3, s1: 63 },
+  B: { from: BASES.second, to: BASES.first, s0: -3, s1: 32, d0: 11, d1: 30, b0: 14, b1: 24 },
+  C: { from: BASES.second, to: BASES.third, s0: -3, s1: 63, d0: 11, d1: 30, b0: 14, b1: 24 },
 };
 const ZONE_HELP = {
   A: '**A**: in foul ground behind first base.',
-  B: '**B**: just outside the baseline, anywhere from halfway between first and second up to second base.',
-  C: '**C**: just outside the baseline, anywhere between second and third.',
+  B: '**B**: behind the infielders, back by the edge of the outfield grass, anywhere from halfway between first and second up to second base.',
+  C: '**C**: behind the infielders, back by the edge of the outfield grass, anywhere between second and third.',
 };
 function zoneAxes(z) {
   const dx = z.to.x - z.from.x, dy = z.to.y - z.from.y;
@@ -97,7 +99,7 @@ export function inStartZone(k, p) {
   const { u, n } = zoneAxes(z);
   const rx = p.x - z.from.x, ry = p.y - z.from.y;
   const s = rx * u.x + ry * u.y, d = rx * n.x + ry * n.y;
-  return s >= z.s0 && s <= z.s1 && d >= 1 && d <= 18;
+  return s >= z.s0 && s <= z.s1 && d >= z.d0 && d <= z.d1;
 }
 // the band to highlight on the field while you get set
 function startZonePoly(k) {
@@ -105,7 +107,7 @@ function startZonePoly(k) {
   if (!z) return null;
   const { u, n } = zoneAxes(z);
   const P = (s, d) => ({ x: z.from.x + u.x * s + n.x * d, y: z.from.y + u.y * s + n.y * d });
-  return [P(z.s0 + 1, 2), P(z.s1 - 1, 2), P(z.s1 - 1, 12), P(z.s0 + 1, 12)];
+  return [P(z.s0 + 1, z.b0), P(z.s1 - 1, z.b0), P(z.s1 - 1, z.b1), P(z.s0 + 1, z.b1)];
 }
 
 function gradeFor(r) {
@@ -438,7 +440,7 @@ export class BasePlayEvent {
     hud.options([{ btn: 'A', id: 'set', label: "I'M SET — PITCH!", big: true }], () => this._go());
     if (this.s.hints && !this.spec.exam) {
       const spot = this.expectSpot;
-      const why = { A: 'Bases empty → start in <b>A</b>: foul ground behind first base.', B: 'Runner on 1st only → start in <b>B</b>: just outside the baseline, anywhere from halfway between first and second up to second base.', C: 'Runner on 2nd or 3rd → start in <b>C</b>: just outside the baseline, anywhere between second and third.' }[spot];
+      const why = { A: 'Bases empty → start in <b>A</b>: foul ground behind first base.', B: 'Runner on 1st only → start in <b>B</b>: behind the infielders, back by the outfield grass, anywhere from halfway between first and second up to second base.', C: 'Runner on 2nd or 3rd → start in <b>C</b>: behind the infielders, back by the outfield grass, anywhere between second and third.' }[spot];
       hud.tip(`${why} Move with ${this.s.moveHint()}.`);
     }
     this.s.rig.set({ x: 8, y: 52 }, 62, 0.72);

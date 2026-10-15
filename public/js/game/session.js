@@ -532,7 +532,7 @@ export function buildCamp(level = 'minors') {
         card(3, T, 'THE INFIELD FLY', 'Four boxes to check, every time', "**Fewer than two outs**, runners on **1st & 2nd** (or bases loaded), a **fair fly ball** — not a line drive or a bunt — that an infielder can catch with **ordinary effort**. All four boxes? \"Infield fly, batter's out!\" Any box missing? **No call.**", 'infield-fly'),
         sq('iff', 'MAJ'), sq('iff', 'MAJ'), sq('iff', 'MAJ'),
         // 4 — the double play
-        card(4, T, 'TURN TWO', 'Runner on first: start in B — outside the baseline', "With a runner on first, ground balls become **double plays**. Get an angle on the force at **second**, sell the call, then **turn** and get the best look you can at **first**. Two calls, one play.", 'double-play'),
+        card(4, T, 'TURN TWO', 'Runner on first: start in B — behind the infielders', "With a runner on first, ground balls become **double plays**. Get an angle on the force at **second**, sell the call, then **turn** and get the best look you can at **first**. Two calls, one play.", 'double-play'),
         bp('dp'), bp('dp'),
         // 5 — steals and back-picks
         card(5, T, 'RUNNERS ON THE MOVE', 'Tag plays: watch the glove AND the bag', "On steals and back-picks it's a **tag play**. You need **daylight** between the glove and the runner. Watch for **missed tags**, **dropped balls**, and the sneaky **empty glove** (ball still in his other hand!).", 'tag-play'),
@@ -574,7 +574,7 @@ export function buildCamp(level = 'minors') {
       ab({ maxPitches: 6 }),
       ab({ maxPitches: 6 }),
       // 3 — the base positions
-      card(3, T, 'A, B & C', 'Where the base umpire starts', "Before each pitch, run to your **starting spot**. **A**: bases empty, foul ground behind first. **B**: runner on 1st only — just outside the baseline, anywhere from **halfway between first and second up to second base**. **C**: runner on 2nd or 3rd — just outside the baseline, anywhere **between second and third**. On Little League's 60-foot diamond, **B and C are outside the baselines**.", 'abc'),
+      card(3, T, 'A, B & C', 'Where the base umpire starts', "Before each pitch, run to your **starting spot**. **A**: bases empty, foul ground behind first. **B**: runner on 1st only — **behind the infielders**, back by the outfield grass, anywhere from **halfway between first and second up to second base**. **C**: runner on 2nd or 3rd — **behind the infielders**, anywhere **between second and third**. On Little League's 60-foot diamond, **B and C are outside the baselines**.", 'abc'),
       bp('force1B', { runners: [] }),
       bp('steal2B'),
       bp('steal3B'),

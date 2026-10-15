@@ -505,8 +505,13 @@ export class AtBatEvent {
       if (kind === 'u3k') {
         // Not legally caught: blocked in the dirt or popped out of the mitt
         const p0 = pk.catchPos;
-        if (sub === 'drop') return { x: p0.x + dt * 2, y: GLOVE_Y + dt * 2.5, z: Math.max(BALL_R, p0.z + 5 * dt - 16 * dt * dt) };
-        return { x: p0.x + dt * 3, y: GLOVE_Y + dt * 5.5 * Math.max(0, 1 - dt), z: Math.max(BALL_R, 0.5 + 3 * dt - 16 * dt * dt) };
+        if (sub === 'drop') {
+          const roll = (1 - Math.exp(-dt * 1.4)) / 1.4;
+          return { x: p0.x + roll * 3, y: GLOVE_Y + roll * 3.5, z: Math.max(BALL_R, p0.z + 5 * dt - 16 * dt * dt) };
+        }
+        // blocked in the dirt: it kicks off the catcher and rolls to a stop out in front
+        const roll = (1 - Math.exp(-dt * 1.4)) / 1.4;
+        return { x: p0.x + roll * 3, y: GLOVE_Y + roll * 3.2, z: Math.max(BALL_R, 0.5 + 3 * dt - 16 * dt * dt) };
       }
       return { ...this.glove };
     };
@@ -514,13 +519,36 @@ export class AtBatEvent {
 
   // ---------- Loop ----------
   // Where the umpire is looking: straight out at the pitcher, or following a foul ball.
-  _updateLook(dt) {
-    const eye = { x: this.eye.x, y: -4.3, z: this.eye.z };
+  // Is the umpire watching the ball right now? Any time where it goes decides the call: anything
+  // hit, a hit-by-pitch, and a third strike from the moment it heads for the dirt.
+  _following() {
     const pk = this.pk;
+    if (!pk || this.state === 'pre' || this.state === 'setup') return false;
+    const k = pk.kind;
+    if (k === 'contact' || k === 'bunt2' || k === 'inPlay' || k === 'hbp') return pk.t > pk.contactT;
+    if (k === 'u3k') return pk.t > (pk.traj.tb !== null ? pk.tRelease + pk.traj.tb - 0.12 : pk.tGlove - 0.05);
+    return false;
+  }
+
+  // the umpire's eye, including stepping out of the stance on plays around the plate
+  _eyePos() {
+    const o = this.eyeOff || { x: 0, y: 0, z: 0 };
+    return { x: this.eye.x + o.x, y: -4.3 + o.y, z: this.eye.z + o.z };
+  }
+
+  _updateLook(dt) {
+    const pk = this.pk;
+    const follow = this._following();
+    // on plays right around the plate (dropped third strike, HBP, tips, bunts), come up out of the
+    // stance and step out so the catcher doesn't block the ball
+    const close = follow && (pk.kind === 'u3k' || pk.kind === 'hbp' || pk.kind === 'bunt2' || (pk.kind === 'contact' && (pk.sub === 'foulTip' || pk.sub === 'foulTipDrop')));
+    const side = this.eye.x >= 0 ? 1 : -1;
+    const wantOff = close ? { x: side * 1.7, y: 0.25, z: 1.0 } : { x: 0, y: 0, z: 0 };
+    const off = this.eyeOff || { x: 0, y: 0, z: 0 };
+    const ko = 1 - Math.exp(-dt * 4);
+    this.eyeOff = { x: off.x + (wantOff.x - off.x) * ko, y: off.y + (wantOff.y - off.y) * ko, z: off.z + (wantOff.z - off.z) * ko };
+    const eye = this._eyePos();
     let want = { x: this.eye.x * 0.25 - eye.x, y: 25 - eye.y, z: this.lookZ - eye.z };
-    // follow anything batted away from the plate: fouls, bunts, balls in play
-    const batted = pk && ((pk.kind === 'contact' && (pk.sub === 'foulSide' || pk.sub === 'foulBack')) || pk.kind === 'bunt2' || pk.kind === 'inPlay');
-    const follow = batted && pk.t > pk.contactT && this.state !== 'pre' && this.state !== 'setup';
     if (follow) {
       const b = pk.ballAt(pk.t);
       if (b) want = { x: b.x - eye.x, y: b.y - eye.y, z: b.z - eye.z };
@@ -627,10 +655,10 @@ export class AtBatEvent {
       if (live && !pk.decisionOpen && !this._isZoneCall()) {
         let openAt = Infinity;
         // fouls wait until you've watched the ball go foul
-        if (pk.kind === 'contact') openAt = pk.sub === 'popCaught' ? pk.contactT + 2.5 : pk.sub === 'foulBack' ? pk.contactT + 1.1 : pk.sub === 'foulSide' ? pk.contactT + 1.3 : pk.contactT + 0.45;
+        if (pk.kind === 'contact') openAt = pk.sub === 'popCaught' ? pk.contactT + 2.5 : pk.sub === 'foulBack' ? pk.contactT + 1.1 : pk.sub === 'foulSide' ? pk.contactT + 1.3 : pk.contactT + 0.8;
         if (pk.kind === 'bunt2') openAt = pk.contactT + 1.5;
-        if (pk.kind === 'hbp') openAt = pk.contactT + 0.45;
-        if (pk.kind === 'u3k') openAt = pk.tGlove + 0.55;
+        if (pk.kind === 'hbp') openAt = pk.contactT + 0.8;
+        if (pk.kind === 'u3k') openAt = pk.tGlove + 1.0;
         if (pk.kind === 'inPlay') openAt = pk.contactT + 0.9;
         if (t >= openAt) {
           pk.decisionOpen = true;
@@ -895,9 +923,9 @@ export class AtBatEvent {
     const aspect = cam.w / cam.h;
     // Keep roughly the same horizontal coverage on any screen shape
     cam.fovY = clamp(2 * Math.atan(Math.tan(0.5) * 1.6 / Math.min(aspect, 1.6)), 0.9, 1.5);
-    const EYE_Y = -4.3;
     const d = this.lookDir;
-    cam.lookAt({ x: this.eye.x, y: EYE_Y, z: this.eye.z }, d ? { x: this.eye.x + d.x * 25, y: EYE_Y + d.y * 25, z: this.eye.z + d.z * 25 } : { x: this.eye.x * 0.25, y: 25, z: this.lookZ });
+    const ep = this._eyePos();
+    cam.lookAt(ep, d ? { x: ep.x + d.x * 25, y: ep.y + d.y * 25, z: ep.z + d.z * 25 } : { x: this.eye.x * 0.25, y: 25, z: this.lookZ });
     const pk = this.pk;
     const t = pk ? pk.t : 0;
     const ball = pk && this.state !== 'setup' ? pk.ballAt(t) : null;

@@ -31,8 +31,8 @@ export const POS = {
 // B and C are OUTSIDE the baselines (behind the 1B-2B and 2B-3B lines, near second).
 export const UMP_SPOTS = {
   A: { x: 52, y: 47.5, label: 'A' },
-  B: { x: 12, y: 83, label: 'B' },
-  C: { x: -12, y: 83, label: 'C' },
+  B: { x: 21, y: 88, label: 'B' }, // behind the second baseman, by the outfield grass
+  C: { x: -21, y: 88, label: 'C' },
   PU: { x: 0, y: -6.5, label: 'PU' },
 };
 
