@@ -52,6 +52,12 @@ function make3D(safe) {
   return new Field3D(c, { safe });
 }
 const profile = loadProfile();
+// Splash screen (index.html): report progress, and yield so it can repaint between the heavy steps.
+const splash = (pct) => window.__splash && window.__splash.step(pct);
+const breathe = () => new Promise((r) => setTimeout(r, 0));
+splash(70);
+await breathe();
+
 let field;
 try {
   if (new URLSearchParams(location.search).get('gl') === '0') throw new Error('2D requested');
@@ -64,6 +70,15 @@ try {
   document.getElementById('game3d').style.display = 'none';
   field = new FieldRenderer();
 }
+
+// Compile the 3D shaders now, behind the splash, instead of stuttering through the first frames.
+splash(85);
+if (field.is3d && field.engine.renderer.compileAsync) {
+  try {
+    await Promise.race([field.engine.renderer.compileAsync(field.scene, field.engine.camera), new Promise((r) => setTimeout(r, 4000))]);
+  } catch (e) { /* compiling early is only an optimization */ }
+}
+splash(95);
 
 const app = {
   profile,
@@ -332,6 +347,8 @@ function frame(now) {
     console.error(err);
   }
   input.drawStick(g, app.dpr);
+  // the first real frame is on screen: let the splash go
+  if (!app.shown) { app.shown = true; if (window.__splash) window.__splash.done(); }
   requestAnimationFrame(frame);
 }
 

@@ -48,7 +48,13 @@ Then open http://localhost:8787.
 npm run check
 ```
 
-This builds every rule situation, with many random variants for every division, and verifies answers, timing and animation keyframes.
+This builds every rule situation, with many random variants for every division, and verifies answers, timing and animation keyframes. It also checks that the `<link rel="modulepreload">` list in `public/index.html` matches the code: with no bundler, preloading every module lets them download in parallel instead of as a waterfall. After adding or removing a JS file, run:
+
+```bash
+node scripts/preload.mjs
+```
+
+While the game loads, `index.html` shows an inline splash screen (logo, spinning ball, progress bar); `main.js` reports progress with `window.__splash.step()` and fades it out after the first frame.
 
 ## Deploy (Cloudflare Workers static assets)
 

@@ -12,6 +12,7 @@ import { LIFE } from '../public/js/data/life.js';
 import { RULE } from '../public/js/data/rules.js';
 import { Timeline, setupDefense, setupRunners, setupBatter, setupUmps } from '../public/js/scenes/timeline.js';
 import { KITS } from '../public/js/render/figures.js';
+import { preloadIsCurrent } from './preload.mjs';
 
 const problems = [];
 let built = 0;
@@ -81,6 +82,8 @@ for (const f of walk(root.pathname.replace(/^\/([A-Za-z]:)/, '$1'))) {
   if (src.includes('debugger')) problems.push(`${f}: contains debugger statement`);
   files++;
 }
+
+if (!preloadIsCurrent()) problems.push('public/index.html: modulepreload list is out of date (run node scripts/preload.mjs)');
 
 const uniq = [...new Set(problems)];
 if (uniq.length) {

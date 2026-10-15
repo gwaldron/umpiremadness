@@ -15,10 +15,119 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <!-- fonts load in the background so they never hold up the first paint -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;700;900&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;700;900&display=swap"></noscript>
   <link rel="stylesheet" href="css/game.css">
+  <!-- the import map must come before any module loads, including the preloads below -->
+  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
+  <!-- every module, so they download in parallel instead of as a waterfall (kept current by scripts/preload.mjs) -->
+  <!-- modulepreload:start -->
+  <link rel="modulepreload" href="vendor/three/three.module.min.js">
+  <link rel="modulepreload" href="vendor/three/three.core.min.js">
+  <link rel="modulepreload" href="vendor/three/addons/postprocessing/EffectComposer.js">
+  <link rel="modulepreload" href="vendor/three/addons/postprocessing/MaskPass.js">
+  <link rel="modulepreload" href="vendor/three/addons/postprocessing/OutputPass.js">
+  <link rel="modulepreload" href="vendor/three/addons/postprocessing/Pass.js">
+  <link rel="modulepreload" href="vendor/three/addons/postprocessing/RenderPass.js">
+  <link rel="modulepreload" href="vendor/three/addons/postprocessing/ShaderPass.js">
+  <link rel="modulepreload" href="vendor/three/addons/postprocessing/UnrealBloomPass.js">
+  <link rel="modulepreload" href="vendor/three/addons/shaders/CopyShader.js">
+  <link rel="modulepreload" href="vendor/three/addons/shaders/LuminosityHighPassShader.js">
+  <link rel="modulepreload" href="vendor/three/addons/shaders/OutputShader.js">
+  <link rel="modulepreload" href="js/audio.js">
+  <link rel="modulepreload" href="js/data/achievements.js">
+  <link rel="modulepreload" href="js/data/divisions.js">
+  <link rel="modulepreload" href="js/data/life.js">
+  <link rel="modulepreload" href="js/data/rules.js">
+  <link rel="modulepreload" href="js/data/situations.js">
+  <link rel="modulepreload" href="js/game/session.js">
+  <link rel="modulepreload" href="js/input.js">
+  <link rel="modulepreload" href="js/main.js">
+  <link rel="modulepreload" href="js/render/camera.js">
+  <link rel="modulepreload" href="js/render/field.js">
+  <link rel="modulepreload" href="js/render/figures.js">
+  <link rel="modulepreload" href="js/render/hero2d.js">
+  <link rel="modulepreload" href="js/render3d/dust.js">
+  <link rel="modulepreload" href="js/render3d/engine.js">
+  <link rel="modulepreload" href="js/render3d/hero.js">
+  <link rel="modulepreload" href="js/render3d/people.js">
+  <link rel="modulepreload" href="js/render3d/preview.js">
+  <link rel="modulepreload" href="js/render3d/stadium.js">
+  <link rel="modulepreload" href="js/render3d/textures.js">
+  <link rel="modulepreload" href="js/render3d/world3d.js">
+  <link rel="modulepreload" href="js/scenes/base.js">
+  <link rel="modulepreload" href="js/scenes/life.js">
+  <link rel="modulepreload" href="js/scenes/pitcher3d.js">
+  <link rel="modulepreload" href="js/scenes/plate.js">
+  <link rel="modulepreload" href="js/scenes/situation.js">
+  <link rel="modulepreload" href="js/scenes/timeline.js">
+  <link rel="modulepreload" href="js/scenes/umpcam.js">
+  <link rel="modulepreload" href="js/storage.js">
+  <link rel="modulepreload" href="js/ui/confetti.js">
+  <link rel="modulepreload" href="js/ui/hud.js">
+  <link rel="modulepreload" href="js/ui/screens.js">
+  <link rel="modulepreload" href="js/util.js">
+  <link rel="modulepreload" href="js/voice.js">
+  <!-- modulepreload:end -->
+  <style>
+    /* Splash screen: inline so it paints instantly, before any script or font arrives */
+    #splash { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; text-align: center; color: #fff;
+      background: radial-gradient(ellipse at 50% 35%, #1d3270, #0b1530 70%); font-family: 'Rubik', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      transition: opacity 0.45s ease; padding: 16px; }
+    #splash.out { opacity: 0; pointer-events: none; }
+    #splash .sp-kicker { display: inline-block; background: #ffd34d; color: #251b00; font-weight: 900; font-size: 12px; letter-spacing: 2px; padding: 5px 10px; border-radius: 6px; }
+    #splash .sp-logo { font-family: 'Bungee', Impact, 'Arial Black', sans-serif; font-size: clamp(44px, 12vw, 96px); line-height: 0.95; margin: 14px 0 6px; text-shadow: 0 5px 0 rgba(0,0,0,0.35); }
+    #splash .sp-logo span { color: #ffd34d; display: block; }
+    #splash .sp-tag { color: #c9d3ee; font-weight: 700; font-size: 15px; }
+    #splash .sp-ball { width: 64px; height: 64px; margin: 26px auto 18px; animation: spBounce 0.9s cubic-bezier(.3,0,.4,1) infinite alternate; }
+    #splash .sp-ball svg { width: 100%; height: 100%; animation: spSpin 1.1s linear infinite; filter: drop-shadow(0 6px 6px rgba(0,0,0,0.35)); }
+    #splash .sp-bar { width: min(78vw, 360px); height: 10px; margin: 0 auto; border-radius: 99px; background: rgba(255,255,255,0.14); overflow: hidden; }
+    #splash .sp-bar i { display: block; height: 100%; width: 4%; border-radius: 99px; background: linear-gradient(90deg, #35d07f, #ffd34d); }
+    #splash .sp-msg { margin-top: 12px; min-height: 20px; color: #ffd34d; font-weight: 800; font-size: 15px; }
+    @keyframes spSpin { to { transform: rotate(360deg); } }
+    @keyframes spBounce { from { transform: translateY(0); } to { transform: translateY(-14px); } }
+    @media (prefers-reduced-motion: reduce) { #splash .sp-ball, #splash .sp-ball svg { animation: none; } }
+  </style>
 </head>
 <body data-input="keyboard">
+  <div id="splash" role="status" aria-label="Loading Umpire Madness">
+    <div>
+      <div class="sp-kicker">UMPIRE BOOTCAMP PRESENTS</div>
+      <div class="sp-logo">UMPIRE<span>MADNESS</span></div>
+      <div class="sp-tag">Make the call. Own the field.</div>
+      <div class="sp-ball"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29" fill="#fbfbf6" stroke="#d9d9d2" stroke-width="2"/><path d="M18 9c7 7 7 39 0 46M46 9c-7 7-7 39 0 46" fill="none" stroke="#d62839" stroke-width="2.5" stroke-dasharray="3 3"/></svg></div>
+      <div class="sp-bar"><i id="spBar"></i></div>
+      <div class="sp-msg" id="spMsg">Warming up…</div>
+    </div>
+  </div>
+  <script>
+    // Splash progress: creeps forward on its own, jumps when the game reports a step, fades on done().
+    (function () {
+      var el = document.getElementById('splash'), bar = document.getElementById('spBar'), msg = document.getElementById('spMsg');
+      var lines = ['Mowing the outfield…', 'Chalking the foul lines…', 'Raking the infield…', 'Dusting off home plate…', 'Warming up the pitcher…', 'Finding the umpire\'s mask…', 'Filling the stands…', 'Testing the PA system…', 'Rubbing up the baseballs…'];
+      var i = Math.floor(Math.random() * lines.length), shown = 4, target = 55, done = false, t0 = Date.now();
+      msg.textContent = lines[i];
+      var spin = setInterval(function () {
+        i = (i + 1) % lines.length; msg.textContent = lines[i];
+        if (Date.now() - t0 > 25000 && !done) msg.textContent = 'Still loading… if this takes forever, reload the page.';
+      }, 1100);
+      (function tick() {
+        if (!el.parentNode) return;
+        shown += (target - shown) * (done ? 0.35 : 0.03);
+        bar.style.width = Math.min(100, shown).toFixed(1) + '%';
+        requestAnimationFrame(tick);
+      })();
+      window.__splash = {
+        step: function (pct) { target = Math.max(target, pct); },
+        done: function () {
+          if (done) return;
+          done = true; target = 100; clearInterval(spin); msg.textContent = 'PLAY BALL!';
+          setTimeout(function () { el.classList.add('out'); setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 500); }, 250);
+        },
+      };
+    })();
+  </script>
   <canvas id="game3d" aria-hidden="true"></canvas>
   <canvas id="game" aria-label="Ballfield"></canvas>
 
@@ -56,7 +165,6 @@
   <div id="rotate" class="rotate-hint">↻ Turn your phone sideways for the best view</div>
 
   <noscript><p style="color:#fff;padding:2rem;font-family:sans-serif">Umpire Madness needs JavaScript turned on.</p></noscript>
-  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
