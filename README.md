@@ -8,7 +8,8 @@ An arcade-style training game for young **Little League baseball** umpires. It's
 ## What's in it
 
 - **Behind the plate**: a first-person view through your mask. Get into the slot (the catcher's helmet really
-  does block your view if you don't), track the pitch into the glove, then call **strike** or **ball**.
+  does block your view if you don't) and adjust any time during the at-bat; the slot is judged as each pitch
+  reaches the plate. Track the pitch into the glove, then call **strike** or **ball**.
   The K-Zone replay shows exactly where it crossed. There are checked swings, foul tips, two-strike foul bunts,
   hit-by-pitch rulings (hands, swinging, in the zone, leaning in) and uncaught third strikes too.
 - **On the bases**: you control the base umpire. Start in **A, B or C**, move for an angle as the play develops,

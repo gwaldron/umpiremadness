@@ -238,14 +238,14 @@ export class AtBatEvent {
     const side = this.batter.side;
     const x = this.eye.x, z = this.eye.z;
     const ideal = side * 0.85;
-    let msg = 'In the slot. Nice!', ok = true;
-    if (Math.abs(x) < 0.42) { msg = "You're straight behind the catcher — the helmet blocks the plate!"; ok = false; }
-    else if (Math.sign(x) !== side) { msg = 'Wrong side! Set up in the slot on the batter\'s side.'; ok = false; }
-    else if (Math.abs(x) > 1.35) { msg = 'Too close to the batter — slide toward the catcher.'; ok = false; }
-    else if (z > 4.4) { msg = 'Too high — get your chin just above the catcher\'s helmet.'; ok = false; }
-    else if (z < 3.55) { msg = 'Too low — the catcher is blocking your view.'; ok = false; }
+    let msg = 'In the slot. Nice!', short = 'IN THE SLOT', ok = true;
+    if (Math.abs(x) < 0.42) { msg = "You're straight behind the catcher — the helmet blocks the plate!"; short = 'BEHIND THE CATCHER'; ok = false; }
+    else if (Math.sign(x) !== side) { msg = 'Wrong side! Set up in the slot on the batter\'s side.'; short = 'WRONG SIDE'; ok = false; }
+    else if (Math.abs(x) > 1.35) { msg = 'Too close to the batter — slide toward the catcher.'; short = 'TOO CLOSE TO BATTER'; ok = false; }
+    else if (z > 4.4) { msg = 'Too high — get your chin just above the catcher\'s helmet.'; short = 'TOO HIGH'; ok = false; }
+    else if (z < 3.55) { msg = 'Too low — the catcher is blocking your view.'; short = 'TOO LOW'; ok = false; }
     const score = clamp(1 - Math.abs(x - ideal) / 0.9, 0, 1) * clamp(1 - Math.abs(z - 3.95) / 0.9, 0, 1);
-    return { ok, msg, score };
+    return { ok, msg, short, score };
   }
 
   _enterSetup() {
@@ -263,7 +263,7 @@ export class AtBatEvent {
     if (this.s.hints && !this.spec.exam && !this.setupHinted && (this.s.slotTips = (this.s.slotTips || 0) + 1) <= 2) {
       this.setupHinted = true;
       this.slotTip = 0;
-      hud.tip('<b>The slot</b> is the gap between the batter and the catcher. Put your head there with your chin just above the catcher\'s helmet so you can see the whole plate.');
+      hud.tip('<b>The slot</b> is the gap between the batter and the catcher. Put your head there with your chin just above the catcher\'s helmet so you can see the whole plate. You can keep adjusting the whole at-bat.');
     }
   }
 
@@ -428,7 +428,6 @@ export class AtBatEvent {
     this._buildBallPath();
     this.state = 'pre';
     this.t = 0;
-    this.allowMove = false;
     this.s.hud.prompt('', '');
     this.s.hud.options(null);
     this.armAnim = -1;
@@ -568,11 +567,14 @@ export class AtBatEvent {
     this.t += dt;
     this._updateLook(dt);
     const hud = this.s.hud;
+    // you can shift around in the slot the whole at-bat, not just while setting up
+    const m = this.finished ? { x: 0, y: 0 } : input.move;
+    this.eye.x = clamp(this.eye.x + m.x * dt * 1.6, -1.8, 1.8);
+    this.eye.z = clamp(this.eye.z + m.y * dt * 1.3, 2.9, 4.9);
+    const si = this.slotInfo();
+    // between pitches a small badge shows where you stand; it goes away once the ball is hit or called
+    hud.slotChip(this.state === 'setup' || this.finished || !this.pk || this.pk.called || this._following() ? null : si);
     if (this.state === 'setup') {
-      const m = input.move;
-      this.eye.x = clamp(this.eye.x + m.x * dt * 1.6, -1.8, 1.8);
-      this.eye.z = clamp(this.eye.z + m.y * dt * 1.3, 2.9, 4.9);
-      const si = this.slotInfo();
       hud.promptSub(`${si.ok ? '✅' : '⚠️'} ${si.msg}`);
       // the slot tip gets out of the way once you start moving (or after a few seconds)
       if (this.slotTip !== null && this.slotTip !== undefined) {
@@ -600,6 +602,11 @@ export class AtBatEvent {
         if (live && !pk.called && this._isZoneCall()) {
           hud.options(this._optsFor(), (id) => this._call(id));
         }
+      }
+      // the slot counts where you are as the pitch reaches the plate
+      if (pk.slotOk === undefined && t >= pk.tPlate) {
+        pk.slotOk = this.slotInfo().ok;
+        this.s.lastSlot = { ...this.eye };
       }
       if (pk.swing && !pk.swingSnd && t >= pk.swing.start) { pk.swingSnd = true; audio.swing(); }
       // Catcher reaches for the ball late in its flight
@@ -751,7 +758,7 @@ export class AtBatEvent {
       kind: 'pitch', sub: k, correct, timing, card: this._card(),
       painted: k === 'take' && correct && Math.abs(pk.judge.margin) * 12 < 1,
       framedFoiled: k === 'take' && correct && pk.framed,
-      slotOk: this.slotOk,
+      slotOk: pk.slotOk ?? this.slotInfo().ok,
       edgeIn: pk.judge.margin * 12,
       call: id, truth,
       strikeThree: (truth === 'strike' && this.strikes === 2) || truth === 'k',
@@ -858,6 +865,7 @@ export class AtBatEvent {
   _endAtBat(how) {
     if (this.finished) return;
     this.finished = true;
+    this.allowMove = false;
     const gs = this.s.game;
     const hud = this.s.hud;
     const msg = { k: 'STRIKEOUT', bb: 'BALL FOUR — WALK', hbp: 'BATTER TO FIRST', 'u3k-run': 'BATTER RUNS!', out: 'BATTER IS OUT', inplay: 'BALL IN PLAY' }[how] || '';

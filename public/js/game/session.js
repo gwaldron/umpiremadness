@@ -232,6 +232,7 @@ export class Session {
     if (res.painted) items.push({ label: 'Painted corner', pts: 50 });
     if (res.framedFoiled) items.push({ label: 'Frame job foiled', pts: 30 });
     if (res.kind === 'pitch' && res.slotOk) items.push({ label: 'In the slot', pts: 20 });
+    if (res.kind === 'pitch' && res.slotOk === false) items.push({ label: 'Out of the slot', pts: 0 });
     if (res.bangBang) items.push({ label: 'Bang-bang!', pts: 75 });
     for (const b of res.bonus || []) if (res.correct || b.pts < 0) items.push(b);
     if (res.correct) this.streak++;

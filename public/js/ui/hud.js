@@ -30,6 +30,7 @@ export class Hud {
   hide() {
     this.root.hidden = true;
     this.setMode(null);
+    this.slotChip(null);
     this.options(null);
     this.verdict(null);
     this.dialog(null);
@@ -90,6 +91,17 @@ export class Hud {
   promptSub(sub) {
     const s = this.$('prompt').querySelector('.prompt-sub');
     if (s.textContent !== sub) s.textContent = sub || '';
+  }
+  // Small badge under the count while you work behind the plate: are you in the slot? (null hides it)
+  slotChip(info) {
+    const c = this.$('slotChip');
+    const key = info ? `${info.ok}|${info.short}` : '';
+    if (c.dataset.key === key) return;
+    c.dataset.key = key;
+    c.hidden = !info;
+    if (!info) return;
+    c.classList.toggle('bad', !info.ok);
+    c.textContent = `${info.ok ? '✅' : '⚠️'} ${info.short}`;
   }
 
   // Call buttons. list: [{btn, id, label, sub, big, small}]
