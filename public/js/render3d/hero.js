@@ -60,13 +60,16 @@ function teamCanvas(name, fill, stroke) {
 // W: world joints { hip, neck, head, shF, shB, elF, elB, handF, handB, kneeF, kneeB, footF, footB, f, L, S, knob?, batTip? }
 // F = the character's left side, B = right side.
 // o: { kit, skin, hair, gear: 'catcher', glove: 'F'|'B', gloveColor, battingGloves, num, team, teamColors, ballInHand, lookDir, noFace,
-//      ponytail, faceguard }  (softball: a ponytail out the back, and a face cage on the batting helmet)
+//      ponytail, faceguard, bodyless }  (softball: a ponytail out the back, and a face cage on the batting helmet)
+// bodyless: the rigged Blender body (rig.js) is the torso, arms and legs; draw only the head, face,
+// headgear, gloves, bat, catcher's gear and lettering on top of it.
 export function drawHero(P, W, o) {
   const kit = o.kit;
   const S = W.S || 1;
   const skin = o.skin || '#e0ac69';
   const jersey = kit.jersey, trim = kit.trim || '#333', pants = kit.pants;
   const catcher = o.gear === 'catcher';
+  const body = !o.bodyless;
   P.useFamily('hero');
   P.ow = P._outlineFor(W.hip) * 0.35;
   P.blob((W.footF.x + W.footB.x) / 2, (W.footF.y + W.footB.y) / 2, 1.25 * S);
@@ -89,16 +92,18 @@ export function drawHero(P, W, o) {
     const knee = side > 0 ? W.kneeF : W.kneeB, foot = side > 0 ? W.footF : W.footB;
     const hipSide = add(add(W.hip, mul(Lh, 0.2 * S * side)), mul(upT, -0.04 * S));
     const ankle = add(foot, mul(UP, 0.2 * S));
-    P.taper(hipSide, knee, 0.27 * S, pants);
-    P.sphere(knee, 0.165 * S, pants);
+    if (body) P.taper(hipSide, knee, 0.27 * S, pants);
+    if (body) P.sphere(knee, 0.165 * S, pants);
     // piping down the outside of the leg
-    if (!o.slacks) P.limb(add(hipSide, mul(Lh, 0.22 * S * side)), add(knee, mul(Lh, 0.15 * S * side)), 0.022 * S, trim, false);
+    if (body && !o.slacks) P.limb(add(hipSide, mul(Lh, 0.22 * S * side)), add(knee, mul(Lh, 0.15 * S * side)), 0.022 * S, trim, false);
     if (catcher) {
       // shin guard with a knee cap and a plate over the laces
       const sd = norm(sub(ankle, knee));
       P.taper(add(knee, mul(sd, 0.05 * S)), add(ankle, mul(sd, 0.05 * S)), 0.21 * S, GEAR);
       P.ellipsoid(add(knee, mul(sd, -0.02 * S)), Lt, Ft, sd, 0.21 * S, 0.22 * S, 0.24 * S, GEAR);
       for (const k of [0.3, 0.62]) P.limb(lerp3(knee, ankle, k - 0.03), lerp3(knee, ankle, k + 0.03), 0.2 * S, '#14161c', false);
+    } else if (!body) {
+      // the rigged body has its own pants, socks and cleats
     } else if (o.slacks) {
       P.taper(knee, ankle, 0.175 * S, pants); // umpire slacks
     } else {
@@ -113,25 +118,25 @@ export function drawHero(P, W, o) {
     if (o.feetAlong !== false && Math.hypot(fx.x, fx.y) > 0.45 * S) fwd = norm(V(fx.x, fx.y, 0));
     if (o.footDir) fwd = norm(V(o.footDir.x, o.footDir.y, 0));
     const lat = cross(UP, fwd);
-    P.ellipsoid(add(add(foot, mul(UP, 0.12 * S)), mul(fwd, 0.1 * S)), lat, fwd, UP, 0.15 * S, 0.34 * S, 0.12 * S, '#16181f');
-    P.ellipsoid(add(add(foot, mul(UP, 0.035 * S)), mul(fwd, 0.1 * S)), lat, fwd, UP, 0.155 * S, 0.36 * S, 0.04 * S, '#e9e9ea', false);
+    if (body) P.ellipsoid(add(add(foot, mul(UP, 0.12 * S)), mul(fwd, 0.1 * S)), lat, fwd, UP, 0.15 * S, 0.34 * S, 0.12 * S, '#16181f');
+    if (body) P.ellipsoid(add(add(foot, mul(UP, 0.035 * S)), mul(fwd, 0.1 * S)), lat, fwd, UP, 0.155 * S, 0.36 * S, 0.04 * S, '#e9e9ea', false);
     if (catcher) P.ellipsoid(add(add(foot, mul(UP, 0.2 * S)), mul(fwd, 0.18 * S)), lat, fwd, UP, 0.14 * S, 0.2 * S, 0.09 * S, GEAR, false);
   }
 
   // ----- pelvis, belt, torso -----
-  P.ellipsoid(add(W.hip, mul(upT, 0.06 * S)), Lh, Fh, upT, 0.46 * S, 0.32 * S, 0.3 * S, pants);
+  if (body) P.ellipsoid(add(W.hip, mul(upT, 0.06 * S)), Lh, Fh, upT, 0.46 * S, 0.32 * S, 0.3 * S, pants);
   const beltC = add(W.hip, mul(upT, 0.27 * S));
-  P.ellipsoid(beltC, Lh, Fh, upT, 0.455 * S, 0.315 * S, 0.055 * S, '#15161b', false);
+  if (body) P.ellipsoid(beltC, Lh, Fh, upT, 0.455 * S, 0.315 * S, 0.055 * S, '#15161b', false);
   P.useFamily('gloss');
-  P.ellipsoid(add(beltC, mul(Fh, 0.3 * S)), Lh, Fh, upT, 0.05 * S, 0.02 * S, 0.04 * S, '#c9ccd2', false);
+  P.ellipsoid(add(beltC, mul(Fh, (body ? 0.3 : 0.27) * S)), Lh, Fh, upT, 0.05 * S, 0.02 * S, 0.04 * S, '#c9ccd2', false);
   P.useFamily('hero');
   const waistC = lerp3(W.hip, W.neck, 0.4);
   const chestC = lerp3(W.hip, W.neck, 0.7);
-  P.ellipsoid(waistC, Lw, Fw, upT, 0.46 * S, 0.3 * S, tl * 0.34, jersey);
-  P.ellipsoid(chestC, Lt, Ft, upT, 0.6 * S, 0.34 * S, tl * 0.38, jersey);
+  if (body) P.ellipsoid(waistC, Lw, Fw, upT, 0.46 * S, 0.3 * S, tl * 0.34, jersey);
+  if (body) P.ellipsoid(chestC, Lt, Ft, upT, 0.6 * S, 0.34 * S, tl * 0.38, jersey);
   if (o.protector) P.ellipsoid(add(lerp3(W.hip, W.neck, 0.62), mul(Ft, 0.17 * S)), Lt, Ft, upT, 0.44 * S, 0.24 * S, tl * 0.5, '#1d2233');
   // collar (3D only: in a flat painter it shows through the back)
-  if (!P.flat) P.ellipsoid(add(W.neck, mul(upT, -0.06 * S)), Lt, Ft, upT, 0.2 * S, 0.17 * S, 0.05 * S, trim, false);
+  if (!P.flat && body) P.ellipsoid(add(W.neck, mul(upT, -0.06 * S)), Lt, Ft, upT, 0.2 * S, 0.17 * S, 0.05 * S, trim, false);
   if (catcher) {
     // chest protector in front, harness straps across the back
     P.ellipsoid(add(lerp3(W.hip, W.neck, 0.6), mul(Ft, 0.16 * S)), Lt, Ft, upT, 0.46 * S, 0.26 * S, tl * 0.5, GEAR);
@@ -156,14 +161,15 @@ export function drawHero(P, W, o) {
   // ----- arms -----
   for (const side of [1, -1]) {
     const sh = side > 0 ? W.shF : W.shB, el = side > 0 ? W.elF : W.elB, hand = side > 0 ? W.handF : W.handB;
-    P.sphere(sh, 0.15 * S, jersey, false);
-    const cuff = lerp3(sh, el, 0.55);
-    P.taper(sh, cuff, 0.17 * S, jersey);
-    P.limb(lerp3(sh, el, 0.5), lerp3(sh, el, 0.57), 0.128 * S, trim, false); // sleeve trim
-    P.taper(lerp3(sh, el, 0.45), el, 0.135 * S, skin);
-    P.sphere(el, 0.092 * S, skin, false);
-    const wrist = lerp3(el, hand, 0.8);
-    P.taper(el, wrist, 0.115 * S, skin);
+    if (body) {
+      P.sphere(sh, 0.15 * S, jersey, false);
+      const cuff = lerp3(sh, el, 0.55);
+      P.taper(sh, cuff, 0.17 * S, jersey);
+      P.limb(lerp3(sh, el, 0.5), lerp3(sh, el, 0.57), 0.128 * S, trim, false); // sleeve trim
+      P.taper(lerp3(sh, el, 0.45), el, 0.135 * S, skin);
+      P.sphere(el, 0.092 * S, skin, false);
+      P.taper(el, lerp3(el, hand, 0.8), 0.115 * S, skin);
+    }
     const gl = (o.glove === 'F' && side > 0) || (o.glove === 'B' && side < 0);
     const hd = norm(sub(hand, el));
     let hx = cross(hd, UP);
@@ -174,7 +180,7 @@ export function drawHero(P, W, o) {
       const gc = add(hand, mul(hd, 0.1 * S));
       P.ellipsoid(gc, hx, hd, hz, (mitt ? 0.4 : 0.32) * S, (mitt ? 0.4 : 0.42) * S, (mitt ? 0.22 : 0.15) * S, o.gloveColor || '#7a4a22');
       P.ellipsoid(add(gc, mul(hz, (mitt ? 0.12 : 0.09) * S)), hx, hd, hz, (mitt ? 0.27 : 0.2) * S, (mitt ? 0.28 : 0.28) * S, 0.07 * S, '#4a2a14', false);
-    } else {
+    } else if (body) {
       const tone = o.battingGloves ? (o.gloveTone || '#f1f1f1') : skin;
       P.ellipsoid(add(hand, mul(hd, 0.02 * S)), hx, hd, hz, 0.085 * S, 0.12 * S, 0.065 * S, tone);
       if (o.battingGloves) P.limb(lerp3(el, hand, 0.84), lerp3(el, hand, 0.9), 0.08 * S, '#1a1b20', false);
@@ -184,7 +190,7 @@ export function drawHero(P, W, o) {
 
   // ----- neck + head -----
   const headC = W.head;
-  P.taper(W.neck, lerp3(W.neck, headC, 0.6), 0.13 * S, skin, false);
+  if (body) P.taper(W.neck, lerp3(W.neck, headC, 0.6), 0.13 * S, skin, false);
   const hr = 0.36 * S;
   let hf = V(Ft.x + W.f.x, Ft.y + W.f.y, 0);
   hf = o.lookDir ? norm(V(o.lookDir.x, o.lookDir.y, 0)) : len(hf) > 0.2 ? norm(hf) : W.f;
@@ -236,7 +242,24 @@ export function drawHero(P, W, o) {
     P.ellipsoid(add(add(headC, mul(hf, hr * 1.02)), mul(UP, hr * 0.14)), hl, bf, bu, hr * 0.66, hr * 0.56, hr * 0.045, kit.cap);
   }
   P.useFamily('hero');
-  if (o.ponytail) {
+  if (o.ponytail === 'bubble') {
+    // softball bubble braid: a chain of puffy "bubbles" with bright hair ties between them, hanging
+    // out the back of the helmet and swinging a little
+    const swayK = Math.sin((W.hip.x + W.hip.y) * 2);
+    let p = add(add(headC, mul(hf, -hr * 1.02)), mul(UP, -hr * 0.42));
+    const tie = o.scrunchie || '#ff4fa3';
+    const n = 5;
+    for (let i = 0; i < n; i++) {
+      const r = hr * (0.27 - i * 0.03);
+      const step = add(add(mul(hf, -hr * (i === 0 ? 0.16 : 0.05)), mul(UP, -r * 1.7)), mul(hl, swayK * hr * 0.05 * (i + 1)));
+      P.ellipsoid(p, hl, hf, UP, r * 0.6, r * 0.6, r * 0.2, tie, false); // hair tie at the pinch
+      const c = add(p, mul(step, 0.5));
+      P.ellipsoid(c, hl, hf, UP, r, r * 0.92, r * 0.78, hair);
+      p = add(p, step);
+    }
+    P.ellipsoid(p, hl, hf, UP, hr * 0.07, hr * 0.07, hr * 0.05, tie, false);
+    P.taper(p, add(p, mul(UP, -hr * 0.28)), hr * 0.07, hair, false); // the little tail at the end
+  } else if (o.ponytail) {
     // tied at the back of the head, hanging down past the collar and swinging a little
     const tie = add(add(headC, mul(hf, -hr * 1.0)), mul(UP, -hr * 0.05));
     const sway = mul(hl, Math.sin((W.hip.x + W.hip.y) * 2) * hr * 0.12);

@@ -1,5 +1,6 @@
 // The ballpark: everything that doesn't move (plus the crowd, which cheers).
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { paintField, wallTexture, chainLinkTexture, scoreboardCanvas, paintScoreboard, cloudTexture, glowTexture, groundDetailTexture, addGroundDetail, flagTexture } from './textures.js';
 
 const R2 = Math.SQRT1_2;
@@ -60,6 +61,10 @@ export class Stadium {
     scene.add(group);
     const aniso = engine.maxAniso;
     const lam = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
+    // Procedural stand-ins, grouped so the Blender-built kit (models/ballpark.glb) can replace them
+    const pg = {};
+    for (const k of ['dugouts', 'bleachers', 'backstop', 'towers', 'scoreboard', 'foulPoles', 'trees']) { pg[k] = new THREE.Group(); group.add(pg[k]); }
+    this.pg = pg;
 
     // ---- Ground ----
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), lam('#2e6b30'));
@@ -153,7 +158,7 @@ export class Stadium {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 34, 10), lam('#ffd400'));
       pole.rotation.x = Math.PI / 2;
       pole.position.set(sx * FENCE_R * R2, FENCE_R * R2, 17);
-      group.add(pole);
+      pg.foulPoles.add(pole);
     }
 
     // ---- Chain-link: foul-side fences and backstop ----
@@ -188,17 +193,18 @@ export class Stadium {
     fenceAlong(1);
     // backstop behind home (tall chain-link arc)
     const bsR = 36;
+    this.linkMat = linkMat;
     const bs = new THREE.Mesh(arcStrip(bsR, Math.PI * 1.18, Math.PI * 1.82, 0, 14, 24), linkMat({ x: 70, y: 12 }));
-    group.add(bs);
+    pg.backstop.add(bs);
     for (let i = 0; i <= 6; i++) {
       const a = Math.PI * 1.18 + (Math.PI * 0.64 * i) / 6;
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 14.2, 6), postMat);
       post.rotation.x = Math.PI / 2;
       post.position.set(Math.cos(a) * bsR, Math.sin(a) * bsR, 7.1);
-      group.add(post);
+      pg.backstop.add(post);
     }
     // padded wall at the base of the backstop
-    group.add(new THREE.Mesh(arcStrip(bsR - 0.2, Math.PI * 1.18, Math.PI * 1.82, 0, 3, 24), lam('#1d2b53', { side: THREE.DoubleSide })));
+    pg.backstop.add(new THREE.Mesh(arcStrip(bsR - 0.2, Math.PI * 1.18, Math.PI * 1.82, 0, 3, 24), lam('#1d2b53', { side: THREE.DoubleSide })));
 
     // ---- Dugouts ----
     for (const side of [-1, 1]) {
@@ -219,7 +225,7 @@ export class Stadium {
       dug.add(box(18, 6.6, 2.6, lam('#2a3346'), 0, -0.2, 0));
       dug.add(box(16, 1.2, 0.4, lam('#8a6a44'), 0, -2.2, 2.0));
       dug.children.forEach((m) => { m.castShadow = true; m.receiveShadow = true; });
-      group.add(dug);
+      pg.dugouts.add(dug);
     }
 
     // ---- Bleachers + crowd ----
@@ -237,18 +243,19 @@ export class Stadium {
         const step = box(len, 3, 0.35, r % 2 ? plankA : plankB, c.x, c.y, z - 0.35, rot);
         step.receiveShadow = true;
         step.castShadow = true;
-        group.add(step);
+        pg.bleachers.add(step);
         const rs = box(len, 0.25, z, riser, P(mid, d).x, P(mid, d).y, 0, rot);
-        group.add(rs);
+        pg.bleachers.add(rs);
         for (let s = s0 + 1.2; s < s1 - 1; s += 2.1) {
           if (rnd() < 0.24) continue;
-          const p = P(s + (rnd() - 0.5) * 0.5, d + 1.6);
+          if ((s > 57.2 && s < 61.8) || (s > 84.2 && s < 88.8)) continue; // aisles in the kit's bleachers
+          const p = P(s + (rnd() - 0.5) * 0.5, d + 2.2);
           this.fans.push({ x: p.x, y: p.y, z, ph: rnd() * 6.28, sp: 0.8 + rnd() * 0.6, faceRot: rot });
         }
       }
       // back wall of the stands
       const bw = box(len, 0.4, 10, riser, P(mid, 49).x, P(mid, 49).y, 0, rot);
-      group.add(bw);
+      pg.bleachers.add(bw);
     }
     const nf = this.fans.length;
     const shirtPalette = ['#d62839', '#1f5fe0', '#f4f6fa', '#ffd34d', '#2fd67b', '#ff7a1a', '#7b3fe4', '#1f2937', '#e85d9b', '#38bdf8', '#0b1530'];
@@ -293,7 +300,13 @@ export class Stadium {
         crowns.setColorAt(i * 2 + k, col.set(['#2a6e33', '#317a38', '#24612d', '#3a8540'][(rnd() * 4) | 0]));
       }
     }
-    group.add(trunks, crowns);
+    pg.trees.add(trunks, crowns);
+    // where the trees stand (the kit's tree models get instanced at the same spots)
+    this.treeSpots = [];
+    for (let i = 0; i < nt; i++) {
+      const e = trunks.instanceMatrix.array, o = i * 16;
+      this.treeSpots.push({ x: e[o + 12], y: e[o + 13], h: Math.hypot(e[o + 4], e[o + 5], e[o + 6]) / 0.4 });
+    }
     const hillGeo = new THREE.CylinderGeometry(900, 900, 1, 64, 1, true);
     const hp2 = hillGeo.attributes.position;
     for (let i = 0; i < hp2.count; i++) {
@@ -312,7 +325,7 @@ export class Stadium {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.1, 72, 8), lam('#6b7585'));
       pole.rotation.x = Math.PI / 2;
       pole.position.set(x, y, 36);
-      group.add(pole);
+      pg.towers.add(pole);
       const bank = new THREE.Group();
       bank.position.set(x, y, 74);
       bank.rotation.z = Math.atan2(-x, -(40 - y));
@@ -328,7 +341,7 @@ export class Stadium {
       glow.position.set(0, -3, -4);
       bank.add(glow);
       this.glows.push(glow);
-      group.add(bank);
+      pg.towers.add(bank);
     }
 
     // ---- Scoreboard ----
@@ -347,7 +360,7 @@ export class Stadium {
     face.position.set(0, -0.8, 27);
     sb.add(box(46, 1.4, 24, lam('#10213f'), 0, 0, 15));
     sb.add(face);
-    group.add(sb);
+    pg.scoreboard.add(sb);
     this.sbKey = '';
 
     // ---- Clouds ----
@@ -415,6 +428,88 @@ export class Stadium {
       group.add(b);
       this.birds.push({ g: b, L, R, cx: -60 + rnd() * 120, cy: 300 + rnd() * 140, cz: 70 + rnd() * 50, r: 40 + rnd() * 60, w: (0.12 + rnd() * 0.1) * (rnd() < 0.5 ? 1 : -1), a: rnd() * 6.3, ph: rnd() * 6.3 });
     }
+  }
+
+  // ---- The Blender-built ballpark kit (art/ballpark.py -> models/ballpark.glb) ----
+  // Loads in the background; until it arrives (or if it can't), the procedural stand-ins stay.
+  loadKit(url = 'models/ballpark.glb') {
+    new GLTFLoader().load(url, (gltf) => {
+      try { this._installKit(gltf.scene); } catch (e) { console.warn('Ballpark kit failed to install:', e); }
+    }, undefined, (e) => console.warn('Ballpark kit not loaded:', e && e.message));
+  }
+
+  _kitMaterial(m, cache) {
+    if (cache.has(m.name)) return cache.get(m.name);
+    let out;
+    if (m.name === 'chainlink') out = this.linkMat({ x: 1, y: 1 });
+    else if (m.name === 'lamp') out = new THREE.MeshBasicMaterial({ color: '#fff6d8' });
+    else if (m.name === 'sb_face') {
+      // glTF UVs run top-down, so the kit's face gets its own unflipped copy of the scoreboard canvas
+      this.sbTexKit = new THREE.CanvasTexture(this.sbCanvas);
+      this.sbTexKit.flipY = false;
+      this.sbTexKit.colorSpace = THREE.SRGBColorSpace;
+      this.sbTexKit.anisotropy = this.engine.maxAniso;
+      out = new THREE.MeshBasicMaterial({ map: this.sbTexKit, toneMapped: false });
+    } else if (m.metalness > 0.4) {
+      // aluminum and steel: a soft sheen without needing an environment map
+      out = new THREE.MeshPhongMaterial({ color: m.color, specular: new THREE.Color('#8a929c'), shininess: 38 });
+    } else out = new THREE.MeshLambertMaterial({ color: m.color });
+    out.name = m.name;
+    cache.set(m.name, out);
+    return out;
+  }
+
+  _installKit(root) {
+    const cache = new Map();
+    const templates = [];
+    const banks = {};
+    for (const node of [...root.children]) {
+      if (node.name.startsWith('lightbank_')) { node.updateWorldMatrix(true, false); banks[node.name] = new THREE.Vector3().setFromMatrixPosition(node.matrixWorld); continue; }
+      if (node.name.startsWith('tree_')) { templates.push(node); continue; }
+      node.traverse((o) => {
+        if (!o.isMesh) return;
+        o.material = this._kitMaterial(o.material, cache);
+        const flat = o.material.isMeshBasicMaterial, see = o.material.name === 'chainlink';
+        o.castShadow = !flat && !see;
+        o.receiveShadow = !flat;
+      });
+      this.group.add(node);
+    }
+    // the stand-ins go away
+    for (const k of ['dugouts', 'bleachers', 'backstop', 'towers', 'scoreboard', 'foulPoles']) this.pg[k].visible = false;
+    // night glows move to the kit's lamp banks
+    this.glows.forEach((glow, i) => {
+      const at = banks[`lightbank_${i}`];
+      if (!at) return;
+      this.group.add(glow);
+      glow.position.copy(at);
+    });
+    // trees: instance the kit's models at the same spots
+    if (templates.length) {
+      this.pg.trees.visible = false;
+      const rnd = mulberry(99);
+      const spots = this.treeSpots.map((t) => ({ ...t, v: (rnd() * templates.length) | 0, rot: rnd() * 6.28, sx: 0.85 + rnd() * 0.3 }));
+      const m = new THREE.Matrix4(), base = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), z = new THREE.Vector3(0, 0, 1);
+      templates.forEach((tpl, k) => {
+        const mine = spots.filter((sp) => sp.v === k);
+        if (!mine.length) return;
+        tpl.updateWorldMatrix(true, true);
+        const inv = new THREE.Matrix4().copy(tpl.matrixWorld).invert();
+        tpl.traverse((o) => {
+          if (!o.isMesh) return;
+          const local = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+          const im = new THREE.InstancedMesh(o.geometry, this._kitMaterial(o.material, cache), mine.length);
+          mine.forEach((sp, i) => {
+            const k2 = sp.h / 19;
+            base.compose(v.set(sp.x, sp.y, 0), q.setFromAxisAngle(z, sp.rot), sc.set(k2 * sp.sx, k2 * sp.sx, k2));
+            im.setMatrixAt(i, m.multiplyMatrices(base, local));
+          });
+          im.castShadow = true;
+          this.group.add(im);
+        });
+      });
+    }
+    this.kit = root;
   }
 
   // Baseball has the raised mound at 46 ft; softball a flat chalked circle at 35 or 40 ft.
@@ -513,6 +608,7 @@ export class Stadium {
       this.sbKey = key;
       paintScoreboard(this.sbCanvas, info.board || {});
       this.sbTex.needsUpdate = true;
+      if (this.sbTexKit) this.sbTexKit.needsUpdate = true;
     }
   }
 }

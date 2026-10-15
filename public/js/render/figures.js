@@ -8,8 +8,8 @@ export const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#a
 export const KITS = {
   def: { jersey: '#f4f6fa', trim: '#1f5fe0', pants: '#c3c9d4', cap: '#1f5fe0', shade: '#d5dae3' },
   off: { jersey: '#d62839', trim: '#8c0f1d', pants: '#eef0f3', cap: '#a3121f', helmet: true, shade: '#a81d2c' },
-  ump: { jersey: '#1d2b53', trim: '#0d1530', pants: '#7d838f', cap: '#141414', shade: '#141d3a' },
-  coach: { jersey: '#d62839', trim: '#8c0f1d', pants: '#2b2f38', cap: '#a3121f', shade: '#a81d2c' },
+  ump: { jersey: '#1d2b53', trim: '#0d1530', pants: '#7d838f', cap: '#141414', shade: '#141d3a', ump: true },
+  coach: { jersey: '#d62839', trim: '#8c0f1d', pants: '#2b2f38', cap: '#a3121f', shade: '#a81d2c', coach: true },
 };
 
 export const UMP_SHIRTS = {
@@ -73,7 +73,7 @@ const SIDE = {
     // p: 0 stance, 0..1 swing
     const hip = [0, 2.2], neck = [-0.05 + 0.25 * p, 3.75];
     const hands = p <= 0 ? [-0.5, 3.55] : [-0.5 + p * 1.4, 3.55 - p * 0.8];
-    return { hip, neck, head: [0.05 + 0.2 * p, 4.25], kneeF: [0.7, 1.2], footF: [0.95, 0], kneeB: [-0.7, 1.2], footB: [-0.95, 0], elbowF: [0.0, 3.0], handF: hands, elbowB: [-0.7, 3.2], handB: hands, bat: true, batAngle: p <= 0 ? -0.5 : -0.5 + p * 3.6 };
+    return { hip, neck, head: [0.05 + 0.2 * p, 4.25], kneeF: [0.7, 1.2], footF: [0.95, 0], kneeB: [-0.7, 1.2], footB: [-0.95, 0], elbowF: [0.0, 3.0], handF: hands, elbowB: [-0.7, 3.2], handB: hands, bat: true, batP: Math.max(0, p), batAngle: p <= 0 ? 0.78 : 0.78 - p * 4.0 };
   },
 };
 

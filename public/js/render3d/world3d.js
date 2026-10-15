@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Engine } from './engine.js';
 import { Stadium } from './stadium.js';
+import { PlayerRig } from './rig.js';
 import { People, vec3 } from './people.js';
 import { drawHero } from './hero.js';
 import { ballTexture, labelTexture, glowTexture } from './textures.js';
@@ -22,7 +23,11 @@ export class Field3D {
     this.failed = null;
     this.scene = this.engine.scene;
     this.stadium = new Stadium(this.engine);
+    this.stadium.loadKit();
     this.people = new People(this.engine, { safe: !!opts.safe });
+    // the Blender-built ballplayer body for the close-up players (falls back to drawHero's shapes)
+    this.rig = new PlayerRig(this.scene, { safe: !!opts.safe });
+    this.rig.load();
     this.dust = new Dust(this.scene);
     this.track = new WeakMap();
     this.prevBall = null;
@@ -283,15 +288,18 @@ export class Field3D {
     const P = this.people;
     P.begin(camera, focal);
     const markers = [...(world.markers || [])];
+    this.rig.begin();
     for (const a of world.actors || []) {
       if (a.hidden) continue;
-      P.drawActor(a);
+      const W = P.applyIK(P.jointsFor(a), a.ik);
+      P.drawBody(W, this.rig.draw(W, a, 'toon') ? { ...a, bodyless: true } : a);
       if (a.ring) markers.push({ x: a.x, y: a.y, r: 2.4, color: a.ring === true ? '#ffd34d' : a.ring, pulse: true });
     }
     for (const body of world.bodies || []) {
-      if (body.hero) drawHero(P, body.W, body.o);
+      if (body.hero) drawHero(P, body.W, this.rig.draw(body.W, body.o) ? { ...body.o, bodyless: true } : body.o);
       else P.drawBody(body.W, body.o);
     }
+    this.rig.end();
     if (world.extra) world.extra(P, t);
     P.end();
     this._markers(markers, t);

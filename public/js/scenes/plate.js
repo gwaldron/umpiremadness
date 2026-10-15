@@ -1047,7 +1047,7 @@ export class AtBatEvent {
     return {
       hero: true, W,
       o: {
-        kit: KITS.off, skin: b.skin, battingGloves: true, gloveTone: b.gloveTone, helmet: true, ponytail: sport.softball, faceguard: sport.softball, lookDir: { x: 0, y: 1, z: 0 },
+        kit: KITS.off, skin: b.skin, battingGloves: true, gloveTone: b.gloveTone, helmet: true, ponytail: sport.softball && 'bubble', faceguard: sport.softball, lookDir: { x: 0, y: 1, z: 0 },
         num: b.num, team: 'Titans', teamColors: ['#ffffff', '#6d0d18'], numColors: ['#ffffff', '#6d0d18'],
         batColor: b.batColor, batAccent: b.batAccent, footDir: { x: f.x * 0.25, y: 1 },
       },
@@ -1299,7 +1299,7 @@ export class AtBatEvent {
       batDir = normV3(lerpV3([f * 0.15, -0.5, 0.85], [f * 1, 0.05, 0.12], bunt));
     } else if (swing > 0) {
       const keys = [
-        { p: 0, h: [bx + f * 0.35, by - 0.75, ap + 0.55], yaw: -90, el: 62 },
+        { p: 0, h: [bx + f * 0.75, by - 0.55, ap + 0.35], yaw: -100, el: 52 },
         { p: 0.5, h: [bx + f * 1.05, by + 0.15, ap - 0.15], yaw: 0, el: -6 },
         { p: 1, h: [bx + f * 0.55, by + 0.85, ap + 0.35], yaw: 125, el: 38 },
       ];
@@ -1311,9 +1311,12 @@ export class AtBatEvent {
       const el = (lerp(k0.el, k1.el, u) * Math.PI) / 180;
       batDir = [Math.cos(el) * Math.cos(yaw) * f, Math.cos(el) * Math.sin(yaw), Math.sin(el)];
     } else {
-      hands = [bx + f * 0.35, by - 0.75, ap + 0.55];
+      hands = [bx + f * 0.75, by - 0.55, ap + 0.35];
       if (pk && pk.crowd) hands = [bx + f * 0.55, by - 0.5, ap + 0.5];
-      batDir = normV3([f * 0.15, -0.5, 0.85]);
+      // stance: hands out in front at shoulder height (on the plate side of the head), the bat about 50
+      // degrees up and tilted back over the helmet toward the catcher (where the swing starts from)
+      const yaw = (-100 * Math.PI) / 180, el = (52 * Math.PI) / 180;
+      batDir = [Math.cos(el) * Math.cos(yaw) * f, Math.cos(el) * Math.sin(yaw), Math.sin(el)];
     }
     if (flinch > 0) hands = [hands[0] - f * 0.4 * flinch, hands[1], hands[2] + 0.3 * flinch];
     J.hands = hands;

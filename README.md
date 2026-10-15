@@ -67,6 +67,23 @@ node scripts/preload.mjs
 
 While the game loads, `index.html` shows an inline splash screen (logo, spinning ball, progress bar); `main.js` reports progress with `window.__splash.step()` and fades it out after the first frame.
 
+## 3D art (Blender)
+
+The ballpark kit and the ballplayer body are modeled in Blender **from code**: each asset is a Python script in `art/` that builds the model and exports it to `public/models/`. Edit the script, then rebuild (Blender 4.2 or newer):
+
+```bash
+blender --background --factory-startup --python art/ballpark.py
+```
+
+```bash
+blender --background --factory-startup --python art/player.py
+```
+
+Each also saves a `.blend` to `art/out/` (not committed) to open in Blender.
+
+- **`art/ballpark.py` → `ballpark.glb`**: dugouts (cinder block, team-colored roofs, helmet cubbies, bat rack, water cooler), aluminum bleachers with aisles and rails, the backstop with padding and a netting hood, light towers, the scoreboard with its marquee, foul poles, and tree models. It uses the game's own coordinates (feet, Z up, home plate at the origin). The game swaps in its chain-link texture, live scoreboard canvas and night lamps by material name, and instances the trees. Until it loads (or if it can't), the procedural stand-ins in `render3d/stadium.js` stay.
+- **`art/player.py` → `player.glb`**: a smooth kid ballplayer in uniform. The body is fused from overlapping shapes (voxel remesh), with clean seams at the belt, sleeves and socks, and auto-weighted to 18 bones. Each face stores its uniform region (jersey, pants, socks, cleats, skin...) in a vertex color, so one shader colors any team and a whole player is one draw call. `render3d/rig.js` poses the bones every frame from the joints the game already computes, so every player on the field uses it. The head, face, caps and helmets, gloves, bat, catcher's gear and softball bubble braids still draw on top.
+
 ## Deploy (Cloudflare Workers static assets)
 
 ```bash
@@ -93,6 +110,6 @@ It deploys to `https://umpiremadness.<your-subdomain>.workers.dev`.
 | `public/js/audio.js` + `voice.js` | Synthesized sound and music; umpire calls, PA announcer and TV commentary from pre-rendered voice clips (`public/audio/vo/`, made by `scripts/render-vo.py`) |
 | `public/js/data/*` | Divisions, rule cards, achievements, ump-life events |
 
-There are no build steps and no image files. The 3D ballpark is built with three.js from procedurally painted textures, and all sound effects (bat crack, mitt pop, crowd, ballpark organ, menu theme) are synthesized with WebAudio.
+There are no build steps and no image files. The ground is painted procedurally, and all sound effects (bat crack, mitt pop, crowd, ballpark organ, menu theme) are synthesized with WebAudio.
 
 The only recorded audio is the voice work in `public/audio/vo/`: umpire calls, PA announcer, TV commentary and the crowd (cheers, groans and Little League chatter, layered in the game with random timing, pitch and pan into a crowd in the stands), rendered ahead of time with the open-source [Kokoro](https://github.com/hexgrad/kokoro) TTS model (Apache-2.0) by `scripts/render-vo.py` (setup steps are at the top of that script). Batter intros are stitched from pieces ("Now batting," + "Number 24." + first name + last name). To change a line, edit it in the script and re-render; use `--only u.,c.` to redo just some groups. Lines without a clip fall back to the browser's speech voice.

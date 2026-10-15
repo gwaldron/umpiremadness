@@ -321,8 +321,23 @@ export class People {
       W.shB = add(W.neck, add(mul(L, -0.46 * S * mir), mul(UP, -0.12 * S)));
     }
     if (J.bat) {
-      const ang = J.batAngle;
-      W.batTip = P([J.handB[0] - Math.sin(ang) * 2.6, J.handB[1] + Math.cos(ang) * 2.6], -0.1, 0);
+      // Batting stance, the way hitters are taught: hands out in front near the back shoulder, the bat
+      // about 50 degrees up and tilted back over the helmet toward the catcher. The swing (batP 0..1) brings the hands
+      // forward and the bat level through the zone, then wraps it up over the front shoulder.
+      const p = J.batP || 0;
+      const keys = [{ p: 0, c: 0.5, yaw: -100, el: 52 }, { p: 0.5, c: -0.15, yaw: 0, el: -6 }, { p: 1, c: -0.85, yaw: 125, el: 38 }];
+      const k0 = p < 0.5 ? keys[0] : keys[1], k1 = p < 0.5 ? keys[1] : keys[2];
+      const u = (p - k0.p) / (k1.p - k0.p);
+      const mix = (a, b) => a + (b - a) * u;
+      const toC = V(0, -1, 0), toP = V(0, 1, 0); // batters stand at home: the catcher is -y
+      // hands out in front at shoulder height (on the plate side of the head), moving through with the swing
+      const hands = add(P([0.45 + (J.handB[0] + 0.5) * 0.5, J.handB[1] - 0.15], 0), mul(toC, mix(k0.c, k1.c) * S));
+      const yaw = (mix(k0.yaw, k1.yaw) * Math.PI) / 180, el = (mix(k0.el, k1.el) * Math.PI) / 180;
+      const dir = add(add(mul(f, Math.cos(el) * Math.cos(yaw)), mul(toP, Math.cos(el) * Math.sin(yaw))), mul(UP, Math.sin(el)));
+      W.handB = W.handF = hands;
+      W.elB = add(add(hands, mul(toC, 0.35 * S)), mul(UP, -0.6 * S));
+      W.elF = add(lerp3(W.shF, hands, 0.5), mul(UP, -0.4 * S));
+      W.batTip = add(hands, mul(dir, 2.55 * S));
     }
     return W;
   }
@@ -356,9 +371,12 @@ export class People {
   }
 
   // Draw a body from world joints. opts: kit, skin, glove, mask, ballInHand, num, gear ('catcher'), arms
+  // o.bodyless: the rigged Blender body (rig.js) is the torso, arms and legs; draw just the head, cap,
+  // gloves, gear and bat on top of it
   drawBody(W, o) {
     const kit = o.kit;
     const S = W.S || 1;
+    const body = !o.bodyless;
     this.ow = this._outlineFor(W.hip);
     const f = W.f, L = W.L;
     this.blob((W.footF.x + W.footB.x) / 2, (W.footF.y + W.footB.y) / 2, 1.3 * S);
@@ -376,6 +394,7 @@ export class People {
       const hipSide = add(W.hip, mul(Lt, 0.22 * S * side));
       const ankle = add(foot, mul(UP, 0.18 * S));
       const shinTop = lerp3(knee, ankle, 0.08);
+      if (!body) continue;
       this.limb(hipSide, knee, 0.2 * S, pants);
       this.sphere(knee, 0.2 * S, pants);
       this.limb(shinTop, ankle, (o.gear === 'catcher' ? 0.21 : 0.15) * S, sock);
@@ -387,12 +406,12 @@ export class People {
       this.ellipsoid(add(add(foot, mul(UP, 0.11 * S)), mul(fwd, 0.1 * S)), lat, fwd, UP, 0.17 * S, 0.36 * S, 0.13 * S, '#15161c');
     }
     // pelvis + torso
-    this.ellipsoid(add(W.hip, mul(upT, 0.1 * S)), Lt, Ft, upT, 0.48 * S, 0.36 * S, 0.32 * S, pants);
+    if (body) this.ellipsoid(add(W.hip, mul(upT, 0.1 * S)), Lt, Ft, upT, 0.48 * S, 0.36 * S, 0.32 * S, pants);
     const tl = len(sub(W.neck, W.hip));
     const torsoC = lerp3(W.hip, W.neck, 0.56);
-    this.ellipsoid(torsoC, Lt, Ft, upT, 0.52 * S, 0.37 * S, tl * 0.56, kit.jersey);
+    if (body) this.ellipsoid(torsoC, Lt, Ft, upT, 0.52 * S, 0.37 * S, tl * 0.56, kit.jersey);
     // belt
-    this.ellipsoid(add(W.hip, mul(upT, 0.3 * S)), Lt, Ft, upT, 0.47 * S, 0.34 * S, 0.06 * S, '#16161c', false);
+    if (body) this.ellipsoid(add(W.hip, mul(upT, 0.3 * S)), Lt, Ft, upT, 0.47 * S, 0.34 * S, 0.06 * S, '#16161c', false);
     if (o.mask) {
       // plate umpire: chest protector
       this.ellipsoid(add(torsoC, mul(Ft, 0.2 * S)), Lt, Ft, upT, 0.44 * S, 0.24 * S, tl * 0.48, '#1d2233');
@@ -402,24 +421,26 @@ export class People {
     const glove = o.glove;
     for (const side of [1, -1]) {
       const sh = side > 0 ? W.shF : W.shB, el = side > 0 ? W.elF : W.elB, hand = side > 0 ? W.handF : W.handB;
-      this.sphere(sh, 0.17 * S, kit.jersey);
-      this.limb(sh, lerp3(sh, el, 0.75), 0.15 * S, kit.jersey);
-      this.limb(lerp3(sh, el, 0.6), el, 0.12 * S, skin);
-      this.sphere(el, 0.12 * S, skin);
-      this.limb(el, hand, 0.11 * S, skin);
+      if (body) {
+        this.sphere(sh, 0.17 * S, kit.jersey);
+        this.limb(sh, lerp3(sh, el, 0.75), 0.15 * S, kit.jersey);
+        this.limb(lerp3(sh, el, 0.6), el, 0.12 * S, skin);
+        this.sphere(el, 0.12 * S, skin);
+        this.limb(el, hand, 0.11 * S, skin);
+      }
       const gl = (glove === 'F' && side > 0) || (glove === 'B' && side < 0);
       if (gl) {
         const gdir = norm(sub(hand, el));
         const glat = norm(cross(gdir, UP));
         this.ellipsoid(add(hand, mul(gdir, 0.12 * S)), glat, cross(glat, gdir), gdir, 0.34 * S, 0.14 * S, 0.4 * S, o.gloveColor || '#8a5524');
-      } else {
+      } else if (body) {
         this.sphere(hand, 0.13 * S, o.battingGloves ? '#f2f2f2' : skin);
       }
       if (o.ballInHand && ((o.ballInHand === 'F' && side > 0) || (o.ballInHand === 'B' && side < 0))) this.sphere(add(hand, mul(UP, 0.08 * S)), 0.13, '#fbfbf6');
     }
     // neck + head
     const headC = W.head;
-    this.limb(W.neck, lerp3(W.neck, headC, 0.6), 0.14 * S, skin, false);
+    if (body) this.limb(W.neck, lerp3(W.neck, headC, 0.6), 0.14 * S, skin, false);
     const hr = 0.42 * S;
     // the head looks along f (or the torso's forward if leaning)
     let hf = V(Ft.x + f.x, Ft.y + f.y, 0.0);
@@ -463,6 +484,21 @@ export class People {
     }
     if (o.mask) {
       this.ellipsoid(add(headC, mul(hf, hr * 0.78)), hl, hf, UP, hr * 0.78, hr * 0.32, hr * 0.95, '#22252d');
+    }
+    // softball hair: bubble braids out of the batting helmet, ponytails under the caps
+    if (sport.softball && !kit.ump && !kit.coach) { // not on umpires or coaches
+      const sway = Math.sin((W.hip.x + W.hip.y) * 2) * hr * 0.06;
+      let p = add(add(headC, mul(hf, -hr * 1.0)), mul(UP, -hr * (kit.helmet ? 0.35 : 0.1)));
+      const n = kit.helmet ? 4 : 2;
+      for (let i = 0; i < n; i++) {
+        const r = hr * (kit.helmet ? 0.27 - i * 0.035 : 0.24);
+        const step = add(mul(UP, -r * (kit.helmet ? 1.7 : 2.4)), add(mul(hf, -hr * 0.05), mul(hl, sway * (i + 1))));
+        if (kit.helmet) this.sphere(p, r * 0.34, '#ff4fa3', false);
+        const c = add(p, mul(step, 0.5));
+        if (kit.helmet) this.sphere(c, r, hair, false);
+        else this.limb(p, add(p, step), r * (1 - i * 0.3), hair, false);
+        p = add(p, step);
+      }
     }
     // bat
     if (W.batTip && W.handB) {
