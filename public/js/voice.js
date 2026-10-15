@@ -307,10 +307,10 @@ class Voices {
       play: ['u.play', 'Play ball!'],
     }[kind];
     if (!map) { this.ump(kind, { fast: ctx.close }); return; }
-    const [g, txt, counts] = map;
+    const [g, line, counts] = map;
     const seq = [{ g, gap: 0.14 }];
     if (counts && sayCount && countG) seq.push(countG);
-    this._say('u', seq, txt + (counts && sayCount ? countTxt : ''), this._clipStyle(ctx.close || ctx.fast));
+    this._say('u', seq, line + (counts && sayCount ? countTxt : ''), this._clipStyle(ctx.close || ctx.fast));
   }
 
   // ---------- stadium PA ----------
