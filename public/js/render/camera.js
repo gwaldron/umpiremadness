@@ -152,16 +152,20 @@ export class FieldRig {
     this.goalPitch = this.pitch;
   }
 
-  set(focus, extent, pitch) {
+  // yaw (optional): look from a set compass direction instead of from behind home (a side-on close-up)
+  set(focus, extent, pitch, yaw = null) {
     this.goalFocus = { x: focus.x, y: focus.y };
     if (extent) this.goalExtent = extent;
     if (pitch) this.goalPitch = pitch;
+    if (yaw !== null) this.yaw = yaw;
+    this.goalYawMix = yaw === null ? 0 : 1;
   }
 
   snap() {
     this.focus = { ...this.goalFocus };
     this.extent = this.goalExtent;
     this.pitch = this.goalPitch;
+    this.yawMix = this.goalYawMix || 0;
   }
 
   update(dt) {
@@ -177,9 +181,19 @@ export class FieldRig {
     const fit = Math.max(this.extent / Math.tan(halfFovX), (this.extent * 0.75) / Math.tan(cam.fovY / 2));
     const d = fit * 1.05;
     const p = this.pitch;
-    cam.lookAt(
-      { x: this.focus.x * 0.85, y: this.focus.y - d * Math.cos(p), z: d * Math.sin(p) },
-      { x: this.focus.x, y: this.focus.y, z: 0 }
-    );
+    let ex = this.focus.x * 0.85, ey = this.focus.y - d * Math.cos(p);
+    this.yawMix = (this.yawMix || 0) + ((this.goalYawMix || 0) - (this.yawMix || 0)) * k;
+    if (this.yawMix > 0.001) {
+      // swing around the focus (by angle, the short way) rather than sliding through it
+      const m = this.yawMix * this.yawMix * (3 - 2 * this.yawMix);
+      const hx = this.focus.x - ex, hy = this.focus.y - ey;
+      const y0 = Math.atan2(hx, hy), r0 = Math.hypot(hx, hy), r1 = d * Math.cos(p);
+      let dy = this.yaw - y0;
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      const yw = y0 + dy * m, r = r0 + (r1 - r0) * m;
+      ex = this.focus.x - Math.sin(yw) * r;
+      ey = this.focus.y - Math.cos(yw) * r;
+    }
+    cam.lookAt({ x: ex, y: ey, z: d * Math.sin(p) }, { x: this.focus.x, y: this.focus.y, z: 0 });
   }
 }

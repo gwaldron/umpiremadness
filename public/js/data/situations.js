@@ -674,17 +674,28 @@ export const SITUATIONS = [
         return { pause: tc + 4.0, cam: () => ({ x: -30, y: 150, ext: 40 }) };
       }
       const spot = { x: 60, y: 120 };
-      tl.fly(tc, tc + 1.8, { x: 0, y: 1.5, z: 3 }, { ...spot, z: v.k === 'trap' ? 0.1 : 0.6 }, 20);
+      // trap: the ball lands a step short of the glove, kicks up turf, and short-hops in
+      const bounce = { x: spot.x - 0.65, y: spot.y - 1.3 };
+      let field = {}, scuff = false;
+      if (v.k === 'trap') {
+        tl.fly(tc, tc + 1.72, { x: 0, y: 1.5, z: 3 }, { ...bounce, z: 0.1 }, 20);
+        tl.fly(tc + 1.72, tc + 1.9, { ...bounce, z: 0.1 }, { ...spot, z: 0.35 }, 0.6);
+        tl.at(tc + 1.72, () => { audio.thud(); if (field.puff) field.puff(bounce.x, bounce.y, 0.55); scuff = true; });
+      } else tl.fly(tc, tc + 1.8, { x: 0, y: 1.5, z: 3 }, { ...spot, z: 0.6 }, 20);
       tl.move('RF', tc, tc + 1.5, spot.x + 3, spot.y + 2, 'run');
       tl.move('RF', tc + 1.5, tc + 1.85, spot.x + 1.5, spot.y + 0.5, 'dive', 'dive');
-      if (v.k === 'trap') {
-        tl.ground(tc + 1.8, tc + 1.9, spot, { x: spot.x + 0.6, y: spot.y + 0.3 });
-        tl.at(tc + 1.82, () => audio.thud());
-      }
       tl.hold(tc + 1.9, tc + 6, 'RF', 0.8);
       tl.at(tc + 1.9, () => audio.pop());
-      tl.pose('RF', tc + 2.8, 'catchHigh');
-      return { pause: tc + 3.0, cam: () => ({ x: 52, y: 104, ext: 34 }) };
+      tl.pose('RF', tc + 3.4, 'catchHigh'); // stays down through the freeze, then pops up showing it
+      // the same close, low, side-on slow-motion look for the trap and the clean catch, so the camera
+      // doesn't give it away: you have to watch whether the ball hits the turf
+      return {
+        pause: tc + 3.0,
+        slow: [[tc + 1.45, tc + 2.05]],
+        init: (s) => { field = s.field; scuff = false; },
+        scuffs: () => (scuff ? [{ x: bounce.x, y: bounce.y, r: 0.55, sx: 0.8, sy: 1.6, a: 0.9 }] : []),
+        cam: (t) => (t < tc + 0.6 ? null : { x: spot.x - 0.3, y: spot.y - 0.65, ext: 5.5, pitch: 0.3, yaw: 2.03 }),
+      };
     },
     steps(v) {
       const yes = v.k === 'clean' || v.k === 'carom';

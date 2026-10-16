@@ -317,7 +317,9 @@ export class Field3D {
       }
       st.fell = false;
       if ((a.pose === 'slide' || a.pose === 'dive') && v > 2.5) {
-        this.dust.emit(a.x, a.y, 0.1, 3, { spread: 0.7, size: 1.3, up: 1.3, speed: 3.2, life: 1.1 });
+        // a dive on the grass barely kicks anything up (and mustn't hide the ball in a close-up)
+        if (onDirt(a.x, a.y)) this.dust.emit(a.x, a.y, 0.1, 3, { spread: 0.7, size: 1.3, up: 1.3, speed: 3.2, life: 1.1 });
+        else if (Math.random() < 0.25) this.dust.emit(a.x, a.y, 0.05, 1, { spread: 0.5, size: 0.35, up: 0.6, speed: 1.2, life: 0.5 });
       } else if (a.pose === 'run' && v > 6 && onDirt(a.x, a.y)) {
         st.acc += dt;
         if (st.acc > 0.11) { st.acc = 0; this.dust.emit(a.x, a.y, 0.05, 1, { size: 0.6, up: 0.9, speed: 1.4, life: 0.7, spread: 0.3 }); }

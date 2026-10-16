@@ -23,6 +23,8 @@ export class SituationEvent {
     const built = this.def.build(tl, this.v, this.div) || {};
     this.pauses = built.pauses || [built.pause || 2];
     this.camFn = built.cam || null;
+    this.scuffFn = built.scuffs || null; // marks on the ground (where a ball hit the turf)
+    if (built.init) built.init(session);
     this.slow = built.slow || []; // [[t0, t1], ...]: slow motion so a quick moment at the plate can be seen
     this.endT = built.end || tl.duration + 0.8;
     this.t = 0;
@@ -120,7 +122,8 @@ export class SituationEvent {
       const ext = clamp(Math.max(Math.abs(b.x - tx), Math.abs(b.y - ty) * 0.8) + 34, 52, 120);
       f = { x: tx, y: ty, ext };
     }
-    rig.set({ x: f.x, y: f.y }, f.ext, f.pitch || 0.7);
+    // (a side-on yaw is 3D only: the flat 2D figures are drawn for the view from behind home)
+    rig.set({ x: f.x, y: f.y }, f.ext, f.pitch || 0.7, this.s.field.is3d ? f.yaw ?? null : null);
     if (snap) rig.snap();
   }
 
@@ -172,6 +175,6 @@ export class SituationEvent {
 
   render(g) {
     const s = this.s;
-    s.field.draw(g, s.cam, { actors: this.tl.list(), ball: this.tl.ball, markers: this.def.markers ? this.def.markers(this.v, this.t) : [] });
+    s.field.draw(g, s.cam, { actors: this.tl.list(), ball: this.tl.ball, markers: this.def.markers ? this.def.markers(this.v, this.t) : [], scuffs: this.scuffFn ? this.scuffFn() : [] });
   }
 }
