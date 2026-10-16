@@ -800,8 +800,8 @@ export class BasePlayEvent {
     const v = viewScore(this.ump, { ...c, fielder: fpos }, moving);
     c.view = v;
     c.moving = moving;
-    // Didn't move to the play? The UMP CAM gets grainy and washed out (the farther you should have
-    // gone and the less you went, the worse it gets). Not coming in on a ball to the outfield counts too.
+    // Didn't move to the play? (the farther you should have gone and the less you went, the more it
+    // counts; not coming in on a ball to the outfield counts too) It costs a few points and gets a tip.
     const sp0 = this.startPos || this.ump;
     const need = dist(sp0, c.ideal || c.base);
     const went = dist(sp0, this.ump);
@@ -823,7 +823,7 @@ export class BasePlayEvent {
       points: { bag: { x: bag.x, y: bag.y, z: BAG_TOP + 0.2 }, glove: glovePt, tag: this._tagPoint(c) },
       type: c.type, tb: c.tb, tr: c.tr, tt: c.tt, pulled: c.pulled, dropped: c.dropped, dropT: c.dropT,
       missed: c.missed, empty: c.empty, slide: c.slide, mirror,
-      quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving, lazy },
+      quality: { angle: v.angle, distS: v.distS, occl: v.occl, moving },
       baseName: BASE_NAME[c.baseNum], speed: 0.4,
       skin: pick(SKINS),
     });
@@ -1010,7 +1010,7 @@ export class BasePlayEvent {
       const tt = performance.now() / 1000;
       const eye = { x: v.eye.x + Math.sin(tt * 31) * jit, y: v.eye.y + Math.cos(tt * 27) * jit, z: v.eye.z + Math.sin(tt * 23) * jit };
       const q = this.cam.q;
-      const block = Math.max(q.distS >= 0.85 ? 1 : Math.round(lerp(7, 2, clamp((q.distS - 0.3) / 0.55, 0, 1))), Math.round(1 + (q.lazy || 0) * 5));
+      const block = q.distS >= 0.85 ? 1 : Math.round(lerp(7, 2, clamp((q.distS - 0.3) / 0.55, 0, 1)));
       s.field.drawInset({ eye, target: v.target, fov }, css, { actors: this.tl.list(), ball: this.tl.ball }, block);
       this.cam.renderOverlay(g, rect, dpr, (pt) => {
         const pp = s.field.projectInset(pt, css);

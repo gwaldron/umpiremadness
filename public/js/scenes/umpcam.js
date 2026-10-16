@@ -45,62 +45,6 @@ export class UmpCam {
     this.flash = Math.max(0, this.flash - dt);
   }
 
-  // A bad look at the play gets a bad picture: film grain, a washed-out image and rolling static.
-  // Strongest when you didn't move to the play (q.lazy); some for simply being too far away.
-  _grain(g, rect, dpr) {
-    const q = this.q;
-    const k = Math.max(q.lazy || 0, clamp((0.8 - q.distS) / 0.5, 0, 1) * 0.6);
-    if (k <= 0.03) return;
-    if (!this._noise) {
-      this._noise = document.createElement('canvas');
-      this._noise.width = 160; this._noise.height = 96;
-    }
-    if (!this._noiseT || this.real - this._noiseT > 0.05) {
-      this._noiseT = this.real;
-      const ng = this._noise.getContext('2d');
-      const img = ng.createImageData(160, 96);
-      for (let i = 0; i < img.data.length; i += 4) {
-        const v = Math.random() * 255;
-        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-        img.data[i + 3] = 255;
-      }
-      ng.putImageData(img, 0, 0);
-    }
-    g.save();
-    roundRect(g, rect.x, rect.y, rect.w, rect.h, 18 * dpr * 0.7);
-    g.clip();
-    g.fillStyle = `rgba(120,126,138,${0.45 * k})`; // washed out
-    g.fillRect(rect.x, rect.y, rect.w, rect.h);
-    g.globalAlpha = 0.12 + 0.5 * k;
-    g.imageSmoothingEnabled = false;
-    g.drawImage(this._noise, rect.x, rect.y, rect.w, rect.h);
-    g.globalAlpha = 1;
-    // rolling static bands
-    for (let i = 0; i < 2; i++) {
-      const y = rect.y + (((this.real * (0.35 + i * 0.22)) + i * 0.5) % 1) * rect.h;
-      g.fillStyle = `rgba(255,255,255,${0.22 * k})`;
-      g.fillRect(rect.x, y, rect.w, rect.h * (0.035 + 0.03 * k));
-    }
-    // tear lines
-    if (k > 0.4) {
-      g.fillStyle = `rgba(0,0,0,${0.35 * k})`;
-      for (let i = 0; i < 6; i++) g.fillRect(rect.x, rect.y + Math.random() * rect.h, rect.w, 1.5 * dpr);
-    }
-    if (q.lazy > 0.5 && Math.floor(this.real * 3) % 2 === 0) {
-      const fs = Math.max(12, rect.h * 0.075);
-      g.font = `${fs}px Bungee, Impact, sans-serif`;
-      g.textAlign = 'center';
-      g.textBaseline = 'bottom';
-      g.lineWidth = fs * 0.2;
-      g.strokeStyle = 'rgba(11,21,48,0.9)';
-      g.fillStyle = '#ff4d5a';
-      const txt = 'WEAK SIGNAL · MOVE TO THE PLAY!';
-      g.strokeText(txt, rect.x + rect.w / 2, rect.y + rect.h - fs * 1.4);
-      g.fillText(txt, rect.x + rect.w / 2, rect.y + rect.h - fs * 1.4);
-    }
-    g.restore();
-  }
-
   get finished() {
     return this.ct >= this.t1;
   }
@@ -108,7 +52,7 @@ export class UmpCam {
   // ---------- drawing ----------
   render(g, rect, dpr = 1) {
     const q = this.q;
-    const block = Math.max(q.distS >= 0.85 ? 1 : Math.round(lerp(8, 2, clamp((q.distS - 0.3) / 0.55, 0, 1))), Math.round(1 + (q.lazy || 0) * 5));
+    const block = q.distS >= 0.85 ? 1 : Math.round(lerp(8, 2, clamp((q.distS - 0.3) / 0.55, 0, 1)));
     // Frame
     g.save();
     g.fillStyle = 'rgba(0,0,0,0.55)';
@@ -162,7 +106,6 @@ export class UmpCam {
       g.textAlign = 'center';
       g.fillText('7', cx, cy + rect.h * 0.02);
     }
-    this._grain(g, rect, dpr);
     if (this.flash > 0) {
       g.fillStyle = `rgba(255,255,255,${this.flash * 0.6})`;
       g.fillRect(rect.x, rect.y, rect.w, rect.h);
@@ -512,11 +455,6 @@ export class UmpCam3D extends UmpCam {
       g.fillText(f.text, 0, 0);
       g.restore();
     }
-    g.restore();
-    this._grain(g, rect, dpr);
-    g.save();
-    roundRect(g, rect.x, rect.y, rect.w, rect.h, r * 0.7);
-    g.clip();
     // TV look: vignette + scanlines
     const vg = g.createRadialGradient(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.h * 0.35, rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w * 0.72);
     vg.addColorStop(0, 'rgba(0,0,0,0)');

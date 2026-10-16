@@ -613,7 +613,7 @@ export function buildCamp(level = 'minors') {
       // 4 — angles
       card(4, T, 'SEE THE PLAY', 'The UMP CAM shows what YOU can see', "When the ball is hit, **move so you can see the bag and the glove**, stay out of the throwing lane, and **STOP** before the play. Get set, watch the play happen, then sell your call!", 'angles'),
       bp('force1B'), bp('force1B', { runners: [2] }), bp('pickoff1B'), bp('steal2B'),
-      card(4, T, 'THE WORKING AREA', 'Ball stays in? Stay out. Ball goes out? Come in!', 'On a clean hit to the **outfield**, run **into the infield** (the **working area**), pivot to watch the batter-runner touch first, and be ready for a play at **second**. Stand still and your UMP CAM goes fuzzy!', 'working-area'),
+      card(4, T, 'THE WORKING AREA', 'Ball stays in? Stay out. Ball goes out? Come in!', 'On a clean hit to the **outfield**, run **into the infield** (the **working area**), pivot to watch the batter-runner touch first, and be ready for a play at **second**.', 'working-area'),
       bp('hit2B'), bp('hit2B'),
       // 5 — rules
       card(5, T, 'FAIR, FOUL, CATCH?', 'Calls the plate umpire owns', "The plate umpire has **every fair/foul call** and **every catch/no-catch call** on the field. Remember: the lines and bases are **fair**, and a catch needs **secure possession**.", 'fair-foul'),
