@@ -144,6 +144,7 @@ export class Field3D {
       m.visible = true;
       m.position.set(s.x, s.y, 0.05);
       m.scale.set(s.r * 2 * (s.sx || 1), s.r * 2 * (s.sy || 1), 1);
+      m.rotation.z = s.rot || 0;
       m.material.opacity = s.a ?? 0.85;
     }
   }

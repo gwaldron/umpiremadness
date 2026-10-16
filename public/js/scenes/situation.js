@@ -23,9 +23,14 @@ export class SituationEvent {
     const built = this.def.build(tl, this.v, this.div) || {};
     this.pauses = built.pauses || [built.pause || 2];
     this.camFn = built.cam || null;
-    this.scuffFn = built.scuffs || null; // marks on the ground (where a ball hit the turf)
+    this.scuffFn = built.scuffs || null; // marks on the ground (where a ball hit the turf, cleat marks)
+    this.markFn = built.markers || null; // rings on the ground at a moment to watch
+    this.words = built.words || []; // [{ t, text }]: a big callout on screen for a moment ("TAG!")
+    this.insetFn = built.inset || null; // picture-in-picture of a second thing to watch: (t) => { eye, target, fov, label, flash }
     if (built.init) built.init(session);
-    this.slow = built.slow || []; // [[t0, t1], ...]: slow motion so a quick moment at the plate can be seen
+    this.slow = built.slow || [];
+    // REPLAY rewinds to here: the build's pick, else a bit before the first slow-motion moment, else the start
+    this.replayT = built.replay ?? (this.slow.length ? Math.max(0, this.slow[0][0] - 2.5) : 0); // [[t0, t1], ...]: slow motion so a quick moment at the plate can be seen
     this.endT = built.end || tl.duration + 0.8;
     this.t = 0;
     this.stepIdx = 0;
@@ -68,8 +73,8 @@ export class SituationEvent {
       this._frame(dt);
       return;
     }
-    if (this.state === 'play' || this.state === 'after') {
-      const pauseAt = this.state === 'play' ? this.pauses[this.stepIdx] : Infinity;
+    if (this.state === 'play' || this.state === 'after' || this.state === 'replay') {
+      const pauseAt = this.state === 'after' ? Infinity : this.pauses[this.stepIdx];
       const until = pauseAt - this.t;
       const slow = this.slow.some(([a, b]) => this.t >= a && this.t <= b);
       this.timeScale = until < 0.45 || slow ? lerp(this.timeScale, 0.3, 0.2) : lerp(this.timeScale, 1, 0.2);
@@ -78,6 +83,7 @@ export class SituationEvent {
       this._moveUmp(dt);
       this._frame(dt);
       if (this.state === 'play' && this.t >= pauseAt) this._ask();
+      else if (this.state === 'replay' && this.t >= pauseAt) this._ask(true);
       return;
     }
     if (this.state === 'ask') {
@@ -127,14 +133,29 @@ export class SituationEvent {
     if (snap) rig.snap();
   }
 
-  _ask() {
+  _ask(again = false) {
     this.state = 'ask';
-    this.askT = 0;
+    if (!again) this.askT = 0;
     const st = this.steps[this.stepIdx];
     const hud = this.s.hud;
-    audio.whoosh();
+    if (!again) audio.whoosh();
     hud.prompt(st.q || "WHAT'S THE CALL?", st.sub || '');
-    hud.options(st.options, (id) => this._answer(id));
+    hud.options([...st.options, { btn: 'Y', id: '__replay', label: 'REPLAY', sub: 'Watch it again', small: true }], (id) => (id === '__replay' ? this._replay() : this._answer(id)));
+  }
+
+  // Not sure? Run the play back from just before the key moment, then make the call.
+  _replay() {
+    if (this.state !== 'ask') return;
+    const tl = this.tl;
+    for (const e of tl.events) if (e.t >= this.replayT) tl.fired.delete(e); // the sounds and puffs happen again
+    tl.ball.trail.length = 0;
+    this.t = this.replayT;
+    tl.t = this.t;
+    this.timeScale = 1;
+    this.state = 'replay';
+    this.s.hud.options(null);
+    this.s.hud.prompt('⏪ REPLAY', 'Watch closely…');
+    this.s.hud.stamp('REPLAY', 'gold');
   }
 
   _answer(id) {
@@ -175,6 +196,70 @@ export class SituationEvent {
 
   render(g) {
     const s = this.s;
-    s.field.draw(g, s.cam, { actors: this.tl.list(), ball: this.tl.ball, markers: this.def.markers ? this.def.markers(this.v, this.t) : [], scuffs: this.scuffFn ? this.scuffFn() : [] });
+    s.field.draw(g, s.cam, { actors: this.tl.list(), ball: this.tl.ball, markers: [...(this.def.markers ? this.def.markers(this.v, this.t) : []), ...(this.markFn ? this.markFn(this.t) : [])], scuffs: this.scuffFn ? this.scuffFn(this.t) : [] });
+    const pip = this.insetFn && this.insetFn(this.t);
+    if (pip) this._inset(g, pip);
+    const w = this.words.find((q) => this.t >= q.t && this.t < q.t + 0.9);
+    if (w) this._word(g, w.text, (this.t - w.t) / 0.9);
+  }
+
+  _word(g, text, k) {
+    const s = this.s, W = s.cam.w, H = s.cam.h;
+    const size = Math.min(W * 0.16, H * 0.12) * (1 + 0.25 * Math.max(0, 1 - k * 6));
+    g.save();
+    g.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+    g.font = `${size}px Bungee, Impact, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineWidth = size * 0.16;
+    g.strokeStyle = '#10203a';
+    g.strokeText(text, W / 2, H * 0.3);
+    g.fillStyle = '#ffd34d';
+    g.fillText(text, W / 2, H * 0.3);
+    g.restore();
+  }
+
+  // A boxed second view in the corner (3D), or just its banner in 2D
+  _inset(g, f) {
+    const s = this.s, W = s.cam.w, H = s.cam.h, dpr = s.app.dpr;
+    const portrait = H > W;
+    const w = portrait ? W * 0.56 : Math.min(W * 0.34, H * 0.55);
+    const h = s.field.is3d ? w * 0.7 : w * 0.22;
+    // corner: the play picks where it won't cover the action (default: top right, or low on a tall screen)
+    const c = f.corner || (portrait ? 'br' : 'tr');
+    const rect = { x: c[1] === 'l' ? 12 * dpr : W - w - 12 * dpr, y: c[0] === 'b' ? (portrait ? H * 0.62 : H * 0.94 - h) : portrait ? H * 0.19 : H * 0.14, w, h };
+    if (s.field.is3d && s.field.drawInset) {
+      const css = { x: rect.x / dpr, y: rect.y / dpr, w: rect.w / dpr, h: rect.h / dpr };
+      s.field.drawInset({ eye: f.eye, target: f.target, fov: f.fov }, css, { actors: this.tl.list(), ball: this.tl.ball }, 1);
+    } else {
+      g.fillStyle = 'rgba(12,22,44,0.88)';
+      g.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+    g.save();
+    g.lineWidth = 3 * dpr;
+    g.strokeStyle = f.flash ? '#ffffff' : '#ffd34d';
+    g.strokeRect(rect.x, rect.y, rect.w, rect.h);
+    const fs = Math.max(11 * dpr, rect.w * 0.065);
+    g.font = `${fs}px Bungee, Impact, sans-serif`;
+    g.textBaseline = 'middle';
+    const tw = g.measureText(f.label).width;
+    g.fillStyle = '#ffd34d';
+    g.fillRect(rect.x, rect.y, tw + fs * 0.9, fs * 1.5);
+    g.fillStyle = '#10203a';
+    g.fillText(f.label, rect.x + fs * 0.45, rect.y + fs * 0.78);
+    if (f.flash) {
+      let big = rect.w * 0.13;
+      g.font = `${big}px Bungee, Impact, sans-serif`;
+      big = Math.min(big, (big * rect.w * 0.9) / g.measureText(f.flash).width); // long words shrink to fit
+      g.font = `${big}px Bungee, Impact, sans-serif`;
+      g.textAlign = 'center';
+      g.lineWidth = big * 0.16;
+      g.strokeStyle = '#10203a';
+      const yy = s.field.is3d ? rect.y + rect.h * 0.86 : rect.y + rect.h * 0.62;
+      g.strokeText(f.flash, rect.x + rect.w / 2, yy);
+      g.fillStyle = '#ffffff';
+      g.fillText(f.flash, rect.x + rect.w / 2, yy);
+    }
+    g.restore();
   }
 }
