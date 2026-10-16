@@ -14,6 +14,7 @@ import { Timeline, setupDefense, setupRunners, setupBatter, setupUmps } from '..
 import { KITS } from '../public/js/render/figures.js';
 import { preloadIsCurrent } from './preload.mjs';
 import { sport, setSport, forSport, rubberY } from '../public/js/sport.js';
+import { DRILLS, buildDrill } from '../public/js/game/drills.js';
 
 const problems = [];
 let built = 0;
@@ -70,6 +71,28 @@ for (const div of DIVISIONS) {
   if (div.u3k) problems.push(`${div.id}: uncaught third strike enabled in a Minors division`);
 }
 
+// Drills: every rep is a real play, and a pinned variant is one the situation actually has
+let drillReps = 0;
+for (const sp of ['baseball', 'softball']) {
+  setSport(sp);
+  for (const d of DRILLS) {
+    if (!RULE[d.card]) problems.push(`drill ${d.id}: unknown card ${d.card}`);
+    const cfg = buildDrill(d.id);
+    const reps = cfg.events.filter((e) => e.type !== 'info');
+    if (reps.length < 6) problems.push(`drill ${d.id} (${sp}): only ${reps.length} reps`);
+    for (const e of reps) {
+      drillReps++;
+      if (e.type === 'sit' && !e.def) problems.push(`drill ${d.id}: missing situation`);
+      if (e.type === 'sit' && e.v) {
+        const seen = new Set();
+        for (let i = 0; i < 200; i++) seen.add(JSON.stringify(e.def.variant().k));
+        for (const [key, val] of Object.entries(e.v)) if (!seen.has(JSON.stringify(val))) problems.push(`drill ${d.id}: ${e.def.id} has no variant ${key}=${val}`);
+      }
+    }
+  }
+}
+setSport('baseball');
+
 for (const l of LIFE) {
   if (!l.options.some((o) => o.id === l.answer)) problems.push(`life ${l.id}: bad answer`);
   if (!RULE[l.card]) problems.push(`life ${l.id}: unknown card ${l.card}`);
@@ -98,4 +121,4 @@ if (uniq.length) {
   for (const p of uniq.slice(0, 50)) console.error('  - ' + p);
   process.exit(1);
 }
-console.log(`✓ ${built} situation builds, ${LIFE.length} life events, ${files} source files — all good.`);
+console.log(`✓ ${built} situation builds, ${drillReps} drill reps, ${LIFE.length} life events, ${files} source files — all good.`);

@@ -198,12 +198,14 @@ export class Session {
     this.hud.kzone(null);
     // each event runs on its own random seed, so TRY AGAIN can replay it exactly
     this.evSpec = spec;
-    this.evSeed = newSeed();
-    this.practice = false;
+    this.evSeed = spec.seed ?? newSeed();
+    this.practice = !!spec.redo; // a drill's second look at a missed play: same play, no points
     setRng(seededRng(this.evSeed));
     this.ev = this._make(spec);
+    if (spec.redo) this.ev.practice = true;
     this.evCorrect = null;
     this.ev.start();
+    if (spec.redo) this.hud.stamp('ONE MORE LOOK!', 'gold');
   }
 
   // Can the play that just ended be tried again? (Not in timed Blitz, and not for info cards.)
@@ -231,6 +233,8 @@ export class Session {
 
   eventDone(skipStatus = false) {
     if (this.ended) return;
+    // drills: a missed play comes back once at the end
+    if (this.cfg.redoMisses && !skipStatus && this.evCorrect === false && !this.evSpec.redo) this.events.push({ ...this.evSpec, redo: true, seed: this.evSeed });
     if (!skipStatus && this.events) this.eventStatus[this.idx] = this.evCorrect !== false;
     else if (this.events) this.eventStatus[this.idx] = undefined;
     if (this.gameOver) return this.finish();
@@ -371,6 +375,7 @@ export class Session {
   // A TRY AGAIN replay: feedback only — no points, lives, streak, stats or rule-card progress.
   _practice(res) {
     const hud = this.hud;
+    if (this.evCorrect !== false) this.evCorrect = res.correct;
     hud.floater(res.correct ? 'PRACTICE ✓' : 'PRACTICE ✗', !res.correct, 50, 30);
     if (res.correct) {
       this.field.cheer(0.5);
@@ -470,6 +475,12 @@ export class Session {
       if (stars === 3 && prev.stars < 3) p.stats.threeStars++;
       if (acc === 1 && this.calls >= 5) p.stats.perfectGames++;
       record = this.score > prev.best;
+    } else if (this.mode === 'drill') {
+      // stars from first-try calls: 80% for three, 60% for two, 40% for one
+      stars = acc >= 0.8 ? 3 : acc >= 0.6 ? 2 : acc >= 0.4 ? 1 : 0;
+      const prev = p.drills[this.cfg.drill] || { stars: 0, best: 0 };
+      p.drills[this.cfg.drill] = { stars: Math.max(prev.stars, stars), best: Math.max(prev.best, this.score) };
+      record = this.score > prev.best && prev.best > 0;
     } else if (this.cfg.bestKey) {
       const val = this.mode === 'blitz' ? this.correctCalls : this.score;
       record = val > (p.best[this.cfg.bestKey] || 0);

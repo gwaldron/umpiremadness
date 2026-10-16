@@ -11,7 +11,8 @@ export class SituationEvent {
     this.div = session.div; // session._make() already switched divisions if the spec named one
     this.def = spec.def;
     this.kind = 'sit';
-    this.v = this.def.variant ? this.def.variant(this.div) : {};
+    // a drill can pin the variant (spec.v is merged over a fresh random one)
+    this.v = { ...(this.def.variant ? this.def.variant(this.div) : {}), ...(spec.v || {}) };
     this.setup = this.def.setup(this.v, this.div);
     this.steps = this.def.steps(this.v, this.div);
     this.tl = new Timeline();

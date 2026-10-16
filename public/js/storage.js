@@ -62,6 +62,7 @@ function defaults() {
     look: { shirt: 'navy', cap: 'black', skin: 1 },
     settings: { sport: 'baseball', volume: 0.8, voice: true, music: true, voiceStyle: 'classic', hints: 'auto', zoneBox: 'smart', zoneStyle: '3d', shake: true, gfx: 'auto', announcer: true },
     career: {},
+    drills: {}, // drill id → { stars, best }
     best: { blitz: 0, plate: 0, bases: 0, rumble: 0 },
     stats: {
       calls: 0, correct: 0,

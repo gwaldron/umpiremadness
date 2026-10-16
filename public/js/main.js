@@ -13,6 +13,7 @@ import { Hud } from './ui/hud.js';
 import { confetti } from './ui/confetti.js';
 import { Screens } from './ui/screens.js';
 import { Session, buildCareer, buildCamp, buildRumble, ARCADE } from './game/session.js';
+import { buildDrill } from './game/drills.js';
 import { Timeline } from './scenes/timeline.js';
 import { sport, setSport, rubberY, ballR } from './sport.js';
 
@@ -202,6 +203,7 @@ function startSession(cfg) {
 }
 app.startCareer = (div, idx) => startSession(buildCareer(div, idx));
 app.startCamp = (level = 'minors') => startSession(buildCamp(level));
+app.startDrill = (id) => startSession(buildDrill(id));
 app.startArcade = (mode) => startSession(mode === 'rumble' ? buildRumble() : { ...ARCADE[mode] });
 
 app.pauseGame = () => {

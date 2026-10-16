@@ -208,8 +208,9 @@ export class BasePlayEvent {
     let tr = brStart + 59 / vr;
     const dtB = this._bang();
     // variations
-    const pulled = chance(0.12);
-    const dropped = !pulled && chance(0.1);
+    const tw = this.spec.twist; // a drill can ask for one
+    const pulled = tw ? tw === 'pulled' : chance(0.12);
+    const dropped = tw ? tw === 'dropped' : !pulled && chance(0.1);
     const dt = (pulled || dropped) ? Math.abs(dtB) + 0.05 : dtB;
     let tb = tr - dt;
     let tThrow = tb - ft;

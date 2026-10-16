@@ -9,6 +9,7 @@ const LADDER = () => DIVISIONS.map((d) => d.name).join(' → ');
 const TOP = () => DIVISIONS[DIVISIONS.length - 1].name;
 import { ACHIEVEMENTS } from '../data/achievements.js';
 import { RULE, activeRules } from '../data/rules.js';
+import { DRILLS, DRILL } from '../game/drills.js';
 import { levelFromXp, xpForLevel, rankFor, SHIRT_UNLOCKS, CAP_UNLOCKS, randomName, careerStars, resetProfile } from '../storage.js';
 import { UMP_SHIRTS, UMP_CAPS, SKINS, KITS, drawFigure } from '../render/figures.js';
 import { Camera } from '../render/camera.js';
@@ -518,6 +519,15 @@ export class Screens {
       card('🔥', 'Majors Camp', 'Full Little League rules · about 15 minutes. 7 stations: faster pitching, the dropped third strike, the infield fly, double plays, steals & back-picks, appeals & timing plays, game management, then a no-hints scrimmage.', p.career['camp-majors'], () => app.startCamp('majors')),
     );
     wrapEl.append(grid);
+    // Drills: practice one kind of call
+    wrapEl.append(el('h3', { class: 'drills-head' }, '🎯 DRILLS'));
+    wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-4px', marginBottom: '12px' } }, 'Practice one kind of call, about 2 minutes each. Miss one and you get another look at the end.'));
+    const dg = el('div', { class: 'grid drills' });
+    for (const d of DRILLS) {
+      const done = p.drills[d.id];
+      dg.append(card(d.icon, d.title, d.desc, done && done.stars ? done : null, () => app.startDrill(d.id)));
+    }
+    wrapEl.append(dg);
     return this.screen('dim', wrapEl);
   }
 
@@ -634,23 +644,25 @@ export class Screens {
     const career = r.mode === 'career';
     const wrap = el('div', { class: 'results' });
     let head;
-    if (r.mode === 'camp') head = r.acc >= 0.5 ? `${(r.cfg.level || 'minors') === 'majors' ? 'MAJORS' : 'MINORS'} CAMP DONE! 🎓` : 'CAMP COMPLETE';
+    if (r.mode === 'drill') head = r.stars === 3 ? 'DRILL MASTERED! 🎯' : r.stars ? 'DRILL DONE! 🎯' : 'KEEP DRILLING!';
+    else if (r.mode === 'camp') head = r.acc >= 0.5 ? `${(r.cfg.level || 'minors') === 'majors' ? 'MAJORS' : 'MINORS'} CAMP DONE! 🎓` : 'CAMP COMPLETE';
     else if (r.gameOver) head = 'EJECTED! 🚪';
     else if (r.mode === 'blitz') head = "TIME'S UP!";
     else head = career ? (r.stars ? 'FINAL OUT!' : 'TOUGH GAME') : 'FINAL';
     wrap.innerHTML = `
       <div class="logo-kicker">${escapeHtml(r.cfg.title || '')}${career ? ` · ${escapeHtml(r.div.full)}` : ''}</div>
       <h2>${head}</h2>
-      ${career || r.mode === 'camp' ? `<div class="big-stars">${[0, 1, 2].map((i) => `<span class="s${i < r.stars ? ' on' : ''}" style="animation-delay:${0.3 + i * 0.25}s">★</span>`).join('')}</div>` : ''}
+      ${career || r.mode === 'camp' || r.mode === 'drill' ? `<div class="big-stars">${[0, 1, 2].map((i) => `<span class="s${i < r.stars ? ' on' : ''}" style="animation-delay:${0.3 + i * 0.25}s">★</span>`).join('')}</div>` : ''}
       ${r.record ? '<div class="xp-gain">🎉 NEW PERSONAL BEST!</div>' : ''}
       <div class="rows">
         <div class="rowline"><span>Score</span><span>${r.score.toLocaleString()}</span></div>
-        <div class="rowline"><span>Right calls</span><span>${r.correct} / ${r.calls}</span></div>
+        <div class="rowline"><span>${r.mode === 'drill' ? 'Right on the first try' : 'Right calls'}</span><span>${r.correct} / ${r.calls}</span></div>
         <div class="rowline"><span>Accuracy</span><span>${Math.round(r.acc * 100)}%</span></div>
         <div class="rowline"><span>Best streak</span><span>🔥 ${r.bestStreak}</span></div>
         <div class="rowline"><span>XP earned</span><span>+${r.xpGain}${r.levelUp ? ` · LEVEL ${r.levelUp}!` : ''}</span></div>
       </div>
       ${r.achievements.length ? `<div class="newbadges">${r.achievements.map((a) => `<span class="nb">${a.icon} ${escapeHtml(a.name)}</span>`).join('')}</div>` : ''}
+      ${r.mode === 'drill' && r.stars < 3 ? `<p class="footer-note">Get 80% right on the first try for three stars. <a class="lesson" href="${lessonUrl(RULE[DRILL[r.cfg.drill].card].lesson)}" target="_blank" rel="noopener">📖 Bootcamp lesson →</a></p>` : ''}
       ${career && !r.stars ? '<p class="footer-note">Get 60% of your calls right to earn a star and unlock the next game. Review the rule cards and try again!</p>' : ''}`;
     const actions = el('div', { class: 'actions' });
     const btn = (label, fn, primary, auto) => {
@@ -665,6 +677,9 @@ export class Screens {
       if (hasNext) actions.append(btn(`${glyph('A')} NEXT GAME`, () => app.startCareer(d.id, nextIdx), true, true));
       actions.append(btn(hasNext ? '↻ Replay' : `${glyph('A')} REPLAY`, () => app.startCareer(d.id, r.cfg.gameIndex), !hasNext, !hasNext));
       actions.append(btn('🏆 Career map', () => { this.replace(this.title()); this.push(this.career()); }));
+    } else if (r.mode === 'drill') {
+      actions.append(btn(`${glyph('A')} DRILL AGAIN`, () => app.startDrill(r.cfg.drill), true, true));
+      actions.append(btn('🎯 More drills', () => { this.replace(this.title()); this.push(this.campChooser()); }));
     } else if (r.mode === 'camp') {
       const lvl = r.cfg.level || 'minors';
       const key = lvl === 'majors' ? 'camp-majors' : 'camp';
