@@ -1,4 +1,5 @@
 // Little League (46/60) ballpark drawn in perspective.
+import { clamp } from '../util.js';
 import { drawFigure } from './figures.js';
 import { sport, ballColor, CIRCLE_R } from '../sport.js';
 
@@ -234,6 +235,8 @@ export class FieldRenderer {
     this._scoreboard(g, cam);
     this._standsAndCrowd(g, cam);
 
+    // Marks in the dirt (cleat marks, where a ball hit the ground)
+    if (world.scuffs) for (const s of world.scuffs) this._scuff(g, cam, s);
     // Markers on the ground (A/B/C spots, hints, rings)
     if (world.markers) for (const m of world.markers) this._marker(g, cam, m);
 
@@ -446,6 +449,18 @@ export class FieldRenderer {
     }
   }
 
+  _scuff(g, cam, s) {
+    const rx = s.r * (s.sx || 1), ry = s.r * (s.sy || 1), c = Math.cos(s.rot || 0), sn = Math.sin(s.rot || 0);
+    const pts = [];
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2, u = Math.cos(a) * rx, v = Math.sin(a) * ry;
+      pts.push([s.x + u * c - v * sn, s.y + u * sn + v * c, 0.04]);
+    }
+    if (!cam.polyPath(g, pts)) return;
+    g.fillStyle = `rgba(62,36,14,${(s.a ?? 0.85) * 0.85})`;
+    g.fill();
+  }
+
   _marker(g, cam, m) {
     if (m.poly) {
       // a highlighted band on the ground (e.g. the B/C start zones)
@@ -462,7 +477,7 @@ export class FieldRenderer {
         const p = cam.project(cx, cy, 0);
         if (p) {
           g.fillStyle = m.color || '#fff';
-          g.font = `${Math.max(11, p.s * 3.2)}px Bungee, Impact, sans-serif`;
+          g.font = `${clamp(p.s * 3.2, 11, cam.h * 0.032)}px Bungee, Impact, sans-serif`; // (capped: a close-up would blow it up)
           g.textAlign = 'center';
           g.textBaseline = 'middle';
           g.fillText(m.label, p.x, p.y);
@@ -485,7 +500,7 @@ export class FieldRenderer {
       const p = cam.project(m.x, m.y, 0);
       if (p) {
         g.fillStyle = m.color || '#fff';
-        g.font = `${Math.max(11, p.s * 3.2)}px Bungee, Impact, sans-serif`;
+        g.font = `${clamp(p.s * 3.2, 11, cam.h * 0.032)}px Bungee, Impact, sans-serif`; // (capped: a close-up would blow it up)
         g.textAlign = 'center';
         g.textBaseline = 'middle';
         g.fillText(m.label, p.x, p.y);

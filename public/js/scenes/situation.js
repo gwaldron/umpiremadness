@@ -199,24 +199,26 @@ export class SituationEvent {
     const s = this.s;
     s.field.draw(g, s.cam, { actors: this.tl.list(), ball: this.tl.ball, markers: [...(this.def.markers ? this.def.markers(this.v, this.t) : []), ...(this.markFn ? this.markFn(this.t) : [])], scuffs: this.scuffFn ? this.scuffFn(this.t) : [] });
     const pip = this.insetFn && this.insetFn(this.t);
-    if (pip) this._inset(g, pip);
+    if (pip && (s.field.is3d || pip.flash)) this._inset(g, pip); // in 2D there's no second view, only a flash banner
     const w = this.words.find((q) => this.t >= q.t && this.t < q.t + 0.9);
-    if (w) this._word(g, w.text, (this.t - w.t) / 0.9);
+    if (w) this._word(g, w.text, (this.t - w.t) / 0.9, w.y);
   }
 
-  _word(g, text, k) {
+  _word(g, text, k, y = 0.3) { // y: height on screen (a fraction), when the action sits where the callout would go
     const s = this.s, W = s.cam.w, H = s.cam.h;
-    const size = Math.min(W * 0.16, H * 0.12) * (1 + 0.25 * Math.max(0, 1 - k * 6));
+    let size = Math.min(W * 0.16, H * 0.12) * (1 + 0.25 * Math.max(0, 1 - k * 6));
     g.save();
     g.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+    g.font = `${size}px Bungee, Impact, sans-serif`;
+    size = Math.min(size, (size * W * 0.92) / g.measureText(text).width); // long words shrink to fit a phone
     g.font = `${size}px Bungee, Impact, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.lineWidth = size * 0.16;
     g.strokeStyle = '#10203a';
-    g.strokeText(text, W / 2, H * 0.3);
+    g.strokeText(text, W / 2, H * y);
     g.fillStyle = '#ffd34d';
-    g.fillText(text, W / 2, H * 0.3);
+    g.fillText(text, W / 2, H * y);
     g.restore();
   }
 
@@ -243,6 +245,7 @@ export class SituationEvent {
     const fs = Math.max(11 * dpr, rect.w * 0.065);
     g.font = `${fs}px Bungee, Impact, sans-serif`;
     g.textBaseline = 'middle';
+    g.textAlign = 'left';
     const tw = g.measureText(f.label).width;
     g.fillStyle = '#ffd34d';
     g.fillRect(rect.x, rect.y, tw + fs * 0.9, fs * 1.5);

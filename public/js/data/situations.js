@@ -3,7 +3,7 @@
 import { audio } from '../audio.js';
 import { pick, chance, rand, clamp, lerp } from '../util.js';
 import { BASES, POS } from '../render/field.js';
-import { sport, forSport, releasePt, holdZ } from '../sport.js';
+import { sport, forSport, releasePt, holdZ, CIRCLE_R } from '../sport.js';
 
 const B1 = BASES.first, B2 = BASES.second, B3 = BASES.third, H = BASES.home;
 const ONBAG = { 1: { x: B1.x - 0.3, y: B1.y - 0.2 }, 2: { x: B2.x, y: B2.y - 0.5 }, 3: { x: B3.x + 0.3, y: B3.y - 0.2 }, 4: { x: 0.4, y: 0.6 } };
@@ -66,6 +66,34 @@ function slideTo(tl, id, t0, t1, base, endOffset = { x: 0, y: 0 }) {
   return t1;
 }
 
+// Cleat marks a runner leaves from t0 to t1, one per footfall, each showing once he's made it,
+// so you can see exactly where he ran. Returns a scuffs(t) function.
+function footprints(tl, id, t0, t1, every = 0.15) {
+  const marks = [];
+  for (let ts = t0; ts <= t1; ts += every) {
+    const p = posAt(tl, id, ts), q = posAt(tl, id, ts + 0.05);
+    if (Math.hypot(q.x - p.x, q.y - p.y) < 0.1) continue; // standing still: no new mark
+    const rot = Math.atan2(q.y - p.y, q.x - p.x) - Math.PI / 2;
+    const side = marks.length % 2 ? 0.36 : -0.36;
+    marks.push({ t: ts, x: p.x + Math.cos(rot) * side, y: p.y + Math.sin(rot) * side, r: 0.46, sx: 0.7, sy: 1.35, a: 1, rot });
+  }
+  return (t) => marks.filter((m) => m.t <= t);
+}
+// A BALL CAM picture-in-picture that keeps the ball in the middle, seen from the home-plate side of it
+function ballCam(tl, back = 20, up = 7, fov = 0.6) {
+  const b = tl.ball, d = Math.hypot(b.x, b.y) || 1;
+  return {
+    eye: { x: b.x - (b.x / d) * back, y: b.y - (b.y / d) * back, z: (b.z || 0) + up },
+    target: { x: b.x, y: b.y, z: b.z || 0 }, fov, label: 'BALL CAM',
+  };
+}
+// A white ring around the ball on the ground, so a tiny ball is easy to find on a phone
+const ballRing = (tl) => ({ x: tl.ball.x, y: tl.ball.y, r: 1.1, color: '#ffffff' });
+// The tag-or-contact moment: a callout plus a short slow-motion window around it
+const moment = (t, text, before = 0.5, after = 0.3, y) => ({ words: [{ t, text, y }], slow: [[t - before, t + after]] });
+// A close camera on a spot, aimed a little past it so the players there stand below the callout
+const closeOn = (x, y, ext, pitch = 0.6) => ({ x, y: y + ext * 0.45, ext, pitch });
+
 // ---------- the situations ----------
 export const SITUATIONS = [
   // ===== INFIELD FLY =====
@@ -86,6 +114,13 @@ export const SITUATIONS = [
     setup(v) { return { runners: v.runners, outs: v.outs, text: `${RUN_TXT(v.runners)} · ${OUTS(v.outs)}` }; },
     build(tl, v) {
       const tc = pitchHit(tl, { bunt: v.ball === 'bunt' });
+      // every version: slow motion off the bat and a callout naming what kind of ball it is (one of the
+      // four boxes), so a pop-up, a liner and a bunt can't be mixed up
+      const look = {
+        words: [{ t: tc + 0.05, text: { popup: 'POP-UP!', liner: 'LINE DRIVE!', bunt: 'BUNT!' }[v.ball] }],
+        slow: [[tc - 0.15, tc + 0.4]],
+        replay: tc - 1.0,
+      };
       for (const b of v.runners) {
         const id = 'R' + b;
         const p = tl.actors[id];
@@ -98,7 +133,7 @@ export const SITUATIONS = [
         tl.pose('SS', tc + 0.25, 'catchHigh');
         tl.hold(tc + 0.42, tc + 5, 'SS', 4.2);
         tl.at(tc + 0.42, () => audio.pop());
-        return { pause: tc + 0.3 };
+        return { pause: tc + 0.3, ...look, cam: (t) => (t < tc - 0.3 ? null : { x: -8, y: 34, ext: 30, pitch: 0.55 }) };
       }
       if (v.ball === 'bunt') {
         const land = { x: 4, y: 20 };
@@ -108,7 +143,7 @@ export const SITUATIONS = [
         tl.at(tc + 1.7, () => audio.pop());
         tl.pose('BAT', tc + 0.2, 'stand');
         tl.runTo('BAT', tc + 0.3, 20, 19, 14, 'run');
-        return { pause: tc + 0.9 };
+        return { pause: tc + 0.9, ...look, cam: (t) => (t < tc - 0.3 ? null : { x: 3, y: 12, ext: 20, pitch: 0.55 }) };
       }
       const hang = 3.4;
       const f = v.to.f;
@@ -118,7 +153,7 @@ export const SITUATIONS = [
       tl.at(tc + hang, () => audio.pop());
       tl.pose('BAT', tc + 0.2, 'stand');
       tl.runTo('BAT', tc + 0.3, 30, 29, 15, 'stand');
-      return { pause: tc + 1.15, cam: (t) => ({ x: v.to.x * 0.5, y: v.to.y * 0.7, ext: 64 }) };
+      return { pause: tc + 1.15, ...look, cam: (t) => (t < tc - 0.3 ? null : { x: v.to.x * 0.5, y: v.to.y * 0.6 + 4, ext: 42, pitch: 0.55 }) };
     },
     steps(v, div) {
       const yes = v.outs < 2 && v.runners.includes(1) && v.runners.includes(2) && v.ball === 'popup';
@@ -129,7 +164,7 @@ export const SITUATIONS = [
       else if (v.outs === 2) explain = 'With **two outs** there\'s no infield fly — the defense just needs one out, so there\'s no cheap double play to protect against.';
       else explain = 'The rule needs runners on **1st & 2nd** or the **bases loaded** — where the defense could let the ball drop for an easy double play. Not here, so no infield fly.';
       return [{
-        q: 'POP-UP! WHAT\'S YOUR CALL?',
+        q: 'BALL IN THE AIR! WHAT\'S YOUR CALL?',
         options: [
           { btn: 'A', id: 'iff', label: "INFIELD FLY — BATTER'S OUT!", sub: 'Point up, call it loud' },
           { btn: 'B', id: 'none', label: 'NO CALL — PLAY ON', sub: 'Just watch the catch' },
@@ -196,6 +231,16 @@ export const SITUATIONS = [
     build(tl, v) {
       const tc = pitchHit(tl);
       const spot = { x: -15, y: 68 };
+      // both versions: tight and slow on the bump, with a BALL CAM box showing where the ball is right then
+      let is3d = true;
+      const look = (tHit) => ({
+        ...moment(tHit, 'CONTACT!', 0.55, 0.3),
+        replay: tc - 0.5,
+        init: (s) => { is3d = s.field.is3d; },
+        // (the flat 2D view has no picture-in-picture, so it stays wide enough to show the ball too)
+        cam: (t) => (t < tc + 0.25 ? null : is3d ? closeOn(spot.x - 1, spot.y + 0.5, 13) : { x: spot.x - 5, y: spot.y + 6, ext: 24 }),
+        inset: (t) => (t > tc + 0.2 && t < tHit + 0.9 ? ballCam(tl, 18, 8) : null),
+      });
       tl.move('SS', tc, tc + 0.55, spot.x, spot.y, v.fielding ? 'field' : 'ready');
       if (v.fielding) lastKey(tl, 'SS').dur = 0.6;
       if (v.fielding) {
@@ -207,7 +252,7 @@ export const SITUATIONS = [
         tl.move('R2', tc + 0.97, tc + 1.15, spot.x - 3.2, spot.y - 2.6, 'stand'); // the runner stumbles on past him
         tl.ground(tc + 1.0, tc + 1.7, { x: spot.x + 1, y: spot.y - 1 }, { x: -24, y: 58 });
         batterRuns(tl, tc + 0.3, 16);
-        return { pause: tc + 1.35 };
+        return { pause: tc + 1.35, ...look(tc + 0.95) };
       }
       // ball goes past the shortstop into left field; then the runner bumps into him
       tl.ground(tc, tc + 1.6, { x: 0, y: 2 }, { x: -40, y: 120 });
@@ -216,7 +261,7 @@ export const SITUATIONS = [
       tl.pose('R2', tc + 1.15, 'fall', { dur: 0.32 }); // the runner bounces off him and goes down
       fieldAt(tl, 'LF', tc + 0.2, tc + 1.6, -40, 118);
       batterRuns(tl, tc + 0.3, 16);
-      return { pause: tc + 1.5 };
+      return { pause: tc + 1.5, ...look(tc + 1.15) };
     },
     steps(v) {
       return [{
@@ -250,7 +295,14 @@ export const SITUATIONS = [
       const tHit = tl.runTo('BAT', lastKey(tl, 'BAT').t, B1.x + 2.2, B1.y + 4.2, 17, 'stand');
       tl.at(tHit, () => audio.thud());
       tl.pose('BAT', tHit + 0.3, 'stand');
-      return { pause: tHit + 0.25, cam: () => ({ x: 40, y: 70, ext: 70 }) };
+      // tight and slow on the bump at first, with a BALL CAM box showing the ball is way out in right
+      return {
+        pause: tHit + 0.25,
+        ...moment(tHit, 'CONTACT!', 0.55, 0.2),
+        replay: tHit - 2.2,
+        cam: (t) => (t < tHit - 1.8 ? null : closeOn(B1.x + 2, B1.y + 4, 12)),
+        inset: (t) => (t > tHit - 1.6 ? ballCam(tl, 22, 9) : null),
+      };
     },
     steps() {
       return [{
@@ -294,7 +346,13 @@ export const SITUATIONS = [
       const tBump = tl.runTo('R3', tTurn, -26.3, 26.3, 11, 'stand');
       tl.at(tBump, () => { audio.thud(); audio.ouch(); });
       tl.pose('R3', tBump, 'fall', { dur: 0.32 });
-      return { pause: tBump + 0.4, cam: () => ({ x: -22, y: 28, ext: 46 }) };
+      // the rundown framed close, then slow on the bump (the third baseman with the ball is right behind)
+      return {
+        pause: tBump + 0.4,
+        ...moment(tBump, 'CONTACT!', 0.6, 0.3),
+        replay: t1 - 0.8,
+        cam: (t) => (t < tc + 0.4 ? { x: -14, y: 30, ext: 30 } : t < tBump - 0.9 ? closeOn(-27, 29, 18, 0.65) : closeOn(-27.5, 27, 11)),
+      };
     },
     steps() {
       return [{
@@ -332,7 +390,14 @@ export const SITUATIONS = [
       const tThrow = tc + 2.95;
       tl.hold(tc + 2.6, tThrow, 'LF', 4);
       throwFrom(tl, 'LF', tThrow, { x: -6, y: 30, z: 3 }, 70);
-      return { pause: tArrive + 0.4, cam: () => ({ x: -10, y: 14, ext: 40 }) };
+      // tight and slow at the plate, with a BALL CAM box on the throw (still on its way in)
+      return {
+        pause: tArrive + 0.4,
+        ...moment(tArrive, 'CONTACT!', 0.55, 0.3),
+        replay: tArrive - 2.2,
+        cam: (t) => (t < tArrive - 2 ? null : closeOn(-3.2, 3, 10, 0.9)), // (high, so the plate umpire isn't in the way on a phone)
+        inset: (t) => (t > tArrive - 1.8 ? ballCam(tl, 24, 8) : null),
+      };
     },
     steps() {
       return [{
@@ -367,18 +432,28 @@ export const SITUATIONS = [
       tl.pose('C', tCatch + 0.05, 'tag', { facing: -1 });
       const tNear = lastKey(tl, 'R2').t;
       let tEnd;
+      let field = {};
       if (v.around) {
-        tl.runPath('R2', tNear, [{ x: -6.5, y: 4 }, { x: -2.5, y: -1.5 }], 15, 'stand');
-        tEnd = lastKey(tl, 'R2').t;
-        tl.pose('R2', tEnd, 'dive');
-        tl.at(tEnd, () => audio.slide());
+        // swings wide of the catcher, then dives in from the back side with his hand on the plate
+        tl.runPath('R2', tNear, [{ x: -6.5, y: 3 }, { x: -5.4, y: -0.5 }], 15, 'stand');
+        const tDive = lastKey(tl, 'R2').t;
+        tEnd = tDive + 0.35;
+        tl.move('R2', tDive, tEnd, -1.9, -0.2, 'dive', 'dive');
+        tl.at(tEnd, () => { audio.slide(); if (field.puff) field.puff(-0.4, 0, 0.5); }); // his hand slaps the plate
       } else {
         tEnd = tl.runTo('R2', tNear, 0, 3, 17, 'stand');
         tl.at(tEnd, () => { audio.thud(); audio.ouch(); });
         tl.pose('C', tEnd, 'fall', { dur: 0.32 });
         tl.hold(tEnd + 0.3, tEnd + 4, 'C', 1.1);
       }
-      return { pause: tEnd + 0.4, cam: () => ({ x: -6, y: 10, ext: 36 }) };
+      // both versions: close and slow at the plate as he gets there, so you see him go around or crash
+      return {
+        pause: tEnd + 0.5,
+        ...moment(tEnd, v.around ? 'AROUND HIM!' : 'CRASH!', 0.7, 0.4),
+        replay: tEnd - 2.4,
+        init: (s) => { field = s.field; },
+        cam: (t) => (t < tEnd - 2.2 ? { x: -6, y: 10, ext: 30 } : closeOn(-1.5, 0.5, 9.5, 0.9)),
+      };
     },
     steps(v) {
       return [{
@@ -496,9 +571,19 @@ export const SITUATIONS = [
       tl.at(hitT, () => { audio.thud(); audio.ouch(); });
       tl.ground(hitT, hitT + 1, { x: lanePt.x, y: lanePt.y }, { x: lanePt.x + 10, y: lanePt.y - 3 });
       tl.runTo('BAT', hitT, B1.x - 0.3, B1.y - 0.3, 15, 'stand');
-      return { pause: hitT + 0.3, cam: () => ({ x: 26, y: 26, ext: 34 }) };
+      // both versions: the running lane lit up, his cleat marks, and a slow look straight up the line
+      // (from behind home) as the throw hits him, so you can see which side of the chalk he's on
+      const R2 = Math.SQRT1_2, o = 3 * R2;
+      const lane = [{ x: 30 * R2, y: 30 * R2 }, { x: B1.x, y: B1.y }, { x: B1.x + o, y: B1.y - o }, { x: 30 * R2 + o, y: 30 * R2 - o }];
+      return {
+        pause: hitT + 0.35,
+        ...moment(hitT, 'HIT!', 0.55, 0.3),
+        replay: tc - 0.3,
+        scuffs: footprints(tl, 'BAT', tc + 0.6, hitT + 0.3, 0.13),
+        markers: (t) => (t > tc + 0.3 ? [{ poly: lane, color: '#ffd34d', label: 'RUNNING LANE' }] : []),
+        cam: (t) => (t < tc + 0.3 ? null : { x: lanePt.x + 2.5, y: lanePt.y + 2.5, ext: 10, pitch: 1.0, yaw: Math.PI / 4 }),
+      };
     },
-    markers() { return []; },
     steps(v) {
       return [{
         q: 'THE THROW HIT THE BATTER-RUNNER!',
@@ -530,9 +615,20 @@ export const SITUATIONS = [
         tl.runTo('R1', tc + 0.05, 30, 57, 16, 'run');
         tl.move('2B', tc + 0.75, tc + 1.15, 28, 61, 'tag');
         // big swerve out of the base path
-        tl.runPath('R1', lastKey(tl, 'R1').t, [{ x: 24, y: 52 }, { x: 14, y: 64 }, { x: 4, y: 80 }], 15, 'stand');
+        const tTry = lastKey(tl, 'R1').t; // the tag try: his base path is now a straight line from here to 2nd
+        tl.runPath('R1', tTry, [{ x: 24, y: 52 }, { x: 14, y: 64 }, { x: 4, y: 80 }], 15, 'stand');
         batterRuns(tl, tc + 0.3, 15);
-        return { pause: tc + 1.7, cam: () => ({ x: 22, y: 62, ext: 32 }) };
+        // the 3-foot base path lights up the moment the fielder goes to tag him; his cleat marks show his route
+        const at = { x: 30, y: 57 }, d = Math.hypot(B2.x - at.x, B2.y - at.y), n = { x: -(B2.y - at.y) / d * 3, y: (B2.x - at.x) / d * 3 };
+        const path = [{ x: at.x + n.x, y: at.y + n.y }, { x: B2.x + n.x, y: B2.y + n.y }, { x: B2.x - n.x, y: B2.y - n.y }, { x: at.x - n.x, y: at.y - n.y }];
+        return {
+          pause: tc + 1.9,
+          ...moment(tTry, 'TAG TRY!', 0.4, 0.7),
+          replay: tc - 0.3,
+          scuffs: footprints(tl, 'R1', tc + 0.3, tc + 1.9, 0.13),
+          markers: (t) => (t >= tTry ? [{ poly: path, color: '#ffd34d', label: '3 FT BASE PATH' }] : []),
+          cam: (t) => (t < tc + 0.3 ? null : { x: 20, y: 62, ext: 17, pitch: 0.95 }),
+        };
       }
       // wide turn at first on a clean single, no tag attempt
       tl.ground(tc, tc + 1.4, { x: 0, y: 2 }, { x: 30, y: 120 });
@@ -540,7 +636,13 @@ export const SITUATIONS = [
       tl.pose('BAT', tc + 0.05, 'stand');
       tl.runPath('BAT', tc + 0.15, [{ x: 30, y: 26 }, { x: 46, y: 34 }, { x: B1.x - 0.4, y: B1.y - 0.2 }, { x: 46, y: 54 }], 16.5, 'stand');
       const t = lastKey(tl, 'BAT').t;
-      return { pause: t + 0.2, cam: () => ({ x: 34, y: 40, ext: 40 }) };
+      // the same high, close look and cleat marks: you can see just how wide he went (and nobody tried a tag)
+      return {
+        pause: t + 0.2,
+        replay: tc - 0.3,
+        scuffs: footprints(tl, 'BAT', tc + 0.3, t, 0.13),
+        cam: (tt) => (tt < tc + 0.3 ? null : { x: 40, y: 40, ext: 17, pitch: 0.95 }),
+      };
     },
     steps(v) {
       return [{
@@ -570,7 +672,21 @@ export const SITUATIONS = [
       tl.runTo('BAT', tc + 0.15, 16, 15, 15, 'run');
       const L = (d, off) => ({ x: -d * Math.SQRT1_2 - off * Math.SQRT1_2, y: d * Math.SQRT1_2 - off * Math.SQRT1_2 }); // along 3B line; off>0 = foul side
       const R = (d, off) => ({ x: d * Math.SQRT1_2 + off * Math.SQRT1_2, y: d * Math.SQRT1_2 - off * Math.SQRT1_2 }); // along 1B line
+      let field = {};
+      const lineLook = (tKey, text) => ({
+        ...moment(tKey, text, 0.55, 0.35),
+        replay: tc - 0.2,
+        init: (s) => { field = s.field; },
+        markers: (t) => [
+          ...(t > tc + 0.2 && t < tKey + 0.6 ? [{ x: B3.x, y: B3.y, r: 2.4, color: '#ffd34d', pulse: true, label: 'WATCH THE BAG', labelZ: 4.2, labelS: 4.2 }] : []),
+          ...(t > tKey - 1 ? [ballRing(tl)] : []),
+        ],
+        cam: (t) => (t < tc + 0.3 ? null : { ...L(60, 1.5), ext: 9.5, pitch: 0.75, yaw: -Math.PI / 4 }),
+      });
       switch (v.k) {
+        // The three grounders down the third-base line share one look: slow motion, a ring on the bag,
+        // and a view straight down the line like the plate umpire's, so you have to watch where the ball is
+        // when it reaches the bag (or where it stops before it)
         case 'rollFoul': {
           // lands fair in front of third, spins foul before the bag and stops
           const a = L(40, -2.5), b = L(52, 3), c2 = L(54, 6);
@@ -579,7 +695,7 @@ export const SITUATIONS = [
           tl.ground(T(1.9), T(2.5), b, c2);
           tl.move('3B', tc, T(2.6), B3.x - 4, B3.y + 4, 'ready');
           tl.rest(T(2.5), T(9), { ...c2, z: 0.12 });
-          return { pause: T(2.6), cam: () => ({ x: -36, y: 34, ext: 26 }) };
+          return { pause: T(2.7), ...lineLook(T(2.5), 'STOPPED!') };
         }
         case 'overBag': {
           const a = L(48, -1.0), b = L(60.5, -0.2), c2 = L(78, 9);
@@ -588,15 +704,25 @@ export const SITUATIONS = [
           tl.ground(T(1.3), T(2.3), b, c2);
           tl.move('3B', tc, T(0.6), -44, 50, 'ready');
           tl.move('LF', tc, T(2.8), c2.x - 2, c2.y + 2, 'ready');
-          return { pause: T(1.9), cam: () => ({ x: -44, y: 44, ext: 30 }) };
+          return { pause: T(1.9), ...lineLook(T(1.3), 'AT THE BAG!') };
         }
         case 'flyBounce': {
+          // the same kind of look down the first-base line, and a mark in the grass where it first lands
           const a = R(115, -2), b = R(135, 14);
           tl.fly(tc, T(2.0), { x: 0, y: 1.5, z: 3 }, { ...a, z: 0.2 }, 30);
           tl.ground(T(2.0), T(3.0), a, b);
+          tl.at(T(2.0), () => { audio.thud(); if (field.puff) field.puff(a.x, a.y, 0.5); });
           tl.move('RF', tc, T(3.0), b.x - 3, b.y + 3, 'ready');
           tl.move('1B', tc, T(1.2), 54, 60, 'stand');
-          return { pause: T(2.6), cam: () => ({ x: 74, y: 88, ext: 44 }) };
+          return {
+            pause: T(2.6),
+            ...moment(T(2.0), 'LANDS!', 0.5, 0.35),
+            replay: tc - 0.2,
+            init: (s) => { field = s.field; },
+            scuffs: (t) => (t >= T(2.0) ? [{ x: a.x, y: a.y, r: 0.55, sx: 0.8, sy: 1.6, a: 0.9, rot: -Math.PI / 4 }] : []),
+            markers: (t) => (t > T(1.4) ? [ballRing(tl)] : []),
+            cam: (t) => (t < T(0.8) ? null : { ...R(116, 3), ext: 11, pitch: 0.7, yaw: Math.PI / 4 }),
+          };
         }
         case 'touchedFoul': {
           // slow roller up the first-base line, pitcher touches it while the ball is in foul ground
@@ -616,14 +742,14 @@ export const SITUATIONS = [
           };
         }
         default: {
-          // ball hits the third-base bag and bounds foul
+          // ball hits the third-base bag (a puff of chalk) and bounds foul
           const a = L(56, -0.3), b = L(60, -0.1), c2 = L(72, 12);
           tl.ground(tc, T(0.85), { x: 0, y: 2 }, a);
           tl.ground(T(0.85), T(0.95), a, b);
-          tl.at(T(0.95), () => audio.tick());
+          tl.at(T(0.95), () => { audio.tick(); if (field.puff) field.puff(b.x, b.y, 0.4); });
           tl.ground(T(0.95), T(1.9), b, c2);
           tl.move('3B', tc, T(0.8), -46, 54, 'ready');
-          return { pause: T(1.6), cam: () => ({ x: -44, y: 44, ext: 28 }) };
+          return { pause: T(1.6), ...lineLook(T(0.95), 'AT THE BAG!') };
         }
       }
     },
@@ -659,32 +785,53 @@ export const SITUATIONS = [
       const tc = pitchHit(tl);
       tl.pose('BAT', tc + 0.05, 'stand');
       tl.runTo('BAT', tc + 0.15, B1.x - 0.4, B1.y - 0.4, 15, 'stand');
+      let field = {};
       if (v.k === 'fence') {
-        const spot = { x: 10, y: 194 };
+        // catches it on the warning track, crashes into the wall, and it pops out onto the dirt
+        const spot = { x: 10, y: 194 }, wall = { x: 10.5, y: 198.4 }, drop = { x: 7, y: 190.5 };
         tl.fly(tc, tc + 3.0, { x: 0, y: 1.5, z: 3 }, { ...spot, z: 6 }, 70);
         tl.move('CF', tc, tc + 2.9, spot.x, spot.y - 0.5, 'catchHigh');
+        tl.move('CF', tc + 3.0, tc + 3.3, wall.x, wall.y - 1.2, 'catchHigh');
         tl.hold(tc + 3.0, tc + 3.35, 'CF', 6);
         tl.at(tc + 3.0, () => audio.pop());
         tl.at(tc + 3.3, () => { audio.thud(); });
-        tl.fly(tc + 3.35, tc + 4.0, { ...spot, z: 5 }, { x: spot.x - 4, y: spot.y - 6, z: 0.1 }, 2);
+        tl.fly(tc + 3.35, tc + 3.95, { x: wall.x - 0.3, y: wall.y - 1.6, z: 5 }, { ...drop, z: 0.1 }, 2.5);
+        tl.at(tc + 3.95, () => { audio.thud(); if (field.puff) field.puff(drop.x, drop.y, 0.5); });
+        tl.ground(tc + 3.95, tc + 4.5, drop, { x: drop.x - 1.5, y: drop.y - 2.5 });
         tl.pose('CF', tc + 3.3, 'fall', { dur: 0.32 });
-        return { pause: tc + 4.1, cam: () => ({ x: 8, y: 170, ext: 40 }) };
+        // close, low and slow from the side: the catch, the crash, and the ball dropping out onto the track
+        return {
+          pause: tc + 4.5,
+          ...moment(tc + 3.3, 'WALL!', 0.6, 0.75, 0.8), // (low: a side-on view has the players right where the callout usually goes)
+          replay: tc + 1.4,
+          init: (s) => { field = s.field; },
+          scuffs: (t) => (t >= tc + 3.95 ? [{ x: drop.x, y: drop.y, r: 0.5, sx: 0.8, sy: 1.5, a: 0.9 }] : []),
+          markers: (t) => (t >= tc + 3.35 ? [ballRing(tl)] : []),
+          cam: (t) => (t < tc + 1.6 ? null : { x: 8.5, y: 194.5, ext: 10, pitch: 0.35, yaw: Math.PI / 2 }),
+        };
       }
       if (v.k === 'carom') {
+        // it glances off the left fielder's glove and the diving center fielder grabs it before it lands
         const spot = { x: -40, y: 165 };
         tl.fly(tc, tc + 3.0, { x: 0, y: 1.5, z: 3 }, { ...spot, z: 4 }, 60);
         tl.move('LF', tc, tc + 2.9, spot.x - 1, spot.y, 'catchHigh');
         tl.at(tc + 3.0, () => audio.tick());
+        tl.pose('LF', tc + 3.15, 'ready'); // empty-handed: it got away from him
         tl.fly(tc + 3.0, tc + 3.7, { ...spot, z: 4 }, { x: spot.x + 7, y: spot.y + 2, z: 2.2 }, 4);
         tl.move('CF', tc, tc + 3.6, spot.x + 7, spot.y + 2.3, 'dive');
         tl.hold(tc + 3.7, tc + 6, 'CF', 1);
         tl.at(tc + 3.7, () => audio.pop());
-        return { pause: tc + 4.0, cam: () => ({ x: -30, y: 150, ext: 40 }) };
+        // close, low and slow from behind: off one glove, into the other, with daylight under the ball
+        return {
+          pause: tc + 4.2,
+          ...moment(tc + 3.0, 'OFF HIS GLOVE!', 0.5, 0.95, 0.8),
+          replay: tc + 1.4,
+          cam: (t) => (t < tc + 1.6 ? null : { x: spot.x + 3, y: spot.y + 1, ext: 9, pitch: 0.3, yaw: 0 }),
+        };
       }
       const spot = { x: 60, y: 120 };
       // trap: the ball lands a step short of the glove, kicks up turf, and short-hops in
       const bounce = { x: spot.x - 0.65, y: spot.y - 1.3 };
-      let field = {};
       if (v.k === 'trap') {
         tl.fly(tc, tc + 1.72, { x: 0, y: 1.5, z: 3 }, { ...bounce, z: 0.1 }, 20);
         tl.fly(tc + 1.72, tc + 1.9, { ...bounce, z: 0.1 }, { ...spot, z: 0.35 }, 0.6);
@@ -1040,14 +1187,28 @@ export const SITUATIONS = [
       tl.runTo('BAT', tc + 0.15, B1.x + 2, B1.y + 4, 15, 'run');
       tl.runTo('BAT', lastKey(tl, 'BAT').t, 34, 54, 12, 'stand');
       const t0 = Math.max(tIn, lastKey(tl, 'BAT').t) + 0.3;
+      // both versions: a callout and a lit-up circle the moment the pitcher has the ball in it, the camera
+      // close on the runner (cleat marks show every change of direction), and a CIRCLE CAM box on the pitcher
+      const look = (end) => ({
+        pause: end,
+        words: [{ t: tIn, text: 'BALL IN THE CIRCLE!' }],
+        replay: tIn - 1.2,
+        scuffs: footprints(tl, 'BAT', tIn - 0.6, end, 0.15),
+        markers: (t) => (t >= tIn ? [{ x: 0, y: sport.rubber, r: CIRCLE_R, color: '#ffd34d', pulse: true }] : []),
+        cam: (t) => (t < tIn - 1 ? null : { x: 37, y: 50, ext: 14, pitch: 0.8 }),
+        inset: (t) => (t > tIn - 0.8 ? {
+          eye: { x: 12, y: sport.rubber - 16, z: 7 }, target: { x: 0, y: sport.rubber + 1, z: 2.5 }, fov: 0.55,
+          label: 'CIRCLE CAM', flash: t >= tIn ? 'BALL IN!' : null, corner: 'tl',
+        } : null),
+      });
       if (v.dance) {
         let t = tl.runTo('BAT', t0, 37, 50, 6, 'stand');
         t = tl.runTo('BAT', t + 0.2, 32, 56, 6, 'stand');
         t = tl.runTo('BAT', t + 0.2, 36, 51, 6, 'stand');
-        return { pause: t + 0.6, cam: () => ({ x: 22, y: 46, ext: 40 }) };
+        return look(t + 0.6);
       }
       tl.runTo('BAT', t0 + 0.1, B1.x - 0.3, B1.y - 0.2, 12, 'stand');
-      return { pause: lastKey(tl, 'BAT').t + 0.5, cam: () => ({ x: 22, y: 46, ext: 40 }) };
+      return look(lastKey(tl, 'BAT').t + 0.5);
     },
     steps(v) {
       return [{
