@@ -53,7 +53,7 @@ function halfW(y) {
 
 // Signed distance (ft) of the ball center from the edge of the "any part of the ball touches any part of the zone" region.
 function margin(x, z, y, zone) {
-  const hw = halfW(y) + BALL_R;
+  const hw = halfW(y) + BALL_R + (zone.wide || 0);
   const ex = hw - Math.abs(x);
   const et = zone.top + BALL_R - z;
   const eb = z - (zone.bot - BALL_R);
@@ -119,7 +119,7 @@ function makeTraj(rel, target, mph, brk) {
 // Choose a crossing point near the zone edge so the call is a real test.
 function chooseLocation(zone, div, wantStrike, edgeIn) {
   const e = edgeIn / 12;
-  const cx = HALF + BALL_R, top = zone.top + BALL_R, bot = zone.bot - BALL_R;
+  const cx = HALF + BALL_R + (zone.wide || 0), top = zone.top + BALL_R, bot = zone.bot - BALL_R;
   const sideEdge = weighted([['in', 3], ['out', 3], ['high', 2], ['low', 3], ['corner', 2]]);
   let x, z;
   const midZ = rand(bot + 0.25, top - 0.25);
@@ -201,7 +201,10 @@ export class AtBatEvent {
     this.divots = []; // where the current pitch dug into the dirt
     this.puffs2d = []; // 2D renderer: dirt puffs to animate
     this.lookZ = LOOK_Z;
-    this.zone = { bot: this.batter.knee, top: this.batter.armpit };
+    // The zone is the rulebook zone in Majors and up; the younger divisions get a little more room
+    // (wider and taller), the way umpires call it for kid-pitch.
+    const grow = { AA: { w: 0.17, t: 0.22, b: 0.15 }, AAA: { w: 0.08, t: 0.11, b: 0.08 } }[this.div.id] || { w: 0, t: 0, b: 0 };
+    this.zone = { bot: this.batter.knee - grow.b, top: this.batter.armpit + grow.t, wide: grow.w };
     this.fast = !!spec.fast; // blitz mode: snappier pacing
     this.bg = this._bgActors();
     this.setupHinted = false;
@@ -1025,9 +1028,10 @@ export class AtBatEvent {
     s.field.draw(g, cam, {
       actors: this.bg.filter((a) => a !== this.pitcher),
       bodies,
-      ball: ball ? { ...ball, scale: 1.15, halo: 0.45, trail: this.trail.filter(Boolean), dim: showZone && this._inZone(ball) ? 0.3 : 0 } : null,
+      ball: ball ? { ...ball, scale: 1.15, halo: 0.45, trail: this.trail.filter(Boolean), dim: showZone && this._inZone(ball) ? 0.3 : 0, shadow: !this._following() } : null,
       scuffs: this.divots.map((d) => ({ x: d.x, y: d.y, r: 0.7, sx: 0.9, sy: 1.7, a: 0.95 })),
-      zone: showZone ? { bot: this.zone.bot, top: this.zone.top, y: 0.708, depth: 1.416, alpha: showZone } : null,
+      // the 3D box over the whole plate, or (Settings) a flat TV-style box at the front of the plate
+      zone: showZone ? { bot: this.zone.bot, top: this.zone.top, w: 2 * (HALF + this.zone.wide), alpha: showZone, ...(this._tvZone() ? { y: 1.4, depth: 0.03 } : { y: 0.708, depth: 1.416 }) } : null,
       imprint: this._imprint(),
       extra: (P) => this._arm3d(P, cam),
       overlay: (gg) => {
@@ -1143,7 +1147,7 @@ export class AtBatEvent {
     g.globalAlpha = alpha;
     const b = this.batter;
     const lab = (txt, zz) => {
-      const p = cam.project(-b.side * (HALF + 0.12), 1.0, zz);
+      const p = cam.project(-b.side * (HALF + this.zone.wide + 0.12), this._tvZone() ? 1.416 : 1.0, zz);
       if (!p) return;
       g.font = `700 ${Math.round(12 * this.s.app.dpr)}px Rubik, sans-serif`;
       g.fillStyle = 'rgba(255,240,190,0.95)';
@@ -1167,8 +1171,9 @@ export class AtBatEvent {
     g.save();
     g.globalAlpha = show;
     // the zone is a box over the whole plate: back face, then front face
-    for (const [yy, fill] of [[0, 0.05], [y, 0.08]]) {
-      const pts = [[-HALF, yy, z.bot], [HALF, yy, z.bot], [HALF, yy, z.top], [-HALF, yy, z.top]];
+    const zw = HALF + (z.wide || 0);
+    for (const [yy, fill] of this._tvZone() ? [[y, 0.1]] : [[0, 0.05], [y, 0.08]]) {
+      const pts = [[-zw, yy, z.bot], [zw, yy, z.bot], [zw, yy, z.top], [-zw, yy, z.top]];
       if (cam.polyPath(g, pts)) {
         g.fillStyle = `rgba(255,211,77,${fill})`;
         g.fill();
@@ -1182,7 +1187,7 @@ export class AtBatEvent {
     // landmark ticks at knees / armpits
     const b = this.batter;
     const lab = (txt, zz) => {
-      const p = cam.project(-b.side * (HALF + 0.12), y, zz);
+      const p = cam.project(-b.side * (HALF + (z.wide || 0) + 0.12), y, zz);
       if (!p) return;
       g.font = `700 ${Math.round(12 * this.s.app.dpr)}px Rubik, sans-serif`;
       g.fillStyle = 'rgba(255,240,190,0.95)';
@@ -1213,6 +1218,8 @@ export class AtBatEvent {
   }
 
   // Is any part of the ball inside the strike zone box right now?
+  _tvZone() { return this.s.profile.settings.zoneStyle === 'tv'; }
+
   _inZone(b) {
     return !!b && b.y >= 0 && b.y <= 1.414 && margin(b.x, b.z, b.y, this.zone) >= 0;
   }
@@ -1276,7 +1283,7 @@ export class AtBatEvent {
     // shadow
     const sh = cam.project(b.x, b.y, 0);
     if (sh) {
-      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.fillStyle = this._following() ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.6)';
       g.beginPath(); g.ellipse(sh.x, sh.y, r * 1.1, r * 0.4, 0, 0, Math.PI * 2); g.fill();
     }
     g.fillStyle = 'rgba(255,255,255,0.35)';
@@ -1478,15 +1485,16 @@ export function drawKZone(canvas, info) {
   else g.fillRect(X(HALF + 0.35), 0, W, H);
   // zone
   g.fillStyle = 'rgba(255,255,255,0.06)';
-  g.fillRect(X(-HALF), Y(zone.top), 2 * HALF * sc, (zone.top - zone.bot) * sc);
+  const ZW = HALF + (zone.wide || 0);
+  g.fillRect(X(-ZW), Y(zone.top), 2 * ZW * sc, (zone.top - zone.bot) * sc);
   g.strokeStyle = '#ffffff';
   g.lineWidth = 2;
-  g.strokeRect(X(-HALF), Y(zone.top), 2 * HALF * sc, (zone.top - zone.bot) * sc);
+  g.strokeRect(X(-ZW), Y(zone.top), 2 * ZW * sc, (zone.top - zone.bot) * sc);
   g.strokeStyle = 'rgba(255,255,255,0.25)';
   g.lineWidth = 1;
   for (let i = 1; i < 3; i++) {
-    g.beginPath(); g.moveTo(X(-HALF + (2 * HALF * i) / 3), Y(zone.top)); g.lineTo(X(-HALF + (2 * HALF * i) / 3), Y(zone.bot)); g.stroke();
-    g.beginPath(); g.moveTo(X(-HALF), Y(zone.top - ((zone.top - zone.bot) * i) / 3)); g.lineTo(X(HALF), Y(zone.top - ((zone.top - zone.bot) * i) / 3)); g.stroke();
+    g.beginPath(); g.moveTo(X(-ZW + (2 * ZW * i) / 3), Y(zone.top)); g.lineTo(X(-ZW + (2 * ZW * i) / 3), Y(zone.bot)); g.stroke();
+    g.beginPath(); g.moveTo(X(-ZW), Y(zone.top - ((zone.top - zone.bot) * i) / 3)); g.lineTo(X(ZW), Y(zone.top - ((zone.top - zone.bot) * i) / 3)); g.stroke();
   }
   // plate
   g.fillStyle = '#fff';

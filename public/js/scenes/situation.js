@@ -1,5 +1,6 @@
 // Rule situations: a scripted play runs on the field, freezes at the key moment, and asks for the ruling.
 import { audio } from '../audio.js';
+import { input } from '../input.js';
 import { voices } from '../voice.js';
 import { clamp, lerp, pick } from '../util.js';
 import { Timeline, setupDefense, setupRunners, setupBatter, setupUmps } from './timeline.js';
@@ -22,12 +23,17 @@ export class SituationEvent {
     const built = this.def.build(tl, this.v, this.div) || {};
     this.pauses = built.pauses || [built.pause || 2];
     this.camFn = built.cam || null;
+    this.slow = built.slow || []; // [[t0, t1], ...]: slow motion so a quick moment at the plate can be seen
     this.endT = built.end || tl.duration + 0.8;
     this.t = 0;
     this.stepIdx = 0;
     this.state = 'intro';
     this.timeScale = 1;
-    this.allowMove = false;
+    // you are the base umpire: move with the stick like on base plays (the script no longer moves you)
+    const bu = tl.actors.BU;
+    this.bu = bu ? { x: bu.x, y: bu.y, vx: 0, vy: 0 } : null;
+    if (bu) { bu.ring = true; bu.you = true; }
+    this.allowMove = !!bu;
     tl.sample(0);
   }
 
@@ -55,23 +61,51 @@ export class SituationEvent {
     if (this.state === 'intro') {
       this.introT += dt;
       if (this.introT > 3.5) this._run();
+      this.tl.sample(0);
+      this._moveUmp(dt);
       this._frame(dt);
       return;
     }
     if (this.state === 'play' || this.state === 'after') {
       const pauseAt = this.state === 'play' ? this.pauses[this.stepIdx] : Infinity;
       const until = pauseAt - this.t;
-      this.timeScale = until < 0.45 ? lerp(this.timeScale, 0.3, 0.2) : 1;
+      const slow = this.slow.some(([a, b]) => this.t >= a && this.t <= b);
+      this.timeScale = until < 0.45 || slow ? lerp(this.timeScale, 0.3, 0.2) : lerp(this.timeScale, 1, 0.2);
       this.t = Math.min(this.t + dt * this.timeScale, pauseAt);
       this.tl.sample(this.t);
+      this._moveUmp(dt);
       this._frame(dt);
       if (this.state === 'play' && this.t >= pauseAt) this._ask();
       return;
     }
     if (this.state === 'ask') {
       this.askT += dt;
+      this._moveUmp(dt);
       this._frame(dt);
     }
+  }
+
+  // The base umpire follows your stick (same feel as the base plays)
+  _moveUmp(dt) {
+    const u = this.bu;
+    if (!u) return;
+    const a = this.tl.actors.BU;
+    const m = this.state === 'play' || this.state === 'intro' ? input.move : { x: 0, y: 0 };
+    const tvx = m.x * 17, tvy = m.y * 17;
+    const k = Math.min(1, (70 * dt) / Math.max(1, Math.hypot(tvx - u.vx, tvy - u.vy)));
+    u.vx += (tvx - u.vx) * k;
+    u.vy += (tvy - u.vy) * k;
+    u.x = clamp(u.x + u.vx * dt, -75, 75);
+    u.y = clamp(u.y + u.vy * dt, -15, 140);
+    a.x = u.x; a.y = u.y;
+    a.vis = Math.min(innerWidth, innerHeight) < 600 ? 1.6 : 1.2;
+    const sp = Math.hypot(u.vx, u.vy);
+    if (sp > 2) {
+      a.pose = 'run';
+      a.dist = (a.dist || 0) + sp * dt;
+      a.phase = (a.dist / 5.2) % 1;
+      if (Math.abs(u.vx) > 1) a.facing = u.vx > 0 ? 1 : -1;
+    } else a.pose = 'set';
   }
 
   _frame(dt, snap = false) {

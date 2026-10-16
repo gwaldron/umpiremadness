@@ -571,6 +571,7 @@ export class Screens {
     seg('Sport', 'Baseball or softball: the field, the ball, the pitcher, the players and the rules', [['baseball', '⚾ Baseball'], ['softball', '🥎 Softball']], 'sport');
     seg('Hints', 'Ghost spots and coach tips', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Never']], 'hints');
     seg('Strike zone box', 'Smart: pops up after a miss, then fades away', [['smart', 'Smart'], ['on', 'Always'], ['off', 'Never']], 'zoneBox');
+    seg('Zone box style', 'A 3D box over the whole plate, or a flat TV-style box at the front of the plate', [['3d', '3D box'], ['tv', 'TV box']], 'zoneStyle');
     seg('Screen shake', 'Big-moment camera shake', [[true, 'On'], [false, 'Off']], 'shake');
     {
       // Graphics: 3D quality levels, or classic 2D. Switching between 3D and 2D reloads the page.

@@ -677,7 +677,7 @@ export class BasePlayEvent {
   }
 
   // Fit a set of ground points on screen (with some padding).
-  _frame(pts) {
+  _frame(pts, minExt = 42) {
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const p of pts) {
       if (!p || !isFinite(p.x) || !isFinite(p.y)) continue;
@@ -685,7 +685,7 @@ export class BasePlayEvent {
       y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
     }
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-    const ext = clamp(Math.max((x1 - x0) / 2, ((y1 - y0) / 2) * 0.85) + 16, 42, 105);
+    const ext = clamp(Math.max((x1 - x0) / 2, ((y1 - y0) / 2) * 0.85) + 16, minExt, 105);
     this.s.rig.set({ x: cx, y: cy + 4 }, ext, 0.78);
   }
 
@@ -707,6 +707,8 @@ export class BasePlayEvent {
     this.ump.still = speed < 1.5 ? this.ump.still + dt : 0;
     const ua = this.umpActor;
     ua.x = this.ump.x; ua.y = this.ump.y;
+    ua.vis = Math.min(innerWidth, innerHeight) < 600 ? 1.6 : 1.2; // a bigger you on phones
+    ua.you = true;
     if (!this.signalPose) {
       if (speed > 2) { ua.pose = 'run'; ua.dist = (ua.dist || 0) + speed * step; ua.phase = (ua.dist / STRIDE) % 1; if (Math.abs(this.ump.vx) > 1) ua.facing = this.ump.vx > 0 ? 1 : -1; }
       else ua.pose = this.ump.still > 0.25 ? 'set' : 'stand';
@@ -714,7 +716,13 @@ export class BasePlayEvent {
 
     if (this.state === 'position') {
       this.posTimer += dt;
-      this._frame([{ x: this.ump.x, y: this.ump.y }, UMP_SPOTS[this.expectSpot], { x: 0, y: 0 }, BASES.second, BASES.first, BASES.third]);
+      // phones: frame just you, your spot and its base so you're big enough to steer; bigger screens show the infield
+      const you = { x: this.ump.x, y: this.ump.y };
+      if (Math.min(innerWidth, innerHeight) < 600) {
+        const base = { A: BASES.first, B: BASES.second, C: BASES.second }[this.expectSpot];
+        const zone = startZonePoly(this.expectSpot) || [UMP_SPOTS[this.expectSpot]];
+        this._frame([you, base, ...zone], 22);
+      } else this._frame([you, UMP_SPOTS[this.expectSpot], { x: 0, y: 0 }, BASES.second, BASES.first, BASES.third]);
       return;
     }
     if (this.state === 'live' || this.state === 'after') {

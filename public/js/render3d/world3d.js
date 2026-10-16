@@ -247,8 +247,8 @@ export class Field3D {
       if (m.label) {
         e.label.visible = true;
         e.label.material.map = this._label(m.label, m.color && m.color.startsWith('#') ? m.color : '#ffd34d');
-        e.label.position.set(m.x, m.y, 3.2 + Math.sin(t * 3) * 0.3);
-        e.label.scale.set(3.2, 3.2, 1);
+        e.label.position.set(m.x, m.y, (m.labelZ ?? 3.2) + Math.sin(t * 3) * 0.3);
+        e.label.scale.set(m.labelS ?? 3.2, m.labelS ?? 3.2, 1);
       } else e.label.visible = false;
       i++;
     }
@@ -275,10 +275,11 @@ export class Field3D {
     this.ball.rotation.x += 0.4;
     this.ball.rotation.z += 0.3;
     const h = b.z || 0;
-    const sr = Math.max(0.35, r * 2.2) * (1 + h * 0.02);
+    // a pitch (b.shadow) gets a darker, tighter shadow: it helps judge the height of the ball
+    const sr = b.shadow ? Math.max(0.22, r * 1.5) * (1 + h * 0.01) : Math.max(0.35, r * 2.2) * (1 + h * 0.02);
     this.ballShadow.position.set(b.x, b.y, 0.09);
     this.ballShadow.scale.set(sr * 2, sr * 2, 1);
-    this.ballShadow.material.opacity = Math.max(0.12, 0.55 - h * 0.012);
+    this.ballShadow.material.opacity = b.shadow ? Math.max(0.6, 0.92 - h * 0.04) : Math.max(0.12, 0.55 - h * 0.012);
     this.ballGlow.position.copy(this.ball.position);
     this.ballGlow.scale.setScalar(r * 6);
     const far = Math.max(0, Math.min(1, (d - 15) / 30));
@@ -343,7 +344,12 @@ export class Field3D {
       const W = P.applyIK(P.jointsFor(a), a.ik);
       const rigged = this.rig.draw(W, a, 'toon'); // { bodyless, headless }: what the Blender models drew
       P.drawBody(W, rigged ? { ...a, ...rigged } : a);
-      if (a.ring) markers.push({ x: a.x, y: a.y, r: 2.4, color: a.ring === true ? '#ffd34d' : a.ring, pulse: true });
+      if (a.ring) {
+        // you: a ring at your feet, and on small screens a bigger one with a YOU tag over your head
+        const small = Math.min(this.engine.cssW, this.engine.cssH) < 600;
+        markers.push({ x: a.x, y: a.y, r: small ? 3.8 : 2.4, color: a.ring === true ? '#ffd34d' : a.ring, pulse: true,
+          ...(a.you && small ? { label: 'YOU', labelZ: 9.5, labelS: 5.5 } : {}) });
+      }
       // a held ball rides in the throwing hand through the windup, and in the glove after a grounder,
       // a dive or a catch over the head (tags and stretches are left to the base plays, which drop it)
       if (world.ball && world.ball.holder === a.id) {
@@ -367,7 +373,7 @@ export class Field3D {
       const z = world.zone;
       this.zone.visible = true;
       this.zone.position.set(0, z.y ?? 0.708, (z.bot + z.top) / 2);
-      this.zone.scale.set(1.416, z.depth ?? 1.416, z.top - z.bot);
+      this.zone.scale.set(z.w ?? 1.416, z.depth ?? 1.416, z.top - z.bot);
       for (const [m, o] of this.zoneMats) m.opacity = o * (z.alpha ?? 1);
     } else this.zone.visible = false;
     const im = world.imprint;
@@ -421,6 +427,9 @@ export class Field3D {
     // Startup check only: once the 3D view has drawn for a moment, stop probing pixels, so a stray
     // dark frame later (e.g. while a restored context rebuilds its shaders) can't trip it.
     if (this.verified) return;
+    // nothing to see yet (a hidden page, or a canvas or render target with no size): don't judge it
+    const rt = this.engine.composer && this.engine.composer.renderTarget1;
+    if (document.hidden || this.engine.gl.drawingBufferWidth < 8 || this.engine.gl.drawingBufferHeight < 8 || (rt && (rt.width < 8 || rt.height < 8))) return;
     const f = ++this.frame;
     if (f < 4 || f % 3) return;
     if (this.engine.probe()) {

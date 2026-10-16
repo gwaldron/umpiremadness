@@ -798,9 +798,12 @@ export function labelTexture(text, color = '#ffd34d') {
   c.width = 128; c.height = 128;
   const g = c.getContext('2d');
   g.font = '92px Bungee, Impact, sans-serif';
+  // longer labels ("YOU", "WORKING AREA") shrink to fit instead of running off the edges
+  const fit = Math.min(92, (92 * 112) / Math.max(1, g.measureText(text).width));
+  g.font = `${Math.floor(fit)}px Bungee, Impact, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.lineWidth = 12;
+  g.lineWidth = Math.max(5, fit * 0.13);
   g.strokeStyle = '#0b1530';
   g.strokeText(text, 64, 70);
   g.fillStyle = color;

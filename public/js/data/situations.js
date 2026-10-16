@@ -158,7 +158,7 @@ export const SITUATIONS = [
         tl.move('R2', tc + 0.1, th, hit.x - 0.6, hit.y + 0.6, 'stand');
         tl.move('SS', tc, th, -19, 70, 'ready');
         batterRuns(tl, tc + 0.3, 16);
-        return { pause: th + 0.25 };
+        return { pause: th + 0.25, slow: [[th - 0.3, th + 0.2]], cam: (t) => (t > tc + 0.3 ? { x: hit.x + 3, y: hit.y - 6, ext: 22 } : null) };
       }
       // grounder gets past the shortstop, then hits the runner behind him
       tl.move('SS', tc, tc + 0.7, -14, 63, 'field');
@@ -170,7 +170,7 @@ export const SITUATIONS = [
       tl.ground(th, th + 0.9, through, { x: -26, y: 86 });
       tl.move('R2', tc + 0.1, th, through.x, through.y, 'stand');
       batterRuns(tl, tc + 0.3, 16);
-      return { pause: th + 0.25 };
+      return { pause: th + 0.25, slow: [[th - 0.3, th + 0.2]], cam: (t) => (t > tc + 0.3 ? { x: through.x + 2, y: through.y - 8, ext: 24 } : null) };
     },
     steps(v) {
       return [{
@@ -404,7 +404,7 @@ export const SITUATIONS = [
     build(tl) {
       const tc = pitchHit(tl);
       tl.at(tc - 0.03, () => { audio.tick(); });
-      tl.move('C', 0, tc - 0.1, 0, -1.6, 'catcher');
+      tl.move('C', 0, tc - 0.1, 0, -1.2, 'catcher'); // creeping up, mitt too close to the bat
       tl.ground(tc, tc + 0.9, { x: 0, y: 2 }, { x: -18, y: 66 });
       fieldAt(tl, 'SS', tc, tc + 0.9, -18, 67);
       tl.hold(tc + 0.9, tc + 1.4, 'SS', 3.4);
@@ -413,7 +413,8 @@ export const SITUATIONS = [
       tl.pose('1B', tb - 0.3, 'reach', { facing: -1 });
       tl.hold(tb, tb + 3, '1B', 3.2);
       batterRuns(tl, tc + 0.3, 15);
-      return { pause: tb + 0.6 };
+      // close up on the plate in slow motion for the swing (the bat clips the mitt), then follow the play
+      return { pause: tb + 0.6, slow: [[tc - 0.35, tc + 0.25]], cam: (t) => (t < tc + 0.45 ? { x: 0, y: 1, ext: 13, pitch: 1.0 } : null) };
     },
     steps() {
       return [{
@@ -439,17 +440,21 @@ export const SITUATIONS = [
       const tc = pitchHit(tl, { swing: false, catcher: true });
       tl.hold(tc, tc + 0.9, 'C', 2.4);
       tl.runTo('R1', tc + 0.02, -0.5, 82, 16.5, 'stand');
-      if (v.moved) tl.move('BAT', tc + 0.3, tc + 0.8, -0.6, 1.5, 'stand');
+      // the batter steps out of the box, right across the plate into the catcher's throwing lane
+      if (v.moved) tl.move('BAT', tc + 0.25, tc + 0.75, 0.3, 0.6, 'stand', 'run');
       tl.pose('C', tc + 0.6, 'throw', { dur: 0.4, facing: 1 });
-      tl.at(tc + 0.85, () => { if (v.moved) audio.thud(); });
       if (v.moved) {
-        tl.ground(tc + 0.9, tc + 1.5, { x: 0, y: 0 }, { x: 6, y: 12 });
+        // the throw smacks into him and drops
+        tl.throwBall(tc + 0.88, tc + 0.98, { x: 0, y: -2, z: 4.6 }, { x: 0.3, y: 0.4, z: 3.6 });
+        tl.at(tc + 0.98, () => { audio.thud(); audio.ouch(); });
+        tl.ground(tc + 0.98, tc + 1.6, { x: 0.3, y: 0.4 }, { x: 2.5, y: 4 });
       } else {
         tl.throwBall(tc + 0.9, tc + 2.2, { x: 0, y: -2, z: 4.6 }, { x: 1.2, y: 83.5, z: 2.8 });
         tl.move('SS', tc + 0.2, tc + 1.9, 1.5, 83, 'tag');
         tl.hold(tc + 2.2, tc + 5, 'SS', 2.6);
       }
-      return { pause: v.moved ? tc + 1.4 : tc + 2.4, cam: () => ({ x: 0, y: v.moved ? 20 : 45, ext: v.moved ? 34 : 60 }) };
+      // close on the plate so you see what the batter does, then (no interference) follow the throw
+      return { pause: v.moved ? tc + 1.5 : tc + 2.4, slow: [[tc + 0.2, tc + 1.1]], cam: (t) => (v.moved || t < tc + 1.0 ? { x: 0, y: 1, ext: 13, pitch: 1.0 } : { x: 0, y: 45, ext: 60 }) };
     },
     steps(v) {
       return [{
