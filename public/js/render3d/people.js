@@ -64,7 +64,7 @@ export function groundZ(x, y) {
   return 0.5 * Math.min(1, (5.6 - d) / 4.0);
 }
 
-const FRONT_POSES = new Set(['stand', 'ready', 'field', 'set', 'out', 'safe', 'time', 'pointR', 'pointL', 'catchHigh', 'catcher', 'pitch']);
+const FRONT_POSES = new Set(['stand', 'ready', 'field', 'set', 'out', 'safe', 'time', 'pointR', 'pointL', 'catchHigh', 'reachUp', 'catcher', 'pitch']);
 const JOINTS = ['hip', 'neck', 'head', 'shF', 'shB', 'elF', 'elB', 'handF', 'handB', 'kneeF', 'kneeB', 'footF', 'footB'];
 const LIMBS = [['shF', 'elF', 'handF'], ['shB', 'elB', 'handB'], ['hip', 'kneeF', 'footF'], ['hip', 'kneeB', 'footB']];
 

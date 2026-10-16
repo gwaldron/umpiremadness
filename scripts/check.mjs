@@ -15,12 +15,13 @@ import { KITS } from '../public/js/render/figures.js';
 import { preloadIsCurrent } from './preload.mjs';
 import { sport, setSport, forSport, rubberY } from '../public/js/sport.js';
 import { DRILLS, buildDrill } from '../public/js/game/drills.js';
+import { FAIRFOUL_PLUS } from '../public/js/data/fairfoul.js';
 
 const problems = [];
 let built = 0;
 for (const sp of ['baseball', 'softball']) {
 setSport(sp);
-for (const def of SITUATIONS) {
+for (const def of [...SITUATIONS, FAIRFOUL_PLUS]) {
   if (!RULE[def.card]) problems.push(`${def.id}: unknown rule card ${def.card}`);
   if (!forSport(def)) continue;
   for (const div of DIVISIONS) {
@@ -84,9 +85,8 @@ for (const sp of ['baseball', 'softball']) {
       drillReps++;
       if (e.type === 'sit' && !e.def) problems.push(`drill ${d.id}: missing situation`);
       if (e.type === 'sit' && e.v) {
-        const seen = new Set();
-        for (let i = 0; i < 200; i++) seen.add(JSON.stringify(e.def.variant().k));
-        for (const [key, val] of Object.entries(e.v)) if (!seen.has(JSON.stringify(val))) problems.push(`drill ${d.id}: ${e.def.id} has no variant ${key}=${val}`);
+        const samples = Array.from({ length: 300 }, () => e.def.variant());
+        for (const [key, val] of Object.entries(e.v)) if (!samples.some((x) => JSON.stringify(x[key]) === JSON.stringify(val))) problems.push(`drill ${d.id}: ${e.def.id} has no variant ${key}=${val}`);
       }
     }
   }

@@ -144,7 +144,7 @@ export class Camera {
 export class FieldRig {
   constructor(cam) {
     this.cam = cam;
-    this.focus = { x: 0, y: 55 };
+    this.focus = { x: 0, y: 55, z: 0 }; // z: look at a height (a ball in the air) instead of the ground
     this.extent = 75; // half-width in feet that must fit on screen
     this.goalFocus = { ...this.focus };
     this.goalExtent = this.extent;
@@ -154,7 +154,7 @@ export class FieldRig {
 
   // yaw (optional): look from a set compass direction instead of from behind home (a side-on close-up)
   set(focus, extent, pitch, yaw = null) {
-    this.goalFocus = { x: focus.x, y: focus.y };
+    this.goalFocus = { x: focus.x, y: focus.y, z: focus.z || 0 };
     if (extent) this.goalExtent = extent;
     if (pitch) this.goalPitch = pitch;
     if (yaw !== null) this.yaw = yaw;
@@ -172,6 +172,7 @@ export class FieldRig {
     const k = 1 - Math.exp(-Math.max(0, Math.min(0.25, dt)) * 3.2);
     this.focus.x += (this.goalFocus.x - this.focus.x) * k;
     this.focus.y += (this.goalFocus.y - this.focus.y) * k;
+    this.focus.z += ((this.goalFocus.z || 0) - (this.focus.z || 0)) * k;
     this.extent += (this.goalExtent - this.extent) * k;
     this.pitch += (this.goalPitch - this.pitch) * k;
     const cam = this.cam;
@@ -194,6 +195,7 @@ export class FieldRig {
       ex = this.focus.x - Math.sin(yw) * r;
       ey = this.focus.y - Math.cos(yw) * r;
     }
-    cam.lookAt({ x: ex, y: ey, z: d * Math.sin(p) }, { x: this.focus.x, y: this.focus.y, z: 0 });
+    const fz = this.focus.z || 0;
+    cam.lookAt({ x: ex, y: ey, z: d * Math.sin(p) + fz }, { x: this.focus.x, y: this.focus.y, z: fz });
   }
 }

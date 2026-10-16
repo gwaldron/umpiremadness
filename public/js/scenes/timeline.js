@@ -8,7 +8,7 @@ export const STRIDE = 6.8; // feet per run cycle (the run pose's planted foot st
 
 // Poses whose phase runs on the clock: 0..1 over `dur` seconds (the key's, else these) from when the pose
 // started. Other poses take their phase from the running stride.
-const TIMED = { pitch: 0.6, throw: 0.6, out: 0.6, safe: 0.6, fall: 0.6, slide: 0.3, dive: 0.45, tag: 0.5, field: 0.7, catchHigh: 0.3, reach: 0.3 };
+const TIMED = { pitch: 0.6, throw: 0.6, out: 0.6, safe: 0.6, fall: 0.6, slide: 0.3, dive: 0.45, tag: 0.5, field: 0.7, catchHigh: 0.3, reach: 0.3, reachUp: 0.35 };
 // Seconds to ease out of the previous pose into a new one (default 0.16), and longer to get up off the dirt
 const EASE = { run: 0.2, slide: 0.1, dive: 0.1, throw: 0.08, fall: 0.06, pitch: 0.15 };
 const GET_UP = { slide: 0.45, dive: 0.5, fall: 0.55 };

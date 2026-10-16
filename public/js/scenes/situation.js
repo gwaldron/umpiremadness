@@ -130,7 +130,7 @@ export class SituationEvent {
       f = { x: tx, y: ty, ext };
     }
     // (a side-on yaw is 3D only: the flat 2D figures are drawn for the view from behind home)
-    rig.set({ x: f.x, y: f.y }, f.ext, f.pitch || 0.7, this.s.field.is3d ? f.yaw ?? null : null);
+    rig.set({ x: f.x, y: f.y, z: f.z || 0 }, f.ext, f.pitch || 0.7, this.s.field.is3d ? f.yaw ?? null : null);
     if (snap) rig.snap();
   }
 

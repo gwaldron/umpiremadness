@@ -4,6 +4,7 @@
 import { shuffle } from '../util.js';
 import { DIV } from '../data/divisions.js';
 import { SITUATIONS, situationsFor } from '../data/situations.js';
+import { FAIRFOUL_PLUS, FAIRFOUL_KINDS } from '../data/fairfoul.js';
 
 const sit = (id) => SITUATIONS.find((s) => s.id === id);
 
@@ -24,7 +25,11 @@ export const DRILLS = [
     id: 'fairfoul', icon: '📏', title: 'Fair or Foul?', card: 'fair-foul', div: 'AAA',
     desc: 'Rollers that spin foul, balls over the bag, fly balls past the base, touched balls.',
     tip: "Before first or third base, a grounder is judged where it **stops or is touched**. Past the base, it's where it **first lands** (or where it **passes the bag**). The lines and bases are **fair**.",
-    reps: () => variantReps('fairfoul', ['rollFoul', 'overBag', 'flyBounce', 'touchedFoul', 'hitsBag'], 10),
+    // 21 kinds of play (the 5 classics plus 16 families on either line), 12 different ones per drill
+    reps: () => shuffle([
+      ...['rollFoul', 'overBag', 'flyBounce', 'touchedFoul', 'hitsBag'].map((k) => ({ type: 'sit', def: sit('fairfoul'), v: { k } })),
+      ...FAIRFOUL_KINDS.map((k) => ({ type: 'sit', def: FAIRFOUL_PLUS, v: { k, side: Math.random() < 0.5 ? '1B' : '3B' } })),
+    ]).slice(0, 12),
   },
   {
     id: 'safeout', icon: '👟', title: 'Safe or Out?', card: 'force-play', div: 'AAA',

@@ -184,6 +184,16 @@ const REACH_KEYS = [
     handF: [1.15, 3.1, 0.15], elbowF: [0.7, 3.0, 0.45], handB: [0.55, 2.75, -0.4], elbowB: [0.2, 2.75, -0.65],
     footF: [1.15, 0, 0.2], kneeF: [1.05, 1.0, 0.25], footB: [-1.0, 0, -0.2], kneeB: [-0.5, 0.95, -0.3] },
 ];
+// Reach across (p: 0..1): a sidestep with the glove stretched high out to the glove side, about 2 ft past
+// the body, the way a fielder reaches over the foul line for a ball he can't get under
+const REACHUP_KEYS = [
+  { p: 0, hip: [0, 2.2, 0], neck: [0.1, 3.7, 0.1], head: [0.15, 4.2, 0.15],
+    handF: [0.6, 3.6, 0.5], elbowF: [0.7, 3.0, 0.3], handB: [-0.5, 3.4, 0.45], elbowB: [-0.7, 2.9, 0.25],
+    footF: [0.5, 0, 0.1], kneeF: [0.5, 1.25, 0.25], footB: [-0.5, 0, -0.1], kneeB: [-0.5, 1.25, 0.1] },
+  { p: 1, hip: [0.2, 2.15, 0], neck: [0.6, 3.6, 0.05], head: [0.85, 4.0, 0.1], // leaning out, eyes on the ball
+    handF: [2.1, 4.6, 0.3], elbowF: [1.35, 4.15, 0.2], handB: [-0.35, 3.5, 0.35], elbowB: [-0.55, 2.95, 0.2],
+    footF: [1.05, 0, 0.1], kneeF: [0.95, 1.2, 0.25], footB: [-0.6, 0, -0.1], kneeB: [-0.5, 1.2, 0.05] },
+];
 const TAG_KEYS = [
   { p: 0, hip: [0, 1.95, 0], neck: [0.32, 3.42, 0], head: [0.45, 3.9, 0], twist: 0,
     handF: [0.95, 3.0, 0.15], elbowF: [0.55, 2.75, 0.6], handB: [0.85, 2.85, -0.12], elbowB: [0.45, 2.65, -0.6],
@@ -286,6 +296,9 @@ const SIDE = {
     return limbs(keyed(DIVE_KEYS, p));
   },
   // First baseman's stretch (p: 0..1): back foot on the bag, front leg lunging at the throw, glove out
+  reachUp(p = 1) {
+    return limbsFront(keyed(REACHUP_KEYS, p));
+  },
   reach(p = 1) {
     return limbs(keyed(REACH_KEYS, p));
   },
