@@ -139,8 +139,9 @@ export class Stadium {
     group.add(circle);
     this.circle = circle;
     this.sport = 'baseball';
+    // the bags sit square to the base paths (turned 45°): first and third have an edge along the foul line
     for (const [x, y] of [[B - 0.9, B], [0, 2 * B], [-B + 0.9, B]]) {
-      const b = box(1.25, 1.25, 0.28, white, x, y, 0);
+      const b = box(1.25, 1.25, 0.28, white, x, y, 0, Math.PI / 4);
       b.castShadow = true;
       b.receiveShadow = true;
       group.add(b);
