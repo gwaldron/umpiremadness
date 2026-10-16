@@ -34,7 +34,7 @@ function pitchHit(tl, t0 = 0.4) {
 }
 
 export const FAIRFOUL_PLUS = {
-  id: 'fairfoul-plus', card: 'fair-foul', title: 'Fair or Foul?', weight: 3,
+  id: 'fairfoul-plus', card: 'fair-foul', title: 'Fair or Foul?', weight: 2,
   variant() { return { k: pick(FAIRFOUL_KINDS), side: pick(['1B', '3B']) }; },
   // no base umpire: fair/foul is the plate umpire's call, and at A he'd stand right in the down-the-line shot
   setup() { return { runners: [], outs: pick([0, 1, 2]), text: 'bases empty', bu: false }; },

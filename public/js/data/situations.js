@@ -4,6 +4,8 @@ import { audio } from '../audio.js';
 import { pick, chance, rand, clamp, lerp } from '../util.js';
 import { BASES, POS } from '../render/field.js';
 import { sport, forSport, releasePt, holdZ, CIRCLE_R } from '../sport.js';
+import { FAIRFOUL_PLUS } from './fairfoul.js';
+import { CATCH_PLUS } from './catches.js';
 
 const B1 = BASES.first, B2 = BASES.second, B3 = BASES.third, H = BASES.home;
 const ONBAG = { 1: { x: B1.x - 0.3, y: B1.y - 0.2 }, 2: { x: B2.x, y: B2.y - 0.5 }, 3: { x: B3.x + 0.3, y: B3.y - 0.2 }, 4: { x: 0.4, y: 0.6 } };
@@ -1226,6 +1228,9 @@ export const SITUATIONS = [
     },
   },
 ];
+
+// the bigger families of fair/foul and catch plays live in their own files
+SITUATIONS.push(FAIRFOUL_PLUS, CATCH_PLUS);
 
 export function situationsFor(div) {
   return SITUATIONS.filter((s) => (!s.divs || s.divs.includes(div.id)) && forSport(s));

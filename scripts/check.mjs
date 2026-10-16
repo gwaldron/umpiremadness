@@ -15,13 +15,12 @@ import { KITS } from '../public/js/render/figures.js';
 import { preloadIsCurrent } from './preload.mjs';
 import { sport, setSport, forSport, rubberY } from '../public/js/sport.js';
 import { DRILLS, buildDrill } from '../public/js/game/drills.js';
-import { FAIRFOUL_PLUS } from '../public/js/data/fairfoul.js';
 
 const problems = [];
 let built = 0;
 for (const sp of ['baseball', 'softball']) {
 setSport(sp);
-for (const def of [...SITUATIONS, FAIRFOUL_PLUS]) {
+for (const def of SITUATIONS) {
   if (!RULE[def.card]) problems.push(`${def.id}: unknown rule card ${def.card}`);
   if (!forSport(def)) continue;
   for (const div of DIVISIONS) {

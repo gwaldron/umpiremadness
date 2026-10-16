@@ -5,6 +5,7 @@ import { shuffle } from '../util.js';
 import { DIV } from '../data/divisions.js';
 import { SITUATIONS, situationsFor } from '../data/situations.js';
 import { FAIRFOUL_PLUS, FAIRFOUL_KINDS } from '../data/fairfoul.js';
+import { CATCH_PLUS, CATCH_KINDS } from '../data/catches.js';
 
 const sit = (id) => SITUATIONS.find((s) => s.id === id);
 
@@ -52,7 +53,11 @@ export const DRILLS = [
     id: 'catch', icon: '🫴', title: 'Catch or No Catch?', card: 'catch', div: 'AAA',
     desc: 'Diving grabs, traps, crashes into the fence, and balls bounced from one fielder to another.',
     tip: 'A catch needs **secure possession** in the glove or hand. Did the ball **touch the ground** first? Did he **hold on** through the fall?',
-    reps: () => variantReps('catch', ['trap', 'clean', 'fence', 'carom'], 8),
+    // 14 kinds of play (the 4 classics plus 10 more), 10 different ones per drill
+    reps: () => shuffle([
+      ...['trap', 'clean', 'fence', 'carom'].map((k) => ({ type: 'sit', def: sit('catch'), v: { k } })),
+      ...CATCH_KINDS.map((k) => ({ type: 'sit', def: CATCH_PLUS, v: { k } })),
+    ]).slice(0, 10),
   },
   {
     id: 'interference', icon: '🚧', title: 'Interference & Obstruction', card: 'interference', div: 'AAA',
