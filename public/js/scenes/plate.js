@@ -455,6 +455,7 @@ export class AtBatEvent {
     if (this.zoneNews === 'off') this.s.hud.prompt('🔥 ZONE BOX OFF', "Three right in a row. You don't need it!");
     this.s.hud.options(null);
     this.armAnim = -1;
+    this.punchOut = null;
   }
 
   // Build a function for the ball's position over pitch time, including what happens after contact.
@@ -616,6 +617,7 @@ export class AtBatEvent {
       return;
     }
     if (this.state === 'signal') this.armAnim += dt;
+    if (this.punchOut) { this.punchOut.t += dt; if (this.punchOut.t > 2.3) this.punchOut = null; }
     if (this.pk && (this.state === 'pitch' || this.state === 'signal' || this.state === 'wait')) {
       const pk = this.pk;
       pk.t += dt;
@@ -782,6 +784,8 @@ export class AtBatEvent {
     const strikeCall = id === 'strike' || id === 'k' || id === 'out' || id === 'run' || id === 'tip';
     this.state = 'signal';
     this.armAnim = strikeCall ? 0 : -1;
+    // ringing him up on a called strike three: a CALL CAM of you doing the punch-out
+    this.punchOut = !this.fast && id === 'strike' && (k === 'take' || k === 'check') && this.strikes >= 2 ? { t: 0 } : null;
     {
       // what the count will be after this call (judgment calls stand)
       let b = this.balls, st = this.strikes;
@@ -1044,6 +1048,52 @@ export class AtBatEvent {
         this._drawOuch(gg, cam);
       },
     });
+    if (this.punchOut) this._punchCam(g, bodies);
+  }
+
+  // CALL CAM: you, from out in front of the plate, punching him out lawnmower style
+  _punchCam(g, bodies) {
+    const s = this.s, W = s.cam.w, H = s.cam.h, dpr = s.app.dpr;
+    const pt = this.punchOut.t;
+    const fade = Math.min(1, pt / 0.15, (2.3 - pt) / 0.25);
+    if (fade <= 0) return;
+    const portrait = H > W;
+    const w = portrait ? W * 0.64 : Math.min(W * 0.36, H * 0.56);
+    const h = w * 0.8;
+    const rect = { x: W - w - 14 * dpr, y: portrait ? H * 0.2 : H * 0.15, w, h };
+    const side = this.batter.side >= 0 ? 1 : -1;
+    const ux = this.eye.x, uy = -5.6;
+    const ump = { id: 'PU', x: ux, y: uy, kit: s.umpKit, skin: s.umpSkin, pose: 'punchOut', phase: Math.min(1, Math.max(0, (pt - 0.12) / 1.25)), heading: Math.PI / 2, mask: true, glove: null, blendFrom: null };
+    const eye = { x: ux - side * 3.4, y: uy + 9.5, z: 4.5 }, target = { x: ux, y: uy, z: 3.4 };
+    const d = Math.hypot(eye.x - target.x, eye.y - target.y, eye.z - target.z);
+    s.field.drawInset({ eye, target, fov: 2 * Math.atan(3.3 / d) }, { x: rect.x / dpr, y: rect.y / dpr, w: rect.w / dpr, h: rect.h / dpr },
+      { actors: [ump], bodies }, 1);
+    g.save();
+    g.globalAlpha = fade;
+    g.lineWidth = 3 * dpr;
+    g.strokeStyle = '#ffd34d';
+    g.strokeRect(rect.x, rect.y, rect.w, rect.h);
+    const fs = Math.max(11 * dpr, rect.w * 0.06);
+    g.font = `${fs}px Bungee, Impact, sans-serif`;
+    g.textBaseline = 'middle';
+    const label = 'CALL CAM';
+    g.fillStyle = '#ffd34d';
+    g.fillRect(rect.x, rect.y, g.measureText(label).width + fs * 0.9, fs * 1.5);
+    g.fillStyle = '#10203a';
+    g.fillText(label, rect.x + fs * 0.45, rect.y + fs * 0.78);
+    if (pt > 0.75) {
+      let big = rect.w * 0.12;
+      g.font = `${big}px Bungee, Impact, sans-serif`;
+      big = Math.min(big, (big * rect.w * 0.9) / g.measureText('STRIKE THREE!').width);
+      g.font = `${big}px Bungee, Impact, sans-serif`;
+      g.textAlign = 'center';
+      g.lineWidth = big * 0.16;
+      g.strokeStyle = '#10203a';
+      g.strokeText('STRIKE THREE!', rect.x + rect.w / 2, rect.y + rect.h * 0.87);
+      g.fillStyle = '#ffffff';
+      g.fillText('STRIKE THREE!', rect.x + rect.w / 2, rect.y + rect.h * 0.87);
+    }
+    g.restore();
   }
 
   // The batter as a realistic "hero" body. The pose's F joints are the lead side (toward the pitcher):

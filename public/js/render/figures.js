@@ -194,6 +194,20 @@ const REACHUP_KEYS = [
     handF: [2.1, 4.6, 0.3], elbowF: [1.35, 4.15, 0.2], handB: [-0.35, 3.5, 0.35], elbowB: [-0.55, 2.95, 0.2],
     footF: [1.05, 0, 0.1], kneeF: [0.95, 1.2, 0.25], footB: [-0.6, 0, -0.1], kneeB: [-0.5, 1.2, 0.05] },
 ];
+// The strike-three punch-out, lawnmower style (p: 0..1), seen from the front: the right hand (B) reaches
+// low across the body for the "cord", then yanks it back hard, elbow out and up, twice; the second pull
+// is the big one and he holds it. [left, z, forward] like the other front-keyed poses.
+const PUNCH_KEYS = (() => {
+  const base = { hip: [0, 2.4, 0], neck: [0, 3.9, 0], head: [0, 4.4, 0.05],
+    handF: [0.6, 2.5, 0.25], elbowF: [0.6, 3.1, 0.05], handB: [-0.6, 2.5, 0.25], elbowB: [-0.6, 3.1, 0.05],
+    footF: [0.45, 0, 0.1], kneeF: [0.4, 1.3, 0.2], footB: [-0.45, 0, -0.1], kneeB: [-0.4, 1.3, 0.05] };
+  const legs = { footF: [0.85, 0, 0.2], kneeF: [0.8, 1.15, 0.32], footB: [-0.75, 0, -0.15], kneeB: [-0.7, 1.15, 0.0] };
+  const reach = (k) => ({ ...legs, hip: [0.1, 2.2, 0], neck: [0.35 * k, 3.6, 0.25], head: [0.45 * k, 4.05, 0.35],
+    handB: [0.55 * k, 2.4, 1.0], elbowB: [0.05 * k, 2.9, 0.75], handF: [0.9, 3.0, 0.4], elbowF: [0.95, 3.3, 0.0] });
+  const pull = (k) => ({ ...legs, hip: [-0.1, 2.3, 0], neck: [-0.3 * k, 3.75, -0.1], head: [-0.38 * k, 4.25, -0.05],
+    elbowB: [-1.3 * k, 3.2 + 0.1 * k, -0.6], handB: [-0.55, 3.35 + 0.15 * k, 0.12], handF: [0.85, 3.1, 0.55], elbowF: [0.65, 3.2, 0.2] });
+  return [{ p: 0, ...base }, { p: 0.2, ...reach(1) }, { p: 0.38, ...pull(0.85) }, { p: 0.52, ...reach(0.85) }, { p: 0.72, ...pull(1.1) }, { p: 1, ...pull(1.1) }];
+})();
 const TAG_KEYS = [
   { p: 0, hip: [0, 1.95, 0], neck: [0.32, 3.42, 0], head: [0.45, 3.9, 0], twist: 0,
     handF: [0.95, 3.0, 0.15], elbowF: [0.55, 2.75, 0.6], handB: [0.85, 2.85, -0.12], elbowB: [0.45, 2.65, -0.6],
@@ -333,6 +347,10 @@ const FRONT = {
   // it, then funnel the ball up to the belly and come up ready to throw
   field(p = 1) {
     return limbsFront(keyed(FIELD_KEYS, p));
+  },
+  // Called strike three: the punch-out (p: 0..1 through the two pulls)
+  punchOut(p = 1) {
+    return limbsFront(keyed(PUNCH_KEYS, p));
   },
   set() {
     // Umpire set: hands on thighs
