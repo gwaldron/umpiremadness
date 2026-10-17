@@ -34,6 +34,7 @@ ROLES = {
     'pa': ('am_michael', 0.9),  # stadium PA announcer
     'c': ('af_bella', 1.08),    # TV color commentator
     'crowd': ('am_adam', 1.05),  # fans in the stands (each line picks its own voice)
+    'b': ('am_puck', 1.1),     # the batter (each line picks its own voice)
 }
 
 # Fans: lots of different voices, layered in the game into a crowd (pitched up a bit for kids)
@@ -72,6 +73,7 @@ def lines():
     pa = lambda g, t, sp=1.0: L.append(('pa.' + g, 'pa', t, sp))
     c = lambda g, t, sp=1.0: L.append(('c.' + g, 'c', t, sp))
     fan = lambda g, t, v, sp=1.05: L.append(('crowd.' + g, 'crowd', t, sp, v))
+    bat = lambda g, t, v, sp=1.1: L.append(('b.' + g, 'b', t, sp, v))
 
     # --- umpire calls ---
     u('strike', 'Strike!'); u('strike', 'Strike!', 0.86); u('strike', 'Strike, right there!', 1.05)
@@ -139,6 +141,9 @@ def lines():
     }.items():
         for t in ts:
             c(g, t)
+    # --- the batter, hit by a pitch ---
+    for t, v in [('Ouch!', 'am_puck'), ('Ow!', 'af_sky'), ('Ouch!', 'af_nova'), ('Ow, ow, ow!', 'am_echo'), ('Ouch!', 'af_river')]:
+        bat('ouch', t, v)
     # --- the crowd: cheers for a good call, groans for a miss, Little League chatter in between ---
     k = 0
     def fans(n):

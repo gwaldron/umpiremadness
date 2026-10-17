@@ -3,7 +3,7 @@
 import { audio } from '../audio.js';
 import { voices, playerName } from '../voice.js';
 import { input } from '../input.js';
-import { clamp, lerp, rand, randInt, pick, chance, weighted, easeOut, newSeed, seededRng, withRng } from '../util.js';
+import { clamp, lerp, rand, randInt, pick, chance, weighted, easeOut, easeOutBack, newSeed, seededRng, withRng } from '../util.js';
 import { KITS, SKINS } from '../render/figures.js';
 import { pitcherJoints, PITCHER_LIMBS } from './pitcher3d.js';
 import { solveLimbs, drawHero } from '../render3d/hero.js';
@@ -574,7 +574,10 @@ export class AtBatEvent {
     let want = { x: this.eye.x * 0.25 - eye.x, y: 25 - eye.y, z: this.lookZ - eye.z };
     if (follow) {
       const b = pk.ballAt(pk.t);
-      if (b) want = { x: b.x - eye.x, y: b.y - eye.y, z: b.z - eye.z };
+      // a hit batter: keep them in view (the ball just drops at their feet)
+      const hp = pk.kind === 'hbp' && pk.hitPoint;
+      if (hp) want = { x: hp.x - eye.x, y: hp.y - eye.y, z: hp.z - 0.5 - eye.z };
+      else if (b) want = { x: b.x - eye.x, y: b.y - eye.y, z: b.z - eye.z };
       this.trail.push(b ? { x: b.x, y: b.y, z: b.z } : null);
       if (this.trail.length > 8) this.trail.shift();
     } else if (this.trail.length) this.trail.length = 0;
@@ -658,6 +661,7 @@ export class AtBatEvent {
           pk.hitPoint = pk.traj.pos(pk.contactT - pk.tRelease);
           audio.thud();
           audio.ouch();
+          setTimeout(() => voices.ouch(), 90);
           this.s.shake(6);
           pk.flinch = t;
         } else if (pk.kind === 'contact' && (pk.sub === 'foulTip' || pk.sub === 'foulTipDrop')) {
@@ -990,6 +994,7 @@ export class AtBatEvent {
     paint(this._catcherBody());
     if (ball && ball.y <= GLOVE_Y + 0.05) this._drawBall(g, cam, ball);
     this._drawMask(g, cam);
+    this._drawOuch(g, cam);
     this._drawArm(g, cam);
   }
 
@@ -1037,6 +1042,7 @@ export class AtBatEvent {
       overlay: (gg) => {
         if (showZone) this._zoneLabels(gg, cam, showZone);
         this._drawMask(gg, cam);
+        this._drawOuch(gg, cam);
       },
     });
   }
@@ -1061,7 +1067,9 @@ export class AtBatEvent {
     W['knee' + rear] = P3(J.kneeB); W['foot' + rear] = P3(J.footB);
     W['sh' + lead] = P3(J.shF); W['sh' + rear] = P3(J.shB);
     W['el' + lead] = P3(J.elF); W['el' + rear] = P3(J.elB);
-    W['hand' + lead] = hands; W['hand' + rear] = along(0.27);
+    const grip = along(0.27);
+    W['hand' + lead] = hands;
+    W['hand' + rear] = J.rub ? P3(lerpV3([grip.x, grip.y, grip.z], J.rub, J.rubK)) : grip;
     solveLimbs(W);
     return {
       hero: true, W,
@@ -1200,6 +1208,81 @@ export class AtBatEvent {
     g.restore();
   }
 
+  // Hit by pitch: an impact flash on the spot and a comic "OUCH!" burst beside it, so nobody misses
+  // that the batter got hit. (Whether it's a hit-by-pitch is still the umpire's call.)
+  _drawOuch(g, cam) {
+    const pk = this.pk;
+    if (!pk || pk.kind !== 'hbp' || !pk.flinch || !pk.hitPoint || this.state === 'setup') return;
+    const LIFE = 1.5;
+    const u = pk.t - pk.flinch;
+    if (u < 0 || u > LIFE) return;
+    const W = cam.w, H = cam.h;
+    const R = Math.min(W, H) * 0.13;
+    const hp = pk.hitPoint;
+    const p = cam.project(hp.x, hp.y, hp.z);
+    const side = this.batter.side;
+    g.save();
+    // impact: a white ring and spikes that burst out from the spot
+    if (p && u < 0.3) {
+      const k = u / 0.3;
+      g.globalAlpha = 1 - k;
+      g.strokeStyle = '#ffffff';
+      g.lineCap = 'round';
+      g.lineWidth = R * 0.07 * (1 - k) + 2;
+      g.beginPath(); g.arc(p.x, p.y, R * (0.12 + 0.5 * k), 0, Math.PI * 2); g.stroke();
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + 0.2;
+        const r0 = R * (0.3 + 0.5 * k), r1 = r0 + R * 0.25;
+        g.beginPath();
+        g.moveTo(p.x + Math.cos(a) * r0, p.y + Math.sin(a) * r0);
+        g.lineTo(p.x + Math.cos(a) * r1, p.y + Math.sin(a) * r1);
+        g.stroke();
+      }
+      g.globalAlpha = 1;
+    }
+    // the burst floats over the batter's head (so the batter stays in sight), always fully on screen
+    const head = this._batterPose(pk.t).head;
+    const hd = cam.project(head[0], head[1], head[2] + 0.8);
+    let cx = hd ? hd.x + side * R * 0.4 : p ? p.x : W * (0.5 + side * 0.22);
+    let cy = hd ? hd.y - R * 0.7 : p ? p.y - R * 1.5 : H * 0.4;
+    cx = clamp(cx, R * 1.15, W - R * 1.15);
+    cy = clamp(cy, R * 1.15, H - R * 1.15);
+    const pop = u < 0.2 ? easeOutBack(u / 0.2) : 1 + 0.04 * (u - 0.2);
+    g.globalAlpha = u > LIFE - 0.3 ? (LIFE - u) / 0.3 : 1;
+    g.translate(cx, cy);
+    g.rotate(-0.12 * side + 0.05 * Math.sin(u * 22) * Math.exp(-u * 4));
+    g.scale(pop, pop);
+    const spikes = [1, 0.66, 0.92, 0.62, 1.06, 0.68, 0.9, 0.6, 1.02, 0.66, 0.95, 0.63, 1.08, 0.67];
+    const star = (k) => {
+      g.beginPath();
+      spikes.forEach((r, i) => {
+        const a = (i / spikes.length) * Math.PI * 2;
+        const x = Math.cos(a) * R * r * k * 1.25, y = Math.sin(a) * R * r * k * 0.85;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      });
+      g.closePath();
+    };
+    g.lineJoin = 'round';
+    star(1);
+    g.fillStyle = '#ffd34d';
+    g.fill();
+    g.lineWidth = R * 0.06;
+    g.strokeStyle = '#1b1b2e';
+    g.stroke();
+    star(0.72);
+    g.fillStyle = '#ff9f2e';
+    g.fill();
+    g.font = `${Math.round(R * 0.5)}px Bungee, Impact, 'Arial Black', sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineWidth = R * 0.11;
+    g.strokeStyle = '#ffffff';
+    g.strokeText('OUCH!', 0, R * 0.03);
+    g.fillStyle = '#d7261e';
+    g.fillText('OUCH!', 0, R * 0.03);
+    g.restore();
+  }
+
   _drawImprint(g, cam) {
     const im = this._imprint();
     if (!im) return;
@@ -1310,7 +1393,7 @@ export class AtBatEvent {
     const f = -s; // toward the plate
     let bx = b.bx, by = b.by;
     if (pk && pk.crowd) bx = s * 1.75;
-    let lean = 0, flinch = 0, swing = 0, bunt = 0;
+    let lean = 0, flinch = 0, ft = 0, swing = 0, bunt = 0;
     if (pk && this.state !== 'setup') {
       if (pk.swing) {
         const sw = pk.swing;
@@ -1322,13 +1405,16 @@ export class AtBatEvent {
       }
       if (pk.bunt && t > pk.bunt.start) bunt = clamp((t - pk.bunt.start) / 0.3, 0, 1);
       if (pk.lean && t > pk.lean.start) lean = clamp((t - pk.lean.start) / 0.2, 0, 1);
-      if (pk.flinch) flinch = clamp((t - pk.flinch) / 0.25, 0, 1);
+      if (pk.flinch) { ft = t - pk.flinch; flinch = easeOut(clamp(ft / 0.15, 0, 1)); }
       if (pk.kind === 'u3k' && pk.decisionOpen) {
         // batter thinking about running
       }
     }
     const H = b.H, ap = b.armpit, kn = b.knee;
-    bx += f * lean * (pk && pk.leanDist ? pk.leanDist : 0.55) - f * flinch * 0.6;
+    // hit by the pitch: jump back from the plate, then hop around holding the spot
+    bx += f * lean * (pk && pk.leanDist ? pk.leanDist : 0.55) - f * flinch * 0.9;
+    const hopT = ft - 0.12;
+    const hop = flinch > 0 && hopT > 0 && hopT < 1.2 ? Math.abs(Math.sin((hopT * Math.PI) / 0.4)) * 0.45 * (1 - hopT / 1.2) : 0;
     const hipZ = H * 0.5 * b.crouch;
     const rot = swing * 1.2 + bunt * 1.1; // shoulders open toward the pitcher
     const shoulderZ = ap + 0.3;
@@ -1379,13 +1465,27 @@ export class AtBatEvent {
       const yaw = (-100 * Math.PI) / 180, el = (52 * Math.PI) / 180;
       batDir = [Math.cos(el) * Math.cos(yaw) * f, Math.cos(el) * Math.sin(yaw), Math.sin(el)];
     }
-    if (flinch > 0) hands = [hands[0] - f * 0.4 * flinch, hands[1], hands[2] + 0.3 * flinch];
+    if (flinch > 0) {
+      // the bat drops down to the side in the lead hand
+      hands = lerpV3(hands, [bx + f * 0.45, by - 0.1, ap - 0.6], flinch);
+      batDir = normV3(lerpV3(batDir, [f * 0.35, -0.25, -0.9], flinch));
+      J.head = [J.head[0] + f * 0.12 * flinch, J.head[1], J.head[2] - 0.2 * flinch];
+    }
     J.hands = hands;
     J.batTip = [hands[0] + batDir[0] * 2.55, hands[1] + batDir[1] * 2.55, hands[2] + batDir[2] * 2.55];
     // Elbows
     J.elF = [lerp(J.shF[0], hands[0], 0.5) + f * 0.1, lerp(J.shF[1], hands[1], 0.5), Math.min(J.shF[2], hands[2]) - 0.35];
     J.elB = [lerp(J.shB[0], hands[0], 0.5) - f * 0.05, lerp(J.shB[1], hands[1], 0.5) - 0.15, Math.min(J.shB[2], hands[2]) - 0.3];
     if (pk && pk.crowd) J.elF = [s * 0.45, by + 0.3, ap - 0.15];
+    if (flinch > 0 && pk.hitPoint) {
+      // the free hand grabs and rubs the spot that got hit
+      const hp = pk.hitPoint;
+      const wig = 0.06 * Math.sin(ft * 25);
+      J.rub = [lerp(hp.x - f * 0.9 * flinch, bx, 0.35) + wig, lerp(hp.y, by, 0.3), clamp(hp.z, kn, ap + 0.3) + wig];
+      J.rubK = flinch;
+      J.elB = [lerp(J.shB[0], J.rub[0], 0.5), lerp(J.shB[1], J.rub[1], 0.5) - 0.2, Math.min(J.shB[2], J.rub[2]) - 0.3];
+    }
+    if (hop) for (const k in J) if (Array.isArray(J[k])) J[k][2] += hop;
     return J;
   }
 

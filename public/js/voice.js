@@ -55,7 +55,7 @@ class Voices {
     this.cache = null;
     this.man = null; // clip manifest
     this.bufs = new Map(); // file -> AudioBuffer | Promise
-    this.playing = { u: [], pa: [], c: [] };
+    this.playing = { u: [], pa: [], b: [], c: [] };
     this.chains = null;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => { this.cache = null; };
@@ -401,6 +401,37 @@ class Voices {
   stopChatter() {
     clearTimeout(this._chatter);
     this._chatter = null;
+  }
+
+  // ---------- the batter ----------
+  // A pitch hits the batter and they yell. Uses rendered batter clips (b.ouch) when there are some;
+  // until then, the "Ouch!" from the start of the commentator's line, pitched up and played on the field.
+  async ouch() {
+    if (!this.enabled) return;
+    this.warm();
+    if (this._warm) await this._warm;
+    if (await this._play('b', ['b.ouch'], { rate: 1 + Math.random() * 0.12 }).catch(() => false)) return;
+    const c = this.man && audio.ctx && (this.man['c.ouch'] || []).find((x) => /^ouch!/i.test(x.t));
+    if (c) {
+      try {
+        const buf = await this._load(c.f);
+        const ctx = audio.ctx;
+        const rate = 1.16 + Math.random() * 0.08;
+        const len = 0.45; // "Ouch!" ends here, before "Right in the lane!"
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.playbackRate.value = rate;
+        const g = ctx.createGain();
+        const t0 = ctx.currentTime + 0.01, end = t0 + len / rate;
+        g.gain.setValueAtTime(1.2, t0);
+        g.gain.setValueAtTime(1.2, end - 0.04);
+        g.gain.linearRampToValueAtTime(0, end);
+        src.connect(g).connect(this._chain('b'));
+        src.start(t0, 0, len);
+        return;
+      } catch (e) { /* fall back to the browser voice */ }
+    }
+    this._speak('Ouch!', 'batter', { rate: 1.15, pitch: 1.7 });
   }
 
   // ---------- TV commentator (short hype lines, never spammy) ----------
