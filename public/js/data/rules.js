@@ -51,6 +51,8 @@ export const RULES = [
     text: 'Lines and bases are fair. Before a base, a grounder\'s status depends on where it settles or is touched. Past first or third, judge where it passes the base or first lands. Never say "fair" — just point.' },
   { id: 'catch', icon: '🫴', title: 'Catch or No Catch', lesson: 'catch', group: 'Rules',
     text: 'A catch needs secure possession in hand or glove. Trapping the ball against the ground, or losing it in a collision or fall, is **no catch**.' },
+  { id: 'headfirst-slide', icon: '🚫', title: 'No Head-First Slides', lesson: 'base-path-and-avoiding-tags', group: 'Rules',
+    text: 'In Little League, a runner who **slides head first while advancing** is **out**, even if he beat the tag. Diving head first **back** to a base (like on a pickoff) is allowed.' },
   { id: 'appeal-tagup', icon: '📣', title: 'Appeal: Leaving Early', lesson: 'appeal-plays', group: 'Rules',
     text: 'A runner who leaves before a fly ball is first touched is **not automatically out**. Say nothing! Rule out only if the defense makes a proper appeal.' },
   { id: 'appeal-missed', icon: '👀', title: 'Appeal: Missed Base', lesson: 'appeal-plays', group: 'Rules',

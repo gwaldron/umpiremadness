@@ -47,6 +47,7 @@ export const DRILLS = [
       { type: 'base', play: 'steal3B' },
       { type: 'base', play: 'dp' },
       { type: 'base', play: 'hit2B' },
+      { type: 'sit', def: sit('headfirst') }, // beat the tag... but how did he slide?
     ]),
   },
   {

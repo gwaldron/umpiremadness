@@ -436,12 +436,12 @@ export const SITUATIONS = [
       let tEnd;
       let field = {};
       if (v.around) {
-        // swings wide of the catcher, then dives in from the back side with his hand on the plate
-        tl.runPath('R2', tNear, [{ x: -6.5, y: 3 }, { x: -5.4, y: -0.5 }], 15, 'stand');
-        const tDive = lastKey(tl, 'R2').t;
-        tEnd = tDive + 0.35;
-        tl.move('R2', tDive, tEnd, -1.9, -0.2, 'dive', 'dive');
-        tl.at(tEnd, () => { audio.slide(); if (field.puff) field.puff(-0.4, 0, 0.5); }); // his hand slaps the plate
+        // swings wide of the catcher and steps on the back corner of the plate, still on his feet (no
+        // head-first dive: in Little League that's an out when you're advancing)
+        tl.runPath('R2', tNear, [{ x: -6.5, y: 3 }, { x: -4.2, y: -1.2 }], 15, 'run');
+        tEnd = tl.runTo('R2', lastKey(tl, 'R2').t, -0.2, 0.5, 14, 'run');
+        tl.runTo('R2', tEnd, 2.6, -1.4, 12, 'stand');
+        tl.at(tEnd, () => { audio.tick(); if (field.puff) field.puff(-0.2, 0.5, 0.35); }); // his foot hits the plate
       } else {
         tEnd = tl.runTo('R2', tNear, 0, 3, 17, 'stand');
         tl.at(tEnd, () => { audio.thud(); audio.ouch(); });
@@ -469,6 +469,88 @@ export const SITUATIONS = [
         explain: v.around
           ? 'Myth busted: **runners don\'t have to slide**. When a fielder has the ball waiting, the runner must **slide or try to get around** him. Going around is legal — he beat the tag, so he\'s **safe**.'
           : 'Runners don\'t have to slide — but they **can\'t crash into a fielder who has the ball waiting**. They must **slide or try to get around**. He ran right through the catcher, so he\'s **out** (and malicious contact can get a player ejected).',
+      }];
+    },
+  },
+
+  // ===== HEAD-FIRST SLIDE: in Little League, sliding head first while advancing is an out =====
+  // (the one play in the game where a runner goes in head first; diving back to a base is legal and shows
+  // up on pickoffs)
+  {
+    id: 'headfirst', card: 'headfirst-slide', title: 'Stretching It', weight: 1,
+    variant() { return { head: chance(0.55), base: pick([2, 3]) }; },
+    setup(v) {
+      const outs = pick([0, 1]);
+      return v.base === 3 ? { runners: [1], outs, text: `runner on 1st · ${OUTS(outs)}` } : { runners: [], outs, text: `bases empty · ${OUTS(outs)}` };
+    },
+    build(tl, v) {
+      const tc = pitchHit(tl);
+      const third = v.base === 3;
+      const bag = third ? B3 : B2;
+      // the runner: the batter stretching a hit into a double, or the runner from first going to third
+      const id = third ? 'R1' : 'BAT';
+      const dir = third ? { x: -Math.SQRT1_2, y: -Math.SQRT1_2 } : { x: -Math.SQRT1_2, y: Math.SQRT1_2 }; // along the base path
+      const start = { x: bag.x - dir.x * 9, y: bag.y - dir.y * 9 }; // where he goes down
+      if (third) tl.runPath('R1', tc + 0.05, [{ x: 4.5, y: 79.5 }, { x: -1, y: 85.5 }, start], 19, 'run');
+      else {
+        tl.pose('BAT', tc + 0.05, 'stand');
+        tl.runPath('BAT', tc + 0.15, [{ x: 36, y: 34 }, { x: 44, y: 45 }, start], 19, 'run');
+        if (tl.actors.R1) tl.runTo('R1', tc + 0.05, 30, 58, 15, 'stand');
+      }
+      const tDown = lastKey(tl, id).t;
+      const tIn = tDown + 0.55; // in under the tag
+      let end;
+      if (v.head) {
+        // head first: hands reach the bag, body stretched out behind
+        end = { x: bag.x - dir.x * 1.7, y: bag.y - dir.y * 1.7 };
+        tl.move(id, tDown, tIn, end.x, end.y, 'dive', 'dive');
+      } else {
+        end = third ? { x: ONBAG[3].x + 0.8, y: ONBAG[3].y + 0.6 } : { x: ONBAG[2].x + 0.5, y: ONBAG[2].y - 0.6 };
+        tl.move(id, tDown, tIn, end.x, end.y, 'slide', 'slide');
+      }
+      tl.at(tIn, () => audio.slide());
+      if (third) batterRuns(tl, tc + 0.3, 15); // (on the double, the batter is the runner)
+      // the ball: a hit the outfielder has to chase down, then a throw that's just late
+      const F = third ? 'RF' : 'LF', cover = third ? '3B' : 'SS';
+      const gap = third ? { x: 50, y: 120 } : { x: -52, y: 150 };
+      tl.ground(tc, tc + 1.6, { x: 0, y: 2 }, gap);
+      fieldAt(tl, F, tc, tc + 1.6, gap.x + (third ? 1 : -1), gap.y + 1.5);
+      const catchAt = third ? { x: B3.x + 1.2, y: B3.y + 1.0, z: 2.8 } : { x: B2.x - 1.0, y: B2.y + 0.5, z: 2.8 };
+      const tBall = tIn + 0.32;
+      const from = { x: gap.x + (third ? 1 : -1), y: gap.y + 1.5 };
+      const tThrow = tBall - Math.hypot(catchAt.x - from.x, catchAt.y - from.y) / 76;
+      tl.hold(tc + 1.6, tc + 1.75, F, 3);
+      tl.rest(tc + 1.75, tThrow - 0.6, { x: from.x + 2, y: from.y + 3, z: 0.12 }); // bobbled it
+      tl.move(F, tc + 1.8, tThrow - 0.65, from.x + 1.6, from.y + 2.6, 'field');
+      lastKey(tl, F).dur = 0.4;
+      tl.hold(tThrow - 0.6, tThrow, F, 3.5);
+      throwFrom(tl, F, tThrow, catchAt, 76);
+      tl.move(cover, tc, tc + 1.6, catchAt.x + (third ? 0.3 : -0.3), catchAt.y + 0.2, 'ready');
+      tl.hold(tBall, tBall + 5, cover, 2.6);
+      tl.pose(cover, tBall + 0.05, 'tag', { facing: third ? -1 : 1 });
+      tl.at(tBall + 0.12, () => audio.tick());
+      // close and slow at the bag as he goes in
+      return {
+        pause: tBall + 0.75,
+        ...moment(tDown + 0.2, 'SLIDE!', 0.55, 0.7),
+        replay: tDown - 2.2,
+        cam: (t) => (t < tDown - 1.6 ? null : closeOn(bag.x + (third ? 2.5 : 1.5), bag.y - (third ? 1 : 2.5), 10, 0.75)),
+      };
+    },
+    steps(v) {
+      const where = v.base === 3 ? 'third' : 'second';
+      return [{
+        q: 'SAFE OR OUT?',
+        sub: `He got into ${where} before the tag…`,
+        options: [
+          { btn: 'A', id: 'safe', label: 'SAFE', sub: 'He beat the tag' },
+          { btn: 'B', id: 'out', label: 'OUT', sub: '' },
+        ],
+        answer: v.head ? 'out' : 'safe',
+        say: v.head ? "He's out!" : 'Safe!',
+        explain: v.head
+          ? "He beat the tag, but he **slid head first while advancing**. That's illegal in Little League: the runner is **out**. (Diving head first **back** to a base, like on a pickoff, is allowed.)"
+          : "He slid **feet first** and got in **before the tag**: **safe**. (Had he gone in head first while advancing, he'd be **out**: no head-first slides in Little League.)",
       }];
     },
   },
