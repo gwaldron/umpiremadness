@@ -860,14 +860,28 @@ export function groundDetailTexture(size = 512) {
     g.fillStyle = 'rgb(80,70,60)';
     g.beginPath(); g.ellipse(x + 1, y + 1.2, s.rr * 0.9, s.rr * 0.4, s.a1, 0, Math.PI * 2); g.fill();
   });
+  // blue: smooth tiling noise (three octaves of value noise) for big, soft patches in the turf
+  const vr = mulberry(23);
+  const octave = (cells) => {
+    const v = Array.from({ length: cells * cells }, () => vr());
+    const at = (i, j) => v[((j % cells + cells) % cells) * cells + ((i % cells + cells) % cells)];
+    return (x, y) => {
+      const fx = (x / size) * cells, fy = (y / size) * cells, i = Math.floor(fx), j = Math.floor(fy);
+      const u = fx - i, w = fy - j, su = u * u * (3 - 2 * u), sw = w * w * (3 - 2 * w);
+      const a = at(i, j) + (at(i + 1, j) - at(i, j)) * su, b = at(i, j + 1) + (at(i + 1, j + 1) - at(i, j + 1)) * su;
+      return a + (b - a) * sw;
+    };
+  };
+  const o1 = octave(4), o2 = octave(8), o3 = octave(16);
   const out = document.createElement('canvas');
   out.width = out.height = size;
   const og = out.getContext('2d');
   const img = og.createImageData(size, size);
   for (let i = 0; i < size * size; i++) {
+    const x = i % size, y = (i / size) | 0;
     img.data[i * 4] = grass[i * 4];
     img.data[i * 4 + 1] = dirt[i * 4];
-    img.data[i * 4 + 2] = 128;
+    img.data[i * 4 + 2] = Math.round(255 * Math.min(1, Math.max(0, (o1(x, y) * 0.55 + o2(x, y) * 0.3 + o3(x, y) * 0.15 - 0.5) * 1.6 + 0.5)));
     img.data[i * 4 + 3] = 255;
   }
   og.putImageData(img, 0, 0);
@@ -881,7 +895,7 @@ export function groundDetailTexture(size = 512) {
 // Chalk lines, drawn by the ground shader instead of painted: each line is filtered across its width
 // by the pixel's footprint measured along the line's normal (a tent filter two pixels wide), so lines
 // are sharp up close and fade smoothly far away instead of breaking into dashes, at any texture size.
-const CHALK_GLSL = `
+export const CHALK_GLSL = `
 float chalkTent(float x, float f) {
   float t = clamp(x / f, -1.0, 1.0);
   return t < 0.0 ? 0.5 * (1.0 + t) * (1.0 + t) : 1.0 - 0.5 * (1.0 - t) * (1.0 - t);
@@ -967,6 +981,10 @@ export function addGroundDetail(material, detail, { scale = 0.45, strength = 0.4
     float grassy = clamp((diffuseColor.g - diffuseColor.r) * 7.0 + 0.45, 0.0, 1.0);
     float d = mix(dt.g, dt.r, grassy);
     diffuseColor.rgb *= mix(1.0, d * 2.0, detailStrength);
+    // big soft patches in the turf: some a little deeper green, some a little drier
+    float patchy = texture2D(detailMap, vDetailPos * 0.011).b * 0.62 + texture2D(detailMap, vDetailPos * 0.0034 + 0.37).b * 0.38 - 0.5;
+    diffuseColor.rgb *= 1.0 + patchy * 0.34 * grassy;
+    diffuseColor.r += max(patchy, 0.0) * 0.05 * grassy;
 #ifdef GROUND_CHALK
     float ch = chalk(vDetailPos, dFdx(vDetailPos), dFdy(vDetailPos));
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.92, 0.89), ch * (0.82 + 0.18 * dt.g));

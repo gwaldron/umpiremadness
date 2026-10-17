@@ -1,6 +1,7 @@
 // The ballpark: everything that doesn't move (plus the crowd, which cheers).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { Grass, buildTrees, updateWind, WIND } from './foliage.js';
 import { paintField, moundTexture, circleTexture, wallTexture, chainLinkTexture, scoreboardCanvas, paintScoreboard, cloudTexture, glowTexture, groundDetailTexture, addGroundDetail, flagTexture } from './textures.js';
 
 const R2 = Math.SQRT1_2;
@@ -337,6 +338,10 @@ export class Stadium {
       const e = trunks.instanceMatrix.array, o = i * 16;
       this.treeSpots.push({ x: e[o + 12], y: e[o + 13], h: Math.hypot(e[o + 4], e[o + 5], e[o + 6]) / 0.4 });
     }
+    // the real trees: leafy ones and pines built from leaf cards, rocking in the breeze
+    this.foliage = buildTrees(this.treeSpots);
+    group.add(this.foliage);
+    pg.trees.visible = false;
 
     // ---- The painted ground: the whole park, the infield sharper, home plate sharpest ----
     // Each plane skips the fine work a sharper plane covers. The sharpest is drawn first (lowest
@@ -346,6 +351,11 @@ export class Stadium {
     this._plane({ x0: -256, x1: 256, y0: -110, y1: 300 }, 4 * k, 0, 1, { inner: R_INF, trees: this.treeSpots });
     this._plane(R_INF, 16 * k, 0.01, 2, { inner: R_HOME }, true);
     this._plane(R_HOME, 64 * k, 0.02, 3, {});
+    // 3D grass blades around wherever the camera looks (not on the lightest setting)
+    if (!engine.safe) {
+      this.grass = new Grass([this.fieldPlanes[0], this.fieldPlanes[1]], { lite: this.lite, detail });
+      group.add(this.grass.mesh);
+    }
     const hillGeo = new THREE.CylinderGeometry(900, 900, 1, 64, 1, true);
     const hp2 = hillGeo.attributes.position;
     for (let i = 0; i < hp2.count; i++) {
@@ -600,7 +610,7 @@ export class Stadium {
       glow.position.copy(at);
     });
     // trees: instance the kit's models at the same spots
-    if (templates.length) {
+    if (templates.length && !this.foliage) {
       this.pg.trees.visible = false;
       const rnd = mulberry(99);
       const spots = this.treeSpots.map((t) => ({ ...t, v: (rnd() * templates.length) | 0, rot: rnd() * 6.28, sx: 0.85 + rnd() * 0.3 }));
@@ -654,7 +664,7 @@ export class Stadium {
         const u = base[i] / f.w;
         const z = base[i + 2];
         a[i] = base[i] * (1 - 0.04 * u);
-        a[i + 1] = (Math.sin(u * 6.5 - t * 5.2 + f.ph + z * 0.15) * 0.75 + Math.sin(u * 13 - t * 8.3) * 0.18) * u;
+        a[i + 1] = (Math.sin(u * 6.5 - t * 5.2 + f.ph + z * 0.15) * 0.75 + Math.sin(u * 13 - t * 8.3) * 0.18) * u * (0.45 + WIND.uWind.value.z * 1.1); // livelier in the gusts
         a[i + 2] = z - u * u * 0.5 * (0.6 + 0.4 * Math.sin(t * 0.7 + f.ph));
       }
       pos.needsUpdate = true;
@@ -735,6 +745,11 @@ export class Stadium {
   }
 
   update(dt, t, info = {}) {
+    updateWind(t);
+    if (this.grass) {
+      this.grass.mesh.visible = this.engine.quality !== 'low';
+      if (this.grass.mesh.visible) this.grass.update(this.engine.camera);
+    }
     this.updateCrowd(t, info.excite || 0);
     this.updateAmbience(t);
     for (const c of this.clouds) {

@@ -176,10 +176,11 @@ export class Field3D {
     for (const m of list) {
       let e = this.bandPool[i];
       if (!e) {
+        // room for a polygon of up to 12 corners (a fan of triangles, and the outline closed back on itself)
         const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(18), 3));
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(10 * 9), 3));
         const lg = new THREE.BufferGeometry();
-        lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(15), 3));
+        lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(13 * 3), 3));
         e = {
           // pulled toward the camera so the ground planes (which use their own polygon offset) can't hide it
           fill: new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0.22, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -60 })),
@@ -191,14 +192,19 @@ export class Field3D {
         this.scene.add(e.fill, e.edge, e.label);
         this.bandPool[i] = e;
       }
-      const [a, b, c, d] = m.poly;
+      // any convex polygon: every corner counts (the working area has five)
+      const P = m.poly.slice(0, 12);
       const z = 0.09;
       const fp = e.fill.geometry.attributes.position;
-      [a, b, c, a, c, d].forEach((p, k) => fp.setXYZ(k, p.x, p.y, z));
+      const tri = [];
+      for (let k = 1; k < P.length - 1; k++) tri.push(P[0], P[k], P[k + 1]);
+      tri.forEach((p, k) => fp.setXYZ(k, p.x, p.y, z));
       fp.needsUpdate = true;
+      e.fill.geometry.setDrawRange(0, tri.length);
       const lp = e.edge.geometry.attributes.position;
-      [a, b, c, d, a].forEach((p, k) => lp.setXYZ(k, p.x, p.y, z + 0.01));
+      [...P, P[0]].forEach((p, k) => lp.setXYZ(k, p.x, p.y, z + 0.01));
       lp.needsUpdate = true;
+      e.edge.geometry.setDrawRange(0, P.length + 1);
       const color = new THREE.Color(m.color || '#ffd34d');
       e.fill.material.color.copy(color);
       e.fill.material.opacity = 0.3 + 0.1 * Math.sin(t * 4);
@@ -207,7 +213,7 @@ export class Field3D {
       if (m.label) {
         e.label.visible = true;
         e.label.material.map = this._label(m.label, m.color || '#ffd34d');
-        e.label.position.set((a.x + b.x + c.x + d.x) / 4, (a.y + b.y + c.y + d.y) / 4, 3.2 + Math.sin(t * 3) * 0.3);
+        e.label.position.set(P.reduce((v, p) => v + p.x, 0) / P.length, P.reduce((v, p) => v + p.y, 0) / P.length, 3.2 + Math.sin(t * 3) * 0.3);
         e.label.scale.set(3.2, 3.2, 1);
       } else e.label.visible = false;
       i++;

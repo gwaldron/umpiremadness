@@ -1040,7 +1040,6 @@ export class AtBatEvent {
       imprint: this._imprint(),
       extra: (P) => this._arm3d(P, cam),
       overlay: (gg) => {
-        if (showZone) this._zoneLabels(gg, cam, showZone);
         this._drawMask(gg, cam);
         this._drawOuch(gg, cam);
       },
@@ -1149,28 +1148,6 @@ export class AtBatEvent {
     P.useFamily('toon');
   }
 
-  _zoneLabels(g, cam, alpha = 1) {
-    const z = this.zone;
-    g.save();
-    g.globalAlpha = alpha;
-    const b = this.batter;
-    const lab = (txt, zz) => {
-      const p = cam.project(-b.side * (HALF + this.zone.wide + 0.12), this._tvZone() ? 1.416 : 1.0, zz);
-      if (!p) return;
-      g.font = `700 ${Math.round(12 * this.s.app.dpr)}px Rubik, sans-serif`;
-      g.fillStyle = 'rgba(255,240,190,0.95)';
-      g.strokeStyle = 'rgba(11,21,48,0.8)';
-      g.lineWidth = 3 * this.s.app.dpr;
-      g.textAlign = b.side < 0 ? 'left' : 'right';
-      g.textBaseline = 'middle';
-      g.strokeText(txt, p.x, p.y);
-      g.fillText(txt, p.x, p.y);
-    };
-    lab('ARMPITS', z.top);
-    lab('TOP OF KNEES', z.bot);
-    g.restore();
-  }
-
   _drawZoneHelper(g, cam) {
     const show = this._zoneShown();
     if (!show) return;
@@ -1192,19 +1169,6 @@ export class AtBatEvent {
         g.setLineDash([]);
       }
     }
-    // landmark ticks at knees / armpits
-    const b = this.batter;
-    const lab = (txt, zz) => {
-      const p = cam.project(-b.side * (HALF + (z.wide || 0) + 0.12), y, zz);
-      if (!p) return;
-      g.font = `700 ${Math.round(12 * this.s.app.dpr)}px Rubik, sans-serif`;
-      g.fillStyle = 'rgba(255,240,190,0.95)';
-      g.textAlign = b.side < 0 ? 'left' : 'right';
-      g.textBaseline = 'middle';
-      g.fillText(txt, p.x, p.y);
-    };
-    lab('ARMPITS', z.top);
-    lab('TOP OF KNEES', z.bot);
     g.restore();
   }
 
