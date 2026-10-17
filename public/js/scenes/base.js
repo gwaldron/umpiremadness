@@ -31,14 +31,17 @@ export function inWorkingArea(p) {
   return insideDiamond(p) && p.y > 22;
 }
 const WORK_POLY = [{ x: 0, y: 26 }, { x: 24, y: 48 }, { x: 10, y: 70 }, { x: -10, y: 70 }, { x: -24, y: 48 }];
-// The wedge: the V behind home plate between the foul lines extended. On a play at the plate the plate
-// umpire works in here (out on the first-base line extended for a runner coming from third).
-export function inWedge(p) {
-  // (a couple of feet of slack: standing right on a foul line extended is working the wedge)
-  return p.y < -Math.abs(p.x) + 2.2 && p.y > -26 && Math.hypot(p.x, p.y - 0.7) > 3;
+// The wedge: the triangle formed by the plate umpire, the catcher and the runner coming in. It changes as
+// the play develops, so keep moving to keep it OPEN: stay off the line between the catcher and the runner,
+// so you look into the gap between them (where the tag happens) instead of one of them blocking the other.
+// How open it is from u: 0 (you're on their line) .. 1 (looking straight across the gap).
+export function wedgeOpen(u, cat, run) {
+  const Lx = run.x - cat.x, Ly = run.y - cat.y, ll = Math.hypot(Lx, Ly);
+  if (ll < 0.5) return 1;
+  const Mx = (cat.x + run.x) / 2 - u.x, My = (cat.y + run.y) / 2 - u.y, ml = Math.hypot(Mx, My) || 1;
+  return Math.abs(Lx * My - Ly * Mx) / (ll * ml);
 }
-const WEDGE_POLY = [{ x: 0, y: -2.5 }, { x: 15, y: -17.5 }, { x: 9, y: -24 }, { x: -9, y: -24 }, { x: -15, y: -17.5 }];
-const FIRST_EXT = { x: -7.4, y: -7.9 }; // on the first-base line extended, about 10 ft back
+const WEDGE_OK = 0.6; // about 37 degrees or more off their line
 
 function cross(a, b) { return a.x * b.y - a.y * b.x; }
 
@@ -86,7 +89,7 @@ function idealSpot(crit, from, maxTravel = 200) {
       // Foul ground between home and first/third is the runner's lane — never a good spot
       const foul = Math.abs(p.x) > p.y;
       const s = home
-        ? v.score - dist(p, from) * 0.002 + (inWedge(p) ? 0.08 : 0)
+        ? v.score - dist(p, from) * 0.002
         : v.score - dist(p, from) * 0.0015 - (foul && p.y < 44 ? 0.3 : foul ? 0.05 : 0) - (insideDiamond(p) ? (crit.working ? -0.1 : 0.15) : 0);
       if (!best || s > best.s) best = { ...p, s, v };
     }
@@ -506,8 +509,8 @@ export class BasePlayEvent {
   }
 
   // A single to the outfield with a runner on second: he rounds third and tries to score, and the throw
-  // comes home. The plate umpire works THE WEDGE (the V behind the plate between the foul lines
-  // extended), out on the first-base line extended to look straight across the tag.
+  // comes home. The plate umpire works THE WEDGE: the triangle of himself, the catcher and the runner,
+  // kept open as they close in, so he sees into the gap where the tag happens.
   _throwHome(tl, tPlate, pitchFrom, sp) {
     tl.fly(1.1, tPlate, pitchFrom, { x: 0, y: 1, z: 2.6 }, 0.3);
     tl.actors.BAT.swingAt = tPlate - 0.17;
@@ -705,7 +708,7 @@ export class BasePlayEvent {
       if ((this.s.hints || this.spec.tutorial) && !this.spec.exam) {
         hud.tip(this.play === 'pbHome'
           ? `Runner on third. If a pitch gets by, <b>open the gate</b>: step out of the catcher's way (away from the ball) so he can chase it, then get an angle on the play at the plate. Move with ${this.s.moveHint()}.`
-          : `Runner on second. On a throw home, <b>work the wedge</b>: the V behind the plate between the foul lines extended. Get out on the <b>first-base line extended</b> to look straight across the tag. Move with ${this.s.moveHint()}.`);
+          : `Runner on second. On a throw home, <b>work the wedge</b>: the triangle formed by you, the catcher and the runner coming in. Keep moving so it stays <b>open</b> and you can see between them, right where the tag will happen. Move with ${this.s.moveHint()}.`);
       }
       this._frame([{ x: this.ump.x, y: this.ump.y }, PLATE, { x: 0, y: 14 }], 20);
       this.posTimer = 0;
@@ -1032,9 +1035,13 @@ export class BasePlayEvent {
     const v = viewScore(this.ump, { ...c, fielder: fpos }, moving);
     c.view = v;
     c.moving = moving;
-    // (in the wedge AND out toward the first-base line extended: straight behind the plate you look
-    // along the runner's path instead of across the tag)
-    if (c.wedge) c.inWedge = inWedge(this.ump) && this.ump.x < -2.5;
+    // the wedge at the tag: you, the catcher and the runner. Open = you see into the gap between them.
+    if (c.wedge) {
+      const C = this.tl.actors[c.fielderId], R = this.tl.actors[c.runnerId];
+      c.wedgeOpen = wedgeOpen(this.ump, C, R);
+      const dTag = dist(this.ump, PLATE);
+      c.inWedge = c.wedgeOpen >= WEDGE_OK && dTag >= 4 && dTag <= 24;
+    }
     // Didn't move to the play? (the farther you should have gone and the less you went, the more it
     // counts; not coming in on a ball to the outfield counts too) It costs a few points and gets a tip.
     const sp0 = this.startPos || this.ump;
@@ -1113,7 +1120,7 @@ export class BasePlayEvent {
       else bonus.push({ label: `Wrong start spot`, pts: -25 });
     }
     if (c.gate) bonus.push(this.bumped ? { label: 'Ran into the catcher', pts: -50 } : this.gateOk ? { label: 'Opened the gate', pts: 50 } : { label: 'Slow to open the gate', pts: -15 });
-    if (c.wedge) bonus.push(c.inWedge ? { label: 'Worked the wedge', pts: 50 } : { label: 'Out of the wedge', pts: -25 });
+    if (c.wedge) bonus.push(c.inWedge ? { label: 'Kept the wedge open', pts: 50 } : { label: 'The wedge closed on you', pts: -25 });
     if (c.working) bonus.push(this.wentIn ? { label: 'Into the working area', pts: 50 } : { label: 'Stayed out on a ball to the outfield', pts: -25 });
     else if (c.lazy > 0.6 && !this.plate) bonus.push({ label: "Didn't move to the play", pts: -25 });
     if (c.view.lane) bonus.push({ label: 'In the throwing lane', pts: -25 });
@@ -1166,7 +1173,8 @@ export class BasePlayEvent {
     if (c.moving) tips.push('You were **still moving** at the moment of the play. Get set — stop — then watch.');
     if (c.gate) tips.unshift(this.bumped ? 'You **ran into the catcher**. When a pitch gets by, **open the gate**: step out to the side **away from the ball** so he can get to it, then get an angle on the play at the plate.'
       : this.gateOk ? 'You **opened the gate** for the catcher. That\'s the move!' : 'Open the gate **right away**: the moment the ball gets by, step out to the side away from the ball.');
-    if (c.wedge) tips.unshift(c.inWedge ? 'You **worked the wedge**: in the V behind the plate between the foul lines extended. Nice!' : 'Throw coming home? **Work the wedge**: the V behind the plate between the foul lines extended. Out on the **first-base line extended** you look straight across the tag on a runner from third.');
+    if (c.wedge) tips.unshift(c.inWedge ? 'You **kept the wedge open**: the triangle of you, the catcher and the runner. You could see right into the gap where the tag happened. Nice!'
+      : 'Work **the wedge**: the triangle formed by you, the catcher and the runner coming in. It changes as the play develops, so keep moving to keep it **open**. When the catcher and runner line up in front of you, the wedge is closed and one of them hides the tag.');
     if (c.working && !this.wentIn) tips.unshift('Ball to the outfield → **come in!** Move into the infield (the **working area**), pivot to watch the runner touch the bag, and be ready for the play at second or third.');
     else if (c.working) tips.unshift('You came into the **working area** on the hit to the outfield. That\'s the move!');
     else if (c.lazy > 0.6 && !this.plate) tips.unshift('You **barely moved**. Go get an angle while the play develops, then stop and watch.');
@@ -1216,8 +1224,12 @@ export class BasePlayEvent {
       const c = this.crits[this.critIdx];
       if (c && c.working && this.t >= c.tLand - 0.4) markers.push({ poly: WORK_POLY, color: '#ffd34d', dash: [6, 5], label: 'WORKING AREA' });
       if (c && c.wedge && this.t >= c.tLand - 0.4) {
-        markers.push({ poly: WEDGE_POLY, color: '#ffd34d', dash: [6, 5], label: 'THE WEDGE' });
-        markers.push({ x: FIRST_EXT.x, y: FIRST_EXT.y, r: 2.2, color: 'rgba(255,211,77,0.9)', dash: [5, 4] });
+        // the wedge, live: you, the catcher and the runner coming in (green open, red closed)
+        const C = this.tl.actors[c.fielderId], R = this.tl.actors[c.runnerId];
+        if (C && R && Math.hypot(R.x, R.y) < 55) {
+          const open = wedgeOpen(this.ump, C, R) >= WEDGE_OK;
+          markers.push({ poly: [{ x: this.ump.x, y: this.ump.y }, { x: C.x, y: C.y }, { x: R.x, y: R.y }], color: open ? '#2fd67b' : '#ff5a5a', label: open ? 'WEDGE OPEN' : 'WEDGE CLOSED', labelS: 6 });
+        }
       }
       if (c && c.gate && this.t > this.tPlate - 0.1 && this.gateOk === undefined) markers.push({ x: this.startPos.x - c.gate.side * 3, y: this.startPos.y, r: 1.4, color: '#ffd34d', pulse: true, label: 'STEP OUT' });
       if (c && c.ideal && this.t > this.tPlate - 0.2 && !c.wedge && (!c.gate || this.gateOk !== undefined)) markers.push({ x: c.ideal.x, y: c.ideal.y, r: 3.5, color: 'rgba(255,211,77,0.9)', dash: [5, 4] });

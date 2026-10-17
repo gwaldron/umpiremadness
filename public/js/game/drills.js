@@ -53,7 +53,7 @@ export const DRILLS = [
   {
     id: 'plate', icon: '🏠', title: 'Plays at the Plate', card: 'plate-plays', div: 'MAJ',
     desc: "You're the plate umpire: open the gate on a passed ball, work the wedge on a throw home, and make the call.",
-    tip: "Pitch gets by? **Open the gate**: step out of the catcher's way, **away from the ball**. Throw coming home? **Work the wedge**, the V behind the plate between the foul lines extended, out on the **first-base line extended**. Then get set, watch the tag, and sell the call.",
+    tip: "Pitch gets by? **Open the gate**: step out of the catcher's way, **away from the ball**. Throw coming home? **Work the wedge**: the triangle of you, the catcher and the runner coming in. Keep moving so it stays **open** and you can see between them. Then get set, watch the tag, and sell the call.",
     reps: () => shuffle([
       ...Array.from({ length: 4 }, () => ({ type: 'base', play: 'pbHome', tutorial: true })),
       ...Array.from({ length: 4 }, () => ({ type: 'base', play: 'throwHome', tutorial: true })),

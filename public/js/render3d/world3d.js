@@ -214,7 +214,7 @@ export class Field3D {
         e.label.visible = true;
         e.label.material.map = this._label(m.label, m.color || '#ffd34d');
         e.label.position.set(P.reduce((v, p) => v + p.x, 0) / P.length, P.reduce((v, p) => v + p.y, 0) / P.length, 3.2 + Math.sin(t * 3) * 0.3);
-        e.label.scale.set(3.2, 3.2, 1);
+        e.label.scale.set(m.labelS ?? 3.2, m.labelS ?? 3.2, 1);
       } else e.label.visible = false;
       i++;
     }

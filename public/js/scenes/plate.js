@@ -616,7 +616,8 @@ export class AtBatEvent {
       if (this.t > (this.fast ? 0.25 : 0.55)) { this.state = 'pitch'; this.t = 0; }
       return;
     }
-    if (this.state === 'signal') this.armAnim += dt;
+    // (only a strike call raises the arm: -1 means no arm, and it must not count its way up into view)
+    if (this.state === 'signal' && this.armAnim >= 0) this.armAnim += dt;
     if (this.punchOut) { this.punchOut.t += dt; if (this.punchOut.t > 2.3) this.punchOut = null; }
     if (this.pk && (this.state === 'pitch' || this.state === 'signal' || this.state === 'wait')) {
       const pk = this.pk;

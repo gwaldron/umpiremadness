@@ -26,7 +26,7 @@ export const RULES = [
   { id: 'working-area', icon: '🧭', title: 'The Working Area', lesson: 'working-area-and-pivot', group: 'Bases',
     text: 'Ball stays in the infield → **stay out**. Ball goes to the outfield → **come in!** Move into the infield, pivot to watch the batter-runner touch first, and be ready for the play at second or third. Stay out of the runners\' paths and the throwing lanes.' },
   { id: 'plate-plays', icon: '🏠', title: 'Plays at the Plate', lesson: 'tags-and-offline-throws', group: 'Plate',
-    text: 'Pitch gets by? **Open the gate**: step out of the catcher\'s way, away from the ball, then get an angle on the play at the plate. Throw coming home? **Work the wedge**, the V behind the plate between the foul lines extended. For a runner coming from third, the **first-base line extended** looks straight across the tag.' },
+    text: 'Pitch gets by? **Open the gate**: step out of the catcher\'s way, away from the ball, then get an angle on the play at the plate. Throw coming home? **Work the wedge**: the triangle formed by you, the catcher and the runner coming in. It changes as the play develops, so keep moving to keep it **open** and see into the gap where the tag happens.' },
   { id: 'force-play', icon: '👟', title: 'Force Plays', lesson: 'force-plays-at-first', group: 'Bases',
     text: 'Watch the runner\'s foot and the base; **hear** the ball hit the glove. The fielder needs secure possession while touching the base before the runner gets there. A pulled foot or dropped ball = safe.' },
   { id: 'tag-play', icon: '🤚', title: 'Tag Plays', lesson: 'tags-and-offline-throws', group: 'Bases',
