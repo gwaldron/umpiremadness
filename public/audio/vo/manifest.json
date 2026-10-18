@@ -1945,5 +1945,69 @@
 "d": 1.293,
 "t": "Hit it to the fence!"
 }
+],
+"f.going": [
+{
+"f": "f/going.mp3",
+"d": 0.588,
+"t": "He's going!"
+},
+{
+"f": "f/going-2.mp3",
+"d": 1.24,
+"t": "He's going! He's going!"
+},
+{
+"f": "f/going-3.mp3",
+"d": 0.568,
+"t": "Going!"
+},
+{
+"f": "f/going-4.mp3",
+"d": 0.756,
+"t": "There he goes!"
+},
+{
+"f": "f/going-5.mp3",
+"d": 0.688,
+"t": "He's going!"
+},
+{
+"f": "f/going-6.mp3",
+"d": 0.81,
+"t": "Runner going!"
+}
+],
+"f.goingSb": [
+{
+"f": "f/goingsb.mp3",
+"d": 0.808,
+"t": "She's going!"
+},
+{
+"f": "f/goingsb-2.mp3",
+"d": 1.26,
+"t": "She's going! She's going!"
+},
+{
+"f": "f/goingsb-3.mp3",
+"d": 0.627,
+"t": "Going!"
+},
+{
+"f": "f/goingsb-4.mp3",
+"d": 0.713,
+"t": "There she goes!"
+},
+{
+"f": "f/goingsb-5.mp3",
+"d": 0.648,
+"t": "She's going!"
+},
+{
+"f": "f/goingsb-6.mp3",
+"d": 0.867,
+"t": "Runner going!"
+}
 ]
 }

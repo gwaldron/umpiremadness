@@ -1,6 +1,7 @@
 // Rule situations. Each one scripts a short play, then asks for the ruling.
 // Rulings follow Little League rules as taught in Umpire Bootcamp.
 import { audio } from '../audio.js';
+import { voices } from '../voice.js';
 import { pick, chance, rand, clamp, lerp } from '../util.js';
 import { BASES, POS } from '../render/field.js';
 import { sport, forSport, releasePt, holdZ, CIRCLE_R } from '../sport.js';
@@ -599,6 +600,7 @@ export const SITUATIONS = [
       const tc = pitchHit(tl, { swing: false, catcher: true });
       tl.hold(tc, tc + 0.9, 'C', 2.4);
       tl.runTo('R1', tc + 0.02, -0.5, 82, 16.5, 'stand');
+      tl.at(tc + 0.14, () => voices.going()); // "He's going!"
       // the batter steps out of the box, right across the plate into the catcher's throwing lane
       if (v.moved) tl.move('BAT', tc + 0.25, tc + 0.75, 0.3, 0.6, 'stand', 'run');
       tl.pose('C', tc + 0.6, 'throw', { dur: 0.4, facing: 1 });
@@ -1221,6 +1223,7 @@ export const SITUATIONS = [
       tl.hold(1.75, 9, 'C', 2.4);
       const leave = { early: 0.85, atRelease: 1.22, atBatter: 1.72 }[v.k];
       tl.runTo('R1', leave, 26, 58, 15, 'stand');
+      tl.at(leave + 0.15, () => voices.going()); // "She's going!"
       // tight on the runner's foot at first, with a PITCH CAM box on the pitcher: when did the foot come off?
       const ry = sport.rubber;
       return {

@@ -286,6 +286,7 @@ export class BasePlayEvent {
     const rid = 'R' + from;
     const R = tl.actors[rid];
     const runStart = tPlate + 0.02;
+    tl.at(runStart + 0.12, () => voices.going()); // "He's going!"
     let vr = rand(14.5, 18.5) * (this.div.id === 'AA' ? 0.9 : 1);
     const runDist = Math.hypot(target.x - R.x, target.y - R.y);
     let tr = runStart + runDist / vr + 0.12;
@@ -489,6 +490,7 @@ export class BasePlayEvent {
     tl.pose('P', tt + 0.6, 'stand');
     // the runner from third breaks for home and slides in, feet first
     const tSlide = tr - 0.5;
+    tl.at(tBreak + 0.1, () => voices.going()); // "He's going!"
     tl.move('R3', tBreak - 0.05, tBreak, R.x, R.y, 'run');
     tl.move('R3', tBreak, tSlide, slideStart.x, slideStart.y, 'run');
     tl.move('R3', tSlide, tr, runEnd.x, runEnd.y, 'slide', 'slide');

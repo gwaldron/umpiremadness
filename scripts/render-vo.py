@@ -35,6 +35,7 @@ ROLES = {
     'c': ('af_bella', 1.08),    # TV color commentator
     'crowd': ('am_adam', 1.05),  # fans in the stands (each line picks its own voice)
     'b': ('am_puck', 1.1),     # the batter (each line picks its own voice)
+    'f': ('am_puck', 1.15),    # fielders hollering on the field (each line picks its own voice)
 }
 
 # Fans: lots of different voices, layered in the game into a crowd (pitched up a bit for kids)
@@ -74,6 +75,7 @@ def lines():
     c = lambda g, t, sp=1.0: L.append(('c.' + g, 'c', t, sp))
     fan = lambda g, t, v, sp=1.05: L.append(('crowd.' + g, 'crowd', t, sp, v))
     bat = lambda g, t, v, sp=1.1: L.append(('b.' + g, 'b', t, sp, v))
+    fld = lambda g, t, v, sp=1.15: L.append(('f.' + g, 'f', t, sp, v))
 
     # --- umpire calls ---
     u('strike', 'Strike!'); u('strike', 'Strike!', 0.86); u('strike', 'Strike, right there!', 1.05)
@@ -144,6 +146,13 @@ def lines():
     # --- the batter, hit by a pitch ---
     for t, v in [('Ouch!', 'am_puck'), ('Ow!', 'af_sky'), ('Ouch!', 'af_nova'), ('Ow, ow, ow!', 'am_echo'), ('Ouch!', 'af_river')]:
         bat('ouch', t, v)
+    # --- fielders yelling that the runner is stealing ---
+    for t, v in [("He's going!", 'am_puck'), ("He's going! He's going!", 'am_echo'), ('Going!', 'am_liam'),
+                 ('There he goes!', 'am_eric'), ("He's going!", 'am_adam'), ('Runner going!', 'am_onyx')]:
+        fld('going', t, v)
+    for t, v in [("She's going!", 'af_sky'), ("She's going! She's going!", 'af_nova'), ('Going!', 'af_river'),
+                 ('There she goes!', 'af_bella'), ("She's going!", 'af_kore'), ('Runner going!', 'af_jessica')]:
+        fld('goingSb', t, v)
     # --- the crowd: cheers for a good call, groans for a miss, Little League chatter in between ---
     k = 0
     def fans(n):

@@ -55,7 +55,7 @@ class Voices {
     this.cache = null;
     this.man = null; // clip manifest
     this.bufs = new Map(); // file -> AudioBuffer | Promise
-    this.playing = { u: [], pa: [], b: [], c: [] };
+    this.playing = { u: [], pa: [], b: [], c: [], f: [] };
     this.chains = null;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => { this.cache = null; };
@@ -432,6 +432,19 @@ class Voices {
       } catch (e) { /* fall back to the browser voice */ }
     }
     this._speak('Ouch!', 'batter', { rate: 1.15, pitch: 1.7 });
+  }
+
+  // ---------- the fielders ----------
+  // A runner takes off and the infielders holler "He's going!" (softball: "She's going!"), like they do
+  // in a real game. Sometimes a second one joins in a beat later.
+  async going(echo = true) {
+    if (!this.enabled || typeof window === 'undefined') return; // (the content check runs plays outside a browser)
+    this.warm();
+    if (this._warm) await this._warm;
+    const g = sport.softball ? 'f.goingSb' : 'f.going';
+    const ok = await this._play('f', [g], { interrupt: false, rate: 1.05 + Math.random() * 0.12 }).catch(() => false);
+    if (!ok) { this._speak(txt("He's going!"), 'fielder', { rate: 1.2, pitch: 1.5 }); return; }
+    if (echo && Math.random() < 0.55) setTimeout(() => this.going(false), 260 + Math.random() * 220);
   }
 
   // ---------- TV commentator (short hype lines, never spammy) ----------
