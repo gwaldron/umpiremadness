@@ -89,6 +89,9 @@ def lines():
     u('outClose', "He's out!", 0.85); u('outClose', 'Out! He is out!'); u('outClose', "Ohh, he's out!")
     u('safe', 'Safe!'); u('safe', "He's safe!")
     u('safeClose', 'Safe! Safe!'); u('safeClose', "He's safe!", 0.86); u('safeClose', 'Safe, safe, safe!', 1.08)
+    # safe, and why: the fielder's foot came off the bag, or the ball came out
+    u('offBag', "Safe! He's off the bag!"); u('offBag', 'Safe! Off the bag!', 1.05)
+    u('ballDown', "Safe! Ball's on the ground!"); u('ballDown', "Safe! The ball's on the ground!", 1.05)
     u('foul', 'Foul ball!'); u('foul', 'Foul!')
     u('tip', 'Foul tip! Strike!'); u('tip', 'Tipped! Strike!')
     u('hbp', 'Time! Take your base!')
@@ -106,6 +109,7 @@ def lines():
     u('safeSb', 'Safe!'); u('safeSb', "She's safe!")
     u('safeCloseSb', 'Safe! Safe!'); u('safeCloseSb', "She's safe!", 0.86); u('safeCloseSb', 'Safe, safe, safe!', 1.08)
     u('catchOutSb', "That's a catch! She's out!")
+    u('offBagSb', "Safe! She's off the bag!"); u('offBagSb', 'Safe! Off the bag!', 1.05)
 
     # --- stadium PA ---
     pa('nowBatting', 'Now batting,'); pa('steppingIn', 'Stepping in,'); pa('upNext', 'Up next,')

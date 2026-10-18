@@ -1113,8 +1113,10 @@ export class BasePlayEvent {
       hud.prompt('', '');
       audio.whoosh(0.25);
     }
-    if (id) voices.call(id, { close: Math.abs(c.dt) < 0.22 });
-    hud.stamp(id === 'out' ? 'OUT!' : id === 'safe' ? 'SAFE!' : 'NO CALL?!', `${id === 'out' ? 'gold' : 'good'}${this.callCam ? ' low' : ''}`);
+    // a safe call on a pulled foot or a dropped ball says why: "Safe! He's off the bag!"
+    const why = id === 'safe' && c.what === 'pulled' ? 'offBag' : id === 'safe' && c.what === 'dropped' ? 'ballDown' : null;
+    if (id) voices.call(why || id, { close: Math.abs(c.dt) < 0.22 });
+    hud.stamp(why === 'offBag' ? 'SAFE! OFF THE BAG!' : why === 'ballDown' ? "SAFE! BALL'S ON THE GROUND!" : id === 'out' ? 'OUT!' : id === 'safe' ? 'SAFE!' : 'NO CALL?!', `${id === 'out' ? 'gold' : 'good'}${this.callCam ? ' low' : ''}`);
     // Score
     const bonus = [];
     if (this.critIdx === 0 && !this.plate) {

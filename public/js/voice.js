@@ -299,6 +299,9 @@ class Voices {
       bb: ['u.bb', 'Ball four! Take your base!'],
       out: [(ctx.close ? 'u.outClose' : 'u.out') + (sport.softball ? 'Sb' : ''), txt("He's out!")],
       safe: [(ctx.close ? 'u.safeClose' : 'u.safe') + (sport.softball ? 'Sb' : ''), 'Safe!'],
+      // safe, and why
+      offBag: [sport.softball ? 'u.offBagSb' : 'u.offBag', txt("Safe! He's off the bag!")],
+      ballDown: ['u.ballDown', "Safe! Ball's on the ground!"],
       foul: ['u.foul', 'Foul ball!'],
       tip: ['u.tip', 'Foul tip! Strike!'],
       hbp: ['u.hbp', 'Time! Take your base!'],
