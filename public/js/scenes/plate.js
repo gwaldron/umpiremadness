@@ -391,13 +391,10 @@ export class AtBatEvent {
         break;
       }
       case 'hbp': {
-        pk.sub = weighted([['elbow', 3], ['hands', 2], ['swungHit', 2], ['leanIn', 2], ['inZone', 1]]);
+        pk.sub = weighted([['elbow', 3], ['hands', 2], ['swungHit', 2], ['leanIn', 2]]);
         const inside = b.side; // ball toward the batter
         const bodyX = Math.abs(b.bx);
-        if (pk.sub === 'inZone') {
-          // batter crowds the plate with his elbow over it
-          target = { x: inside * 0.5, z: zone.top - 0.2 };
-        } else if (pk.sub === 'leanIn') {
+        if (pk.sub === 'leanIn') {
           target = { x: inside * (HALF + BALL_R + rand(0.45, 0.6)), z: rand(zone.bot + 0.5, zone.top - 0.2) };
           pk.leanDist = bodyX - 0.3 - Math.abs(target.x);
         } else if (pk.sub === 'hands') {
@@ -436,7 +433,6 @@ export class AtBatEvent {
     }
     // Batter lean for some HBPs
     pk.lean = kind === 'hbp' && (pk.sub === 'leanIn') ? { start: pk.tPlate - 0.25 } : null;
-    pk.crowd = kind === 'hbp' && pk.sub === 'inZone';
     // Catcher set-up spot: near the target, a little noisy
     this.catcherX = clamp(target.x * 0.6 + rand(-0.15, 0.15), -0.7, 0.7);
     this.glove = { x: this.catcherX + rand(-0.2, 0.2), y: GLOVE_Y, z: clamp((zone.bot + zone.top) / 2 + rand(-0.4, 0.2), 1.2, 3.2) };
@@ -767,7 +763,7 @@ export class AtBatEvent {
     else if (k === 'check') truth = pk.went ? 'strike' : 'ball';
     else if (k === 'contact') truth = pk.sub === 'foulTip' ? 'tip' : pk.sub === 'popCaught' ? 'catch' : 'foul';
     else if (k === 'bunt2') truth = 'k';
-    else if (k === 'hbp') truth = pk.sub === 'swungHit' || pk.sub === 'inZone' ? 'strike' : pk.sub === 'leanIn' ? 'ball' : 'hbp';
+    else if (k === 'hbp') truth = pk.sub === 'swungHit' ? 'strike' : pk.sub === 'leanIn' ? 'ball' : 'hbp';
     else if (k === 'u3k') truth = (this.div.u3k && (!this.runners.includes(1) || this.outs === 2)) ? 'run' : 'out';
     correct = id === truth;
     if (k === 'take' && !this.spec.exam) this.s.zoneCall(correct);
@@ -950,7 +946,6 @@ export class AtBatEvent {
     } else if (k === 'hbp') {
       const s = pk.sub;
       if (s === 'swungHit') body = 'The batter **swung** at the pitch. When a batter swings and the pitch hits them, it\'s a **strike** and the ball is dead — no free base.';
-      else if (s === 'inZone') body = 'The pitch hit the batter while it was **in the strike zone** (his elbow was hanging over the plate). That\'s a **strike**, dead ball — no base award.';
       else if (s === 'leanIn') body = 'The batter **moved into the pitch** on purpose. That pitch was outside the zone, so it\'s a **ball** — but the batter does not get first base.';
       else if (s === 'hands') body = '**The hands are part of the batter, not the bat!** The batter didn\'t swing, so getting hit on the hands is a hit-by-pitch: dead ball, take your base.';
       else body = 'The pitch hit the batter, who didn\'t swing and tried to get out of the way, and it wasn\'t in the strike zone. **Time! Take your base.** Runners move up only if forced.';
@@ -1407,7 +1402,6 @@ export class AtBatEvent {
     const s = b.side; // -1 for righty (stands on 3B side)
     const f = -s; // toward the plate
     let bx = b.bx, by = b.by;
-    if (pk && pk.crowd) bx = s * 1.75;
     let lean = 0, flinch = 0, ft = 0, swing = 0, bunt = 0;
     if (pk && this.state !== 'setup') {
       if (pk.swing) {
@@ -1474,7 +1468,6 @@ export class AtBatEvent {
       batDir = [Math.cos(el) * Math.cos(yaw) * f, Math.cos(el) * Math.sin(yaw), Math.sin(el)];
     } else {
       hands = [bx + f * 0.75, by - 0.55, ap + 0.35];
-      if (pk && pk.crowd) hands = [bx + f * 0.55, by - 0.5, ap + 0.5];
       // stance: hands out in front at shoulder height (on the plate side of the head), the bat about 50
       // degrees up and tilted back over the helmet toward the catcher (where the swing starts from)
       const yaw = (-100 * Math.PI) / 180, el = (52 * Math.PI) / 180;
@@ -1491,7 +1484,6 @@ export class AtBatEvent {
     // Elbows
     J.elF = [lerp(J.shF[0], hands[0], 0.5) + f * 0.1, lerp(J.shF[1], hands[1], 0.5), Math.min(J.shF[2], hands[2]) - 0.35];
     J.elB = [lerp(J.shB[0], hands[0], 0.5) - f * 0.05, lerp(J.shB[1], hands[1], 0.5) - 0.15, Math.min(J.shB[2], hands[2]) - 0.3];
-    if (pk && pk.crowd) J.elF = [s * 0.45, by + 0.3, ap - 0.15];
     if (flinch > 0 && pk.hitPoint) {
       // the free hand grabs and rubs the spot that got hit
       const hp = pk.hitPoint;
