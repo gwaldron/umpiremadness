@@ -922,11 +922,27 @@ export const SITUATIONS = [
         tl.fly(tc, tc + 1.72, { x: 0, y: 1.5, z: 3 }, { ...bounce, z: 0.1 }, 20);
         tl.fly(tc + 1.72, tc + 1.9, { ...bounce, z: 0.1 }, { ...spot, z: 0.35 }, 0.6);
         tl.at(tc + 1.72, () => { audio.thud(); if (field.puff) field.puff(bounce.x, bounce.y, 0.55); });
-      } else tl.fly(tc, tc + 1.8, { x: 0, y: 1.5, z: 3 }, { ...spot, z: 0.6 }, 20);
+      }
       tl.move('RF', tc, tc + 1.5, spot.x + 3, spot.y + 2, 'run');
       tl.move('RF', tc + 1.5, tc + 1.85, spot.x + 1.5, spot.y + 0.5, 'dive', 'dive');
-      tl.hold(tc + 1.9, tc + 6, 'RF', 0.8);
-      tl.at(tc + 1.9, () => audio.pop());
+      const RF = tl.actors.RF;
+      tl.at(tc + 1.4, () => { RF.heading = Math.atan2(-1, -1); }); // diving straight at it
+      if (v.k === 'trap') {
+        tl.hold(tc + 1.9, tc + 6, 'RF', 0.8);
+        tl.at(tc + 1.9, () => audio.pop());
+      } else {
+        // the clean catch: the ball meets the glove early in the dive, about a foot and a half off the
+        // grass (the glove is 2.3 ft out in front of him, a little to his glove side), and stays in it
+        // as he lands, so there's plainly daylight under it
+        const tCatch = tc + 1.7, S = (RF.height || 5) / 5;
+        const k = (tCatch - (tc + 1.5)) / 0.35;
+        const body = { x: lerp(spot.x + 3, spot.x + 1.5, k), y: lerp(spot.y + 2, spot.y + 0.5, k) };
+        const f = { x: -Math.SQRT1_2, y: -Math.SQRT1_2 }, l = { x: -f.y, y: f.x };
+        const glove = { x: body.x + (f.x * 2.29 + l.x * 0.3) * S, y: body.y + (f.y * 2.29 + l.y * 0.3) * S, z: 1.49 * S };
+        tl.fly(tc, tCatch, { x: 0, y: 1.5, z: 3 }, glove, 20);
+        tl.hold(tCatch, tc + 6, 'RF', glove.z);
+        tl.at(tCatch, () => audio.pop());
+      }
       tl.pose('RF', tc + 3.4, 'catchHigh'); // stays down through the freeze, then pops up showing it
       // the same close, low, side-on slow-motion look for the trap and the clean catch, so the camera
       // doesn't give it away: you have to watch whether the ball hits the turf

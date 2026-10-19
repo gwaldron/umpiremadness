@@ -364,6 +364,8 @@ export class Field3D {
       if (world.ball && world.ball.holder === a.id) {
         if (a.pose === 'throw' && (a.phase || 0) < THROW_RELEASE) held = W.handB;
         else if (a.pose === 'field' || a.pose === 'dive' || a.pose === 'catchHigh') held = lerp3(W.handF, W.handB, a.pose === 'field' ? 0.3 : 0.15);
+        // after a diving catch, the ball shows in the top of the web instead of vanishing into the glove
+        if (held && a.pose === 'dive') held = { ...held, z: held.z + 0.16 };
       }
     }
     for (const body of world.bodies || []) {
