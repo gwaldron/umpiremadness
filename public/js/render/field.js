@@ -239,6 +239,7 @@ export class FieldRenderer {
     if (world.scuffs) for (const s of world.scuffs) this._scuff(g, cam, s);
     // Markers on the ground (A/B/C spots, hints, rings)
     if (world.markers) for (const m of world.markers) this._marker(g, cam, m);
+    if (world.paths) for (const p of world.paths) this._path(g, cam, p);
 
     // Sprites sorted far-to-near
     const sprites = [];
@@ -459,6 +460,30 @@ export class FieldRenderer {
     if (!cam.polyPath(g, pts)) return;
     g.fillStyle = `rgba(62,36,14,${(s.a ?? 0.85) * 0.85})`;
     g.fill();
+  }
+
+  // A dotted path on the ground (where the umpire went, or the track to follow)
+  _path(g, cam, path) {
+    const pts = path.pts || [];
+    if (pts.length < 2) return;
+    const gap = path.gap ?? 0.8;
+    g.fillStyle = path.color || '#ffffff';
+    g.globalAlpha = 0.7;
+    let carry = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const L = Math.hypot(b.x - a.x, b.y - a.y);
+      for (let d = carry; d <= L; d += gap) {
+        const k = L > 0 ? d / L : 0;
+        const p = cam.project(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, 0.05);
+        if (!p) continue;
+        g.beginPath();
+        g.arc(p.x, p.y, Math.max(1.5, (path.r ?? 0.2) * p.s), 0, Math.PI * 2);
+        g.fill();
+        carry = d + gap - L;
+      }
+    }
+    g.globalAlpha = 1;
   }
 
   _marker(g, cam, m) {

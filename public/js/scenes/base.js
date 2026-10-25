@@ -725,6 +725,8 @@ export class BasePlayEvent {
     }
     this.s.rig.set({ x: 8, y: 52 }, 62, 0.72);
     this.posTimer = 0;
+    // not in the right start spot? blink so you see it's you and you need to move
+    this.flashT = inStartZone(this.expectSpot, this.ump) ? null : 0;
   }
 
   _go() {
@@ -736,6 +738,7 @@ export class BasePlayEvent {
       // no start spot to grade: you start behind the catcher
       this.startOk = true;
       this.startPos = { x: this.ump.x, y: this.ump.y };
+      this.track = [{ ...this.startPos }];
       this.bumped = false;
       this.gateOk = undefined;
       this.state = 'live';
@@ -753,6 +756,8 @@ export class BasePlayEvent {
     }
     this.startOk = inStartZone(this.expectSpot, this.ump);
     this.startPos = { x: this.ump.x, y: this.ump.y };
+    this.track = [{ ...this.startPos }];
+    if (!this.startOk) this.flashT = 0.55; // one more blink: you started in the wrong spot
     this.wentIn = false;
     this.inCalled = false;
     this.startNearest = nd < 14 ? nearest : null;
@@ -904,6 +909,17 @@ export class BasePlayEvent {
     ua.x = this.ump.x; ua.y = this.ump.y;
     ua.vis = Math.min(innerWidth, innerHeight) < 600 ? 1.6 : 1.2; // a bigger you on phones
     ua.you = true;
+    // the blink: off and on a few times
+    if (this.flashT !== null && this.flashT !== undefined) {
+      this.flashT += dt;
+      ua.hidden = this.flashT < 1.15 && Math.floor(this.flashT / 0.19) % 2 === 1;
+      if (this.flashT >= 1.15) { this.flashT = null; ua.hidden = false; }
+    }
+    // your track during the play: a dot every half foot or so
+    if (this.track && (this.state === 'live')) {
+      const last = this.track[this.track.length - 1];
+      if (Math.hypot(this.ump.x - last.x, this.ump.y - last.y) > 0.5 && this.track.length < 600) this.track.push({ x: this.ump.x, y: this.ump.y });
+    }
     if (!this.signalPose) {
       if (speed > 2) { ua.pose = 'run'; ua.dist = (ua.dist || 0) + speed * step; ua.phase = (ua.dist / STRIDE) % 1; if (Math.abs(this.ump.vx) > 1) ua.facing = this.ump.vx > 0 ? 1 : -1; }
       else ua.pose = this.ump.still > 0.25 ? 'set' : 'stand';
@@ -1238,7 +1254,11 @@ export class BasePlayEvent {
       if (c && c.gate && this.t > this.tPlate - 0.1 && this.gateOk === undefined) markers.push({ x: this.startPos.x - c.gate.side * 3, y: this.startPos.y, r: 1.4, color: '#ffd34d', pulse: true, label: 'STEP OUT' });
       if (c && c.ideal && this.t > this.tPlate - 0.2 && !c.wedge && (!c.gate || this.gateOk !== undefined)) markers.push({ x: c.ideal.x, y: c.ideal.y, r: 3.5, color: 'rgba(255,211,77,0.9)', dash: [5, 4] });
     }
-    s.field.draw(g, s.cam, { actors, ball: this.tl.ball, markers });
+    // the blink also gets a white ring so your eye finds you
+    if (this.flashT !== null && this.flashT !== undefined) markers.push({ x: this.ump.x, y: this.ump.y, r: 3.4, color: '#ffffff', pulse: true });
+    // where you went: a soft dotted trail from the pitch on (stays up through the call)
+    const paths = this.track && this.track.length > 1 && this.state !== 'position' ? [{ pts: [...this.track, { x: this.ump.x, y: this.ump.y }], color: '#ffffff', r: 0.2, gap: 0.75 }] : [];
+    s.field.draw(g, s.cam, { actors, ball: this.tl.ball, markers, paths });
     if (this.state === 'cam' && this.cam) {
       const W = s.cam.w, H = s.cam.h;
       const portrait = H > W;

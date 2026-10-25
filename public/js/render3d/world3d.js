@@ -67,6 +67,13 @@ export class Field3D {
     this.trail.frustumCulled = false;
     this.trail.count = 0;
     this.scene.add(this.trail);
+    // Dotted paths on the ground: where the umpire went, or the track to follow (world.paths)
+    this.pathDots = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 12), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -60 }), 900);
+    this.pathDots.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(900 * 3), 3);
+    this.pathDots.frustumCulled = false;
+    this.pathDots.count = 0;
+    this.pathDots.renderOrder = 6;
+    this.scene.add(this.pathDots);
 
     // Ground markers (rings + labels)
     this.ringGeo = new THREE.RingGeometry(0.86, 1, 48);
@@ -110,6 +117,35 @@ export class Field3D {
   // A big, obvious puff of dirt (a pitch in the dirt, a ball scooped off the ground)
   puff(x, y, k = 1) {
     this.dust.emit(x, y, 0.1, Math.round(16 * k), { size: 0.45 + 0.55 * k, spread: 0.5 * k, up: 2.2 * k, speed: 2.4 * k, life: 1.2 });
+  }
+
+  // Dotted paths on the ground: [{ pts: [{x, y}], color, r (dot radius, ft), gap (ft between dots) }]
+  _paths(list = []) {
+    const im = this.pathDots, m = this._m, col = new THREE.Color();
+    let n = 0;
+    for (const path of list) {
+      const pts = path.pts || [];
+      if (pts.length < 2) continue;
+      const r = path.r ?? 0.2, gap = path.gap ?? 0.8;
+      col.set(path.color || '#ffffff');
+      let carry = 0;
+      for (let i = 1; i < pts.length && n < 900; i++) {
+        const a = pts[i - 1], b = pts[i];
+        const L = Math.hypot(b.x - a.x, b.y - a.y);
+        let d = carry;
+        while (d <= L && n < 900) {
+          const k = L > 0 ? d / L : 0;
+          m.makeScale(r, r, 1).setPosition(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, 0.07);
+          im.setMatrixAt(n, m);
+          im.setColorAt(n, col);
+          n++;
+          d += gap;
+        }
+        carry = d - L;
+      }
+    }
+    im.count = n;
+    if (n) { im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true; }
   }
 
   // Scuff marks on the ground: [{ x, y, r, sx, sy, a }] (where a pitch dug into the dirt)
@@ -232,8 +268,9 @@ export class Field3D {
       let e = this.markerPool[i];
       if (!e) {
         e = {
-          ring: new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })),
-          disc: new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0.18 })),
+          // (pulled toward the camera like the bands, or the ground planes hide them in a wide view)
+          ring: new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -60 })),
+          disc: new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0.18, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -60 })),
           label: new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })),
         };
         e.ring.renderOrder = e.disc.renderOrder = 6;
@@ -379,6 +416,7 @@ export class Field3D {
     P.end();
     this._markers(markers, t);
     this._scuffs(world.scuffs);
+    this._paths(world.paths);
     this._ball(held ? { ...world.ball, x: held.x, y: held.y, z: held.z } : world.ball, camera.position);
     if (world.zone) {
       const z = world.zone;
