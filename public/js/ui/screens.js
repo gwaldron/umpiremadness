@@ -10,6 +10,7 @@ const TOP = () => DIVISIONS[DIVISIONS.length - 1].name;
 import { ACHIEVEMENTS } from '../data/achievements.js';
 import { RULE, activeRules } from '../data/rules.js';
 import { DRILLS, DRILL } from '../game/drills.js';
+import { LESSONS, LESSON } from '../game/lessons.js';
 import { levelFromXp, xpForLevel, rankFor, SHIRT_UNLOCKS, CAP_UNLOCKS, randomName, careerStars, resetProfile } from '../storage.js';
 import { UMP_SHIRTS, UMP_CAPS, SKINS, KITS, drawFigure } from '../render/figures.js';
 import { Camera } from '../render/camera.js';
@@ -507,7 +508,12 @@ export class Screens {
     const app = this.app;
     const p = app.profile;
     const wrapEl = el('div', { class: 'wrap', style: { maxWidth: '820px' } }, this.topbar('ROOKIE CAMP'));
-    wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-6px', marginBottom: '14px' } }, 'Two levels. New umps start in Minors.'));
+    wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-6px', marginBottom: '14px' } }, 'The fundamentals, one at a time. New umps start with Minors Camp.'));
+    const head = (t, sub) => {
+      wrapEl.append(el('h3', { class: 'drills-head' }, t));
+      wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-4px', marginBottom: '12px' } }, sub));
+    };
+    head('🎓 START HERE', 'Two camps: everything in order, about 15 minutes each.');
     const grid = el('div', { class: 'grid' });
     const card = (ico, t, d, done, fn, extra = {}) => {
       const c = el('button', { class: `card${done ? ' gold' : ''}`, 'data-nav': '', type: 'button', onclick: fn, ...extra });
@@ -519,15 +525,20 @@ export class Screens {
       card('🔥', 'Majors Camp', 'Full Little League rules · about 15 minutes. 7 stations: faster pitching, the dropped third strike, the infield fly, double plays, steals & back-picks, appeals & timing plays, game management, then a no-hints scrimmage.', p.career['camp-majors'], () => app.startCamp('majors')),
     );
     wrapEl.append(grid);
-    // Drills: practice one kind of call
-    wrapEl.append(el('h3', { class: 'drills-head' }, '🎯 DRILLS'));
-    wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-4px', marginBottom: '12px' } }, 'Practice one kind of call, about 2 minutes each. Miss one and you get another look at the end.'));
-    const dg = el('div', { class: 'grid drills' });
-    for (const d of DRILLS) {
-      const done = p.drills[d.id];
-      dg.append(card(d.icon, d.title, d.desc, done && done.stars ? done : null, () => app.startDrill(d.id)));
-    }
-    wrapEl.append(dg);
+    const section = (list) => {
+      const g = el('div', { class: 'grid drills' });
+      for (const d of list) {
+        const done = p.drills[d.id];
+        g.append(card(d.icon, d.title, d.desc, done && done.stars ? done : null, () => app.startDrill(d.id)));
+      }
+      wrapEl.append(g);
+    };
+    // Positioning: where to stand and how to move (watch the track, then do it)
+    head('📍 POSITIONING', 'Where to start and how to move. Watch the umpire\'s track first, then do it yourself.');
+    section([...LESSONS, DRILL.plate]);
+    // Calls: practice one kind of call
+    head('🎯 CALLS', 'Practice one kind of call, about 2 minutes each. Miss one and you get another look at the end.');
+    section(DRILLS.filter((d) => d.id !== 'plate'));
     return this.screen('dim', wrapEl);
   }
 
@@ -644,7 +655,8 @@ export class Screens {
     const career = r.mode === 'career';
     const wrap = el('div', { class: 'results' });
     let head;
-    if (r.mode === 'drill') head = r.stars === 3 ? 'DRILL MASTERED! 🎯' : r.stars ? 'DRILL DONE! 🎯' : 'KEEP DRILLING!';
+    if (r.mode === 'drill' && r.cfg.lesson) head = r.stars === 3 ? 'LESSON MASTERED! 📍' : r.stars ? 'LESSON DONE! 📍' : 'KEEP PRACTICING!';
+    else if (r.mode === 'drill') head = r.stars === 3 ? 'DRILL MASTERED! 🎯' : r.stars ? 'DRILL DONE! 🎯' : 'KEEP DRILLING!';
     else if (r.mode === 'camp') head = r.acc >= 0.5 ? `${(r.cfg.level || 'minors') === 'majors' ? 'MAJORS' : 'MINORS'} CAMP DONE! 🎓` : 'CAMP COMPLETE';
     else if (r.gameOver) head = 'EJECTED! 🚪';
     else if (r.mode === 'blitz') head = "TIME'S UP!";
@@ -662,7 +674,7 @@ export class Screens {
         <div class="rowline"><span>XP earned</span><span>+${r.xpGain}${r.levelUp ? ` · LEVEL ${r.levelUp}!` : ''}</span></div>
       </div>
       ${r.achievements.length ? `<div class="newbadges">${r.achievements.map((a) => `<span class="nb">${a.icon} ${escapeHtml(a.name)}</span>`).join('')}</div>` : ''}
-      ${r.mode === 'drill' && r.stars < 3 ? `<p class="footer-note">Get 80% right on the first try for three stars. <a class="lesson" href="${lessonUrl(RULE[DRILL[r.cfg.drill].card].lesson)}" target="_blank" rel="noopener">📖 Bootcamp lesson →</a></p>` : ''}
+      ${r.mode === 'drill' && r.stars < 3 ? `<p class="footer-note">Get 80% right on the first try for three stars. <a class="lesson" href="${lessonUrl(RULE[(DRILL[r.cfg.drill] || LESSON[r.cfg.drill]).card].lesson)}" target="_blank" rel="noopener">📖 Bootcamp lesson →</a></p>` : ''}
       ${career && !r.stars ? '<p class="footer-note">Get 60% of your calls right to earn a star and unlock the next game. Review the rule cards and try again!</p>' : ''}`;
     const actions = el('div', { class: 'actions' });
     const btn = (label, fn, primary, auto) => {
@@ -678,8 +690,8 @@ export class Screens {
       actions.append(btn(hasNext ? '↻ Replay' : `${glyph('A')} REPLAY`, () => app.startCareer(d.id, r.cfg.gameIndex), !hasNext, !hasNext));
       actions.append(btn('🏆 Career map', () => { this.replace(this.title()); this.push(this.career()); }));
     } else if (r.mode === 'drill') {
-      actions.append(btn(`${glyph('A')} DRILL AGAIN`, () => app.startDrill(r.cfg.drill), true, true));
-      actions.append(btn('🎯 More drills', () => { this.replace(this.title()); this.push(this.campChooser()); }));
+      actions.append(btn(`${glyph('A')} ${r.cfg.lesson ? 'LESSON' : 'DRILL'} AGAIN`, () => app.startDrill(r.cfg.drill), true, true));
+      actions.append(btn('🎓 Rookie Camp', () => { this.replace(this.title()); this.push(this.campChooser()); }));
     } else if (r.mode === 'camp') {
       const lvl = r.cfg.level || 'minors';
       const key = lvl === 'majors' ? 'camp-majors' : 'camp';

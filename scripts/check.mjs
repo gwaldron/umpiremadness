@@ -15,6 +15,7 @@ import { KITS } from '../public/js/render/figures.js';
 import { preloadIsCurrent } from './preload.mjs';
 import { sport, setSport, forSport, rubberY } from '../public/js/sport.js';
 import { DRILLS, buildDrill } from '../public/js/game/drills.js';
+import { LESSONS } from '../public/js/game/lessons.js';
 
 const problems = [];
 let built = 0;
@@ -91,6 +92,18 @@ for (const sp of ['baseball', 'softball']) {
   }
 }
 setSport('baseball');
+// Position lessons: an intro, demos (each with a caption), a "your turn" card and coached reps
+const PLAYS = new Set(['force1B', 'steal2B', 'steal3B', 'dp', 'pickoff1B', 'hit2B', 'hit3B', 'throwHome', 'pbHome']);
+for (const L of LESSONS) {
+  if (!RULE[L.card]) problems.push(`lesson ${L.id}: unknown card ${L.card}`);
+  const cfg = buildDrill(L.id);
+  const demos = cfg.events.filter((e) => e.demo), reps = cfg.events.filter((e) => e.coach);
+  if (demos.length < 2 || reps.length < 4) problems.push(`lesson ${L.id}: ${demos.length} demos, ${reps.length} reps`);
+  for (const e of [...demos, ...reps]) {
+    if (!PLAYS.has(e.play)) problems.push(`lesson ${L.id}: unknown play ${e.play}`);
+    if (e.demo && !(e.caption && e.caption.title && e.caption.pre && e.caption.summary)) problems.push(`lesson ${L.id}: demo ${e.play} missing a caption`);
+  }
+}
 
 for (const l of LIFE) {
   if (!l.options.some((o) => o.id === l.answer)) problems.push(`life ${l.id}: bad answer`);

@@ -127,6 +127,12 @@ export function inStartZone(k, p) {
   const s = rx * u.x + ry * u.y, d = rx * n.x + ry * n.y;
   return s >= z.s0 && s <= z.s1 && d >= z.d0 && d <= z.d1;
 }
+// the middle of a start zone (where a lesson's demo umpire starts)
+function zoneCenter(k) {
+  const poly = startZonePoly(k);
+  if (!poly) return { x: UMP_SPOTS[k].x, y: UMP_SPOTS[k].y };
+  return { x: poly.reduce((v, p) => v + p.x, 0) / poly.length, y: poly.reduce((v, p) => v + p.y, 0) / poly.length };
+}
 // the band to highlight on the field while you get set
 function startZonePoly(k) {
   const z = START_ZONES[k];
@@ -189,6 +195,7 @@ export class BasePlayEvent {
     if (play === 'steal2B' || play === 'pickoff1B' || play === 'dp') runners = [1];
     if (play === 'steal3B') runners = [2];
     if (play === 'hit3B') runners = [1];
+    if (play === 'hit2B' && this.spec.runners) runners = this.spec.runners;
     if (play === 'pbHome') runners = [3];
     if (play === 'throwHome') runners = [2];
     this.runners = runners;
@@ -378,6 +385,7 @@ export class BasePlayEvent {
     } else {
       rid = 'BAT';
       start = { x: tl.actors.BAT.x, y: tl.actors.BAT.y, t: tPlate + 0.35 };
+      if (tl.actors.R2) tl.runPath('R2', tPlate + 0.05, [{ x: B3.x + 1.2, y: B3.y + 1.6 }, { x: 0.6, y: 1.4 }], 17, 'stand'); // a runner on second scores
       tl.pose('BAT', tPlate + 0.3, 'stand');
       // a wide turn at first, then on to second
       pts = [{ x: B1.x + 2.2, y: B1.y - 1.2 }, { x: lerp(B1.x, B2.x, 0.82), y: lerp(B1.y, B2.y, 0.82) }];
@@ -727,6 +735,16 @@ export class BasePlayEvent {
     this.posTimer = 0;
     // not in the right start spot? blink so you see it's you and you need to move
     this.flashT = inStartZone(this.expectSpot, this.ump) ? null : 0;
+    if (this.spec.demo) {
+      // a lesson's demo: the umpire starts in the right spot and moves by himself along the gold track
+      const z = zoneCenter(this.expectSpot);
+      this.ump.x = z.x; this.ump.y = z.y;
+      this.flashT = null;
+      hud.options(null);
+      hud.tip(null);
+      hud.prompt(this.spec.caption.title, this.spec.caption.pre);
+      this.demoT = 0;
+    }
   }
 
   _go() {
@@ -778,6 +796,41 @@ export class BasePlayEvent {
     const travel = c.tb - this.t;
     c.ideal = idealSpot({ ...c, fielder: this._fielderAt(c) }, from, Math.max(18, travel * 16 + 10));
     c.tFirst = Math.min(c.tb, c.tr, c.tt ?? Infinity);
+    c.route = this._route(c, from);
+    if (this.critIdx > 0) c.go = this.t + 0.1;
+  }
+
+  // The track a lesson teaches (Bootcamp A/B/C): from B or C on a ball in the infield, hold your spot and
+  // adjust a step or two; on a ball to the outfield, come into the working area first; otherwise go
+  // straight for the angle.
+  _route(c, from) {
+    if (!c.ideal) return null;
+    if (this.spec.hold) {
+      const d = dist(from, c.ideal), k = Math.min(1, 4 / Math.max(d, 0.01));
+      return [from, { x: from.x + (c.ideal.x - from.x) * k, y: from.y + (c.ideal.y - from.y) * k }];
+    }
+    if (c.working) {
+      const mid = { x: from.x * 0.35, y: clamp(from.y * 0.8 + 8, 32, 56) };
+      return [from, mid, { x: c.ideal.x, y: c.ideal.y }];
+    }
+    return [from, { x: c.ideal.x, y: c.ideal.y }];
+  }
+
+  // The demo umpire's stick: along the route, timed to get there and stop before the play
+  _autopilot() {
+    const c = this.crits[this.critIdx];
+    if (!c || !c.route || this.t < (c.go ?? this.tPlate + 0.12)) return { x: 0, y: 0 };
+    if (c.wp === undefined) {
+      c.wp = 1;
+      let L = 0;
+      for (let i = 1; i < c.route.length; i++) L += dist(c.route[i - 1], c.route[i]);
+      c.apSpeed = clamp(L / Math.max(0.6, c.tFirst - 0.75 - this.t), 6, 17);
+    }
+    while (c.wp < c.route.length && dist(this.ump, c.route[c.wp]) < 0.7) c.wp++;
+    if (c.wp >= c.route.length) return { x: 0, y: 0 };
+    const q = c.route[c.wp], d = dist(this.ump, q) || 1;
+    const k = (c.apSpeed / 17) * Math.min(1, d / 2.5 + (c.wp < c.route.length - 1 ? 1 : 0));
+    return { x: ((q.x - this.ump.x) / d) * k, y: ((q.y - this.ump.y) / d) * k };
   }
 
   _fielderAt(c) {
@@ -885,13 +938,16 @@ export class BasePlayEvent {
     // (the throw-home play keeps the view from behind home, a little higher, so you see the hit go out)
     if (this.plate && this.play === 'pbHome' && this.s.field.is3d) this.s.rig.set({ x: cx, y: cy - 3 }, ext, 0.95, Math.PI);
     else if (this.plate) this.s.rig.set({ x: cx, y: cy - 3 }, Math.min(105, ext * 1.15), 1.05);
-    else this.s.rig.set({ x: cx, y: cy + 4 }, ext, 0.78);
+    // (aimed a little toward home and a touch wider: the near edge of this tilted view is where you
+    // usually are, and it used to get cut off)
+    else this.s.rig.set({ x: cx, y: cy - 2 }, Math.min(105, ext * 1.08), 0.8);
   }
 
   update(dt) {
     const hud = this.s.hud;
     // the stick moves you the way it points on screen (plays at the plate look back from center field)
-    const m = this.plate && this.play === 'pbHome' && this.s.field.is3d ? { x: -input.move.x, y: -input.move.y } : input.move;
+    const m = this.spec.demo ? (this.state === 'live' ? this._autopilot() : { x: 0, y: 0 })
+      : this.plate && this.play === 'pbHome' && this.s.field.is3d ? { x: -input.move.x, y: -input.move.y } : input.move;
     const canMove = this.state === 'position' || this.state === 'live' || this.state === 'after';
     // Umpire movement (feet per second)
     const maxV = 17, acc = 70;
@@ -927,6 +983,12 @@ export class BasePlayEvent {
 
     if (this.state === 'position' && this.plate) {
       this._frame([{ x: this.ump.x, y: this.ump.y }, PLATE, { x: 0, y: 14 }], 20);
+      return;
+    }
+    if (this.state === 'position' && this.spec.demo) {
+      this.demoT += dt;
+      this._frame([{ x: this.ump.x, y: this.ump.y }, UMP_SPOTS[this.expectSpot], { x: 0, y: 0 }, BASES.second, BASES.first, BASES.third]);
+      if (this.demoT > 2.6) this._go();
       return;
     }
     if (this.state === 'position') {
@@ -1005,6 +1067,7 @@ export class BasePlayEvent {
         }
       }
       const c = this.crits[this.critIdx];
+      if (this.spec.demo && !c.called && this.cam.seenAt !== null && this.cam.real - this.cam.seenAt > 0.9) this._call(c.out ? 'out' : 'safe');
       if (!c.called && this.cam.seenAt !== null && this.cam.real - this.cam.seenAt > 6) this._call(null);
     }
   }
@@ -1053,6 +1116,8 @@ export class BasePlayEvent {
     const v = viewScore(this.ump, { ...c, fielder: fpos }, moving);
     c.view = v;
     c.moving = moving;
+    if (c.route) c.holdDist = dist(c.route[0], this.ump);
+    if (c.ideal) c.spotOff = dist(c.ideal, this.ump);
     // the wedge at the tag: you, the catcher and the runner. Open = you see into the gap between them.
     if (c.wedge) {
       const C = this.tl.actors[c.fielderId], R = this.tl.actors[c.runnerId];
@@ -1143,6 +1208,8 @@ export class BasePlayEvent {
     if (c.wedge) bonus.push(c.inWedge ? { label: 'Kept the wedge open', pts: 50 } : { label: 'The wedge closed on you', pts: -25 });
     if (c.working) bonus.push(this.wentIn ? { label: 'Into the working area', pts: 50 } : { label: 'Stayed out on a ball to the outfield', pts: -25 });
     else if (c.lazy > 0.6 && !this.plate) bonus.push({ label: "Didn't move to the play", pts: -25 });
+    if (this.spec.coach && this.spec.hold) bonus.push(c.holdDist <= 12 ? { label: 'Held your spot', pts: 25 } : { label: 'Wandered off on an infield ball', pts: -25 });
+    else if (this.spec.coach && c.spotOff !== undefined && c.spotOff < 9) bonus.push({ label: 'Got to a good spot', pts: 25 });
     if (c.view.lane) bonus.push({ label: 'In the throwing lane', pts: -25 });
     if (c.moving) bonus.push({ label: 'Called it on the move', pts: -25 });
     for (const p of this.penalties) bonus.push(p);
@@ -1160,7 +1227,7 @@ export class BasePlayEvent {
       bonus, startOk: this.critIdx === 0 && !this.plate ? this.startOk : undefined, bangBang: bang && correct,
       call: id, truth, division: this.div.id,
     };
-    const scored = this.s.record(res);
+    const scored = this.spec.demo ? null : this.s.record(res);
     this.calls.push({ correct, crit: c });
     // Let the play finish in the background, then show the verdict.
     setTimeout(() => {
@@ -1174,7 +1241,26 @@ export class BasePlayEvent {
     }, this.callCam ? 1450 : 700);
   }
 
+  // A lesson demo's wrap-up: what the umpire just did, and why
+  _demoVerdict(c) {
+    const hud = this.s.hud;
+    const cap = this.spec.caption;
+    this.s.showVerdict({ correct: true, info: true, title: "THAT'S THE MOVE!", sub: cap.title, body: cap.summary, card: c.card, scored: null }, () => {
+      this.signalPose = null;
+      this.umpActor.faceAt = null;
+      if (this.critIdx === 0 && this.crits.length > 1) {
+        this.critIdx++;
+        this.state = 'live';
+        this._prepCrit();
+        hud.prompt('TURN TO FIRST!', 'Double play: a step or two for the angle on the relay');
+        return;
+      }
+      this.s.eventDone();
+    });
+  }
+
   _verdict(c, correct, truth, id, timing, scored) {
+    if (this.spec.demo) return this._demoVerdict(c);
     const hud = this.s.hud;
     const v = c.view;
     const lines = [];
@@ -1199,6 +1285,10 @@ export class BasePlayEvent {
     else if (c.working) tips.unshift('You came into the **working area** on the hit to the outfield. That\'s the move!');
     else if (c.lazy > 0.6 && !this.plate) tips.unshift('You **barely moved**. Go get an angle while the play develops, then stop and watch.');
     if (this.critIdx === 0 && !this.startOk) tips.unshift(`Start in ${ZONE_HELP[this.expectSpot]}`);
+    if (this.spec.coach) {
+      if (this.spec.hold) tips.unshift(c.holdDist <= 12 ? 'Ball in the infield: you **held your spot** and adjusted. That\'s the move from B and C.' : 'Ball in the infield: from B or C, **hold your spot** and adjust a step or two. Don\'t chase the play.');
+      else if (c.spotOff !== undefined) tips.push(c.spotOff < 9 ? 'You ended up right where the **gold dots** end. Nice!' : 'Compare your **white trail** with the **gold dots**: that\'s the track to a better angle.');
+    }
     if (!tips.length) tips.push('Nice — you were set and could see the play.');
     const start = this.critIdx === 0 && !this.plate ? `Start: ${this.startOk ? `<b>✓ ${this.expectSpot}</b>` : `✗ should be in <b>${this.expectSpot}</b>`}` : '';
     let extra = `<div class="vcall">${start ? `📍 ${start}<br>` : ''}${mini(tips.join(' '))}</div>`;
@@ -1258,6 +1348,8 @@ export class BasePlayEvent {
     if (this.flashT !== null && this.flashT !== undefined) markers.push({ x: this.ump.x, y: this.ump.y, r: 3.4, color: '#ffffff', pulse: true });
     // where you went: a soft dotted trail from the pitch on (stays up through the call)
     const paths = this.track && this.track.length > 1 && this.state !== 'position' ? [{ pts: [...this.track, { x: this.ump.x, y: this.ump.y }], color: '#ffffff', r: 0.2, gap: 0.75 }] : [];
+    const cr = this.crits[this.critIdx];
+    if (cr && cr.route && ((this.spec.demo && this.state !== 'position') || (this.spec.coach && cr.called))) paths.push({ pts: cr.route, color: '#ffd34d', r: 0.32, gap: 1.3 });
     s.field.draw(g, s.cam, { actors, ball: this.tl.ball, markers, paths });
     if (this.state === 'cam' && this.cam) {
       const W = s.cam.w, H = s.cam.h;

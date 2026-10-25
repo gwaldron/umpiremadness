@@ -6,6 +6,7 @@ import { DIV } from '../data/divisions.js';
 import { SITUATIONS, situationsFor } from '../data/situations.js';
 import { FAIRFOUL_PLUS, FAIRFOUL_KINDS } from '../data/fairfoul.js';
 import { CATCH_PLUS, CATCH_KINDS } from '../data/catches.js';
+import { LESSON, buildLesson } from './lessons.js';
 
 const sit = (id) => SITUATIONS.find((s) => s.id === id);
 
@@ -84,6 +85,7 @@ export const DRILLS = [
 export const DRILL = Object.fromEntries(DRILLS.map((d) => [d.id, d]));
 
 export function buildDrill(id) {
+  if (LESSON[id]) return buildLesson(id); // the A/B/C position lessons run the same way
   const d = DRILL[id];
   const reps = d.reps(DIV[d.div]);
   return {
