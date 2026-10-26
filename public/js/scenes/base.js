@@ -30,6 +30,8 @@ function insideDiamond(p) {
 export function inWorkingArea(p) {
   return insideDiamond(p) && p.y > 22;
 }
+// From A on a ball in the infield (lessons): the spot straight out from first, 45 degrees off the foul line
+const A_ANGLE_DIST = 18;
 const WORK_POLY = [{ x: 0, y: 26 }, { x: 24, y: 48 }, { x: 10, y: 70 }, { x: -10, y: 70 }, { x: -24, y: 48 }];
 // The wedge: the triangle formed by the plate umpire, the catcher and the runner coming in. It changes as
 // the play develops, so keep moving to keep it OPEN: stay off the line between the catcher and the runner,
@@ -450,6 +452,9 @@ export class BasePlayEvent {
       missed, empty, dropped, dropT: tt + 0.09, slide: 'feet',
       what: missed ? 'missed' : empty ? 'empty' : dropped ? 'dropped' : null,
       card: 'working-area', working: true, tLand,
+      // the base touch to watch once you're in the working area: the batter-runner at first, or the runner
+      // from first going by second on his way to third
+      touch: toThird ? { t: legs[0].t1 - 0.12, base: B2, name: 'second', runnerId: 'R1' } : { t: legs[0].t1 - 0.12, base: B1, name: 'first', runnerId: 'BAT' },
     });
   }
 
@@ -795,6 +800,11 @@ export class BasePlayEvent {
     const from = this.critIdx === 0 ? { x: this.ump.x, y: this.ump.y } : { x: this.ump.x, y: this.ump.y };
     const travel = c.tb - this.t;
     c.ideal = idealSpot({ ...c, fielder: this._fielderAt(c) }, from, Math.max(18, travel * 16 + 10));
+    // the A lesson (demo and reps): from A on a ball in the infield, come well into fair territory, about
+    // 45 degrees off the foul line, halfway between the foul line and the baseline to second
+    if ((this.spec.demo || this.spec.coach) && this.expectSpot === 'A' && c.type === 'force' && c.baseNum === 1 && !this.spec.hold) {
+      c.ideal = { x: BASES.first.x, y: BASES.first.y + A_ANGLE_DIST };
+    }
     c.tFirst = Math.min(c.tb, c.tr, c.tt ?? Infinity);
     c.route = this._route(c, from);
     if (this.critIdx > 0) c.go = this.t + 0.1;
@@ -946,7 +956,7 @@ export class BasePlayEvent {
   update(dt) {
     const hud = this.s.hud;
     // the stick moves you the way it points on screen (plays at the plate look back from center field)
-    const m = this.spec.demo ? (this.state === 'live' ? this._autopilot() : { x: 0, y: 0 })
+    const m = this.spec.demo ? (this.state === 'live' && !this.touchHold ? this._autopilot() : { x: 0, y: 0 })
       : this.plate && this.play === 'pbHome' && this.s.field.is3d ? { x: -input.move.x, y: -input.move.y } : input.move;
     const canMove = this.state === 'position' || this.state === 'live' || this.state === 'after';
     // Umpire movement (feet per second)
@@ -955,7 +965,7 @@ export class BasePlayEvent {
     const k = Math.min(1, (acc * dt) / Math.max(1, Math.hypot(tvx - this.ump.vx, tvy - this.ump.vy)));
     this.ump.vx += (tvx - this.ump.vx) * k;
     this.ump.vy += (tvy - this.ump.vy) * k;
-    if (this.state === 'cam') { this.ump.vx = 0; this.ump.vy = 0; }
+    if (this.state === 'cam' || this.touchHold) { this.ump.vx = 0; this.ump.vy = 0; }
     const step = (this.state === 'live' ? this.timeScale : 1) * dt;
     this.ump.x = clamp(this.ump.x + this.ump.vx * step, -75, 75);
     this.ump.y = clamp(this.ump.y + this.ump.vy * step, this.plate ? -32 : -15, 140);
@@ -1004,6 +1014,17 @@ export class BasePlayEvent {
     }
     if (this.state === 'live' || this.state === 'after') {
       const c = this.crits[this.critIdx];
+      // a lesson demo stops on the runner's touch: in the working area, watch him touch the bag
+      if (this.state === 'live' && c && c.touch && this.spec.demo && !c.touchShown && this.t >= c.touch.t) {
+        c.touchShown = true;
+        this._touchPause(c);
+      }
+      if (this.touchHold) {
+        this.tl.sample(this.t);
+        this._overrides(this.t);
+        this._frame([{ x: this.ump.x, y: this.ump.y }, c.touch.base, this.tl.actors[c.touch.runnerId]], 26);
+        return;
+      }
       // Slow-mo approach to the critical moment
       if (this.state === 'live' && c) {
         const until = c.tFirst - this.t;
@@ -1239,6 +1260,20 @@ export class BasePlayEvent {
       this.callCam = null;
       hud.prompt('', '');
     }, this.callCam ? 1450 : 700);
+  }
+
+  // A lesson demo pauses as the runner reaches the bag: from the working area, watch the touch.
+  _touchPause(c) {
+    const hud = this.s.hud;
+    this.touchHold = true;
+    this.umpActor.faceAt = c.touch.base;
+    hud.prompt('WATCH THE TOUCH!', `He's in the working area. Now pivot and watch the runner touch ${c.touch.name}. Glance at the touch, then pick the ball back up for the next play.`);
+    hud.options([{ btn: 'A', id: 'go', label: 'CONTINUE', hot: true }], () => {
+      this.touchHold = false;
+      this.umpActor.faceAt = null;
+      hud.options(null);
+      hud.prompt('', '');
+    });
   }
 
   // A lesson demo's wrap-up: what the umpire just did, and why

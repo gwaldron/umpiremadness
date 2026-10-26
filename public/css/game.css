@@ -282,6 +282,8 @@ body[data-input="touch"] [data-nav].focus { outline: none; box-shadow: none; }
 .card.locked { opacity: 0.55; }
 .card.gold { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255,211,77,0.25), 0 0 24px rgba(255,211,77,0.15); }
 .card .ico-big { font-size: 34px; }
+/* A, B, C position badges: one look for all three (there's no emoji for C to match A and B) */
+.pos-badge { display: inline-grid; place-items: center; width: 1.1em; height: 1.1em; border-radius: 0.2em; background: #d7261e; color: #fff; font-family: var(--display); font-size: 0.9em; line-height: 1; box-shadow: inset 0 -0.08em 0 rgba(0, 0, 0, 0.25); }
 button.card { text-align: left; cursor: pointer; color: inherit; font: inherit; }
 
 .division-strip { display: grid; gap: 14px; }

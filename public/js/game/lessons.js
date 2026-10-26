@@ -6,22 +6,23 @@ import { shuffle } from '../util.js';
 
 const rep = (play, extra = {}) => ({ type: 'base', play, coach: true, ...extra });
 const demo = (play, caption, extra = {}) => ({ type: 'base', play, demo: true, tutorial: true, caption, ...extra });
+const badge = (letter) => `<span class="pos-badge">${letter}</span>`;
 
 export const LESSONS = [
   {
-    id: 'posA', icon: '🅰️', title: 'A Position', card: 'abc', div: 'AAA',
+    id: 'posA', icon: badge('A'), title: 'A Position', card: 'abc', div: 'AAA',
     desc: 'Bases empty: start in foul ground behind first. Ball in the infield? Step into fair territory for an angle. Ball to the outfield? Come into the working area.',
     intro: 'With the **bases empty**, the base umpire starts in **A**: in **foul ground behind first base**, facing the plate. From A there are two reads: **ball stays in the infield** → step into **fair territory** and get an angle on the play at first. **Ball goes to the outfield** → come **into the infield working area**, pivot, and watch the batter-runner touch first. Watch the **gold dots**.',
     demos: [
       demo('force1B', { title: 'A POSITION · BALL IN THE INFIELD', pre: 'Bases empty: start in A, in foul ground behind first base. Watch the gold dots.',
-        summary: 'Ball stayed in the infield, so the umpire **stepped into fair territory** to get an **angle on the play at first**: about 90 degrees to the throw. Then he **stopped and got set** before the ball arrived, watched the foot hit the bag, listened for the glove, and made the call.' }, { runners: [] }),
+        summary: 'Ball stayed in the infield, so the umpire **came well into fair territory**, to a spot about **45 degrees off the foul line** (halfway between the foul line and the baseline), for a clear **angle on the play at first**. Then he **stopped and got set** before the ball arrived, watched the foot hit the bag, listened for the glove, and made the call.' }, { runners: [] }),
       demo('hit2B', { title: 'A POSITION · BALL TO THE OUTFIELD', pre: 'Bases empty again. This time the ball goes to the outfield. Watch where he goes.',
         summary: 'Ball to the outfield, so the umpire **came into the infield working area**, pivoted to watch the batter-runner **touch first**, and was already in place for the **play at second**. Remember: ball stays in the infield, you stay out. Ball goes to the outfield, you come in.' }, { runners: [] }),
     ],
     reps: () => shuffle([rep('force1B', { runners: [] }), rep('force1B', { runners: [] }), rep('force1B', { runners: [] }), rep('hit2B', { runners: [] }), rep('hit2B', { runners: [] }), rep('hit2B', { runners: [] })]),
   },
   {
-    id: 'posB', icon: '🅱️', title: 'B Position', card: 'abc', div: 'AAA',
+    id: 'posB', icon: badge('B'), title: 'B Position', card: 'abc', div: 'AAA',
     desc: 'Runner on first only: start in B. Ball in the infield? Hold your spot. Ball to the outfield? Come into the working area. Steal? Follow the runner.',
     intro: 'With a runner on **first base only**, start in **B**: behind the infielders between first and second, back by the edge of the outfield grass. **Ball stays in the infield** → **hold your spot** and adjust a step or two to see the play. **Ball goes to the outfield** → move **into the working area**. **Steal** → follow the runner and get an angle on the tag at second, staying out of his path.',
     demos: [
@@ -35,7 +36,7 @@ export const LESSONS = [
     reps: () => shuffle([rep('dp', { hold: true }), rep('dp', { hold: true }), rep('hit3B'), rep('hit3B'), rep('steal2B'), rep('steal2B')]),
   },
   {
-    id: 'posC', icon: 'Ⓒ', title: 'C Position', card: 'abc', div: 'AAA',
+    id: 'posC', icon: badge('C'), title: 'C Position', card: 'abc', div: 'AAA',
     desc: 'Runner on second or third: start in C. Same reads as B: hold on an infield ball, come in on an outfield ball, follow a steal.',
     intro: 'With a runner on **second or third**, start in **C**: behind the infielders between second and third, back by the edge of the outfield grass. The reads are the **same as B**: **ball in the infield** → **hold your spot** and adjust; **ball to the outfield** → **into the working area**; **steal** → follow the runner to an angle at third.',
     demos: [
@@ -58,7 +59,7 @@ export function buildLesson(id) {
   return {
     mode: 'drill', drill: L.id, lesson: true, title: `Lesson: ${L.title}`, badge: 'LESSON', div: L.div, redoMisses: true, reps: reps.length,
     events: [
-      { type: 'info', title: `${L.icon} ${L.title.toUpperCase()}`, sub: 'First watch, then your turn', body: L.intro, card: L.card },
+      { type: 'info', title: `📍 ${L.title.toUpperCase()}`, sub: 'First watch, then your turn', body: L.intro, card: L.card },
       ...L.demos,
       { type: 'info', title: 'YOUR TURN!', sub: `${reps.length} plays · your track vs. the gold dots after each call`, body: 'Take your starting spot, then move on the hit just like the demo: **hold** on a ball in the infield (from B or C), **step in for an angle** (from A), **come into the working area** on a ball to the outfield, **follow** a steal. Get **set** before the play, then make the call.', card: L.card },
       ...reps,
