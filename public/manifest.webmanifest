@@ -4,7 +4,7 @@
   "description": "Arcade umpire training for Little League umpires. Make the call. Own the field.",
   "start_url": "./",
   "display": "fullscreen",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#0b1530",
   "theme_color": "#0b1530",
   "icons": [
