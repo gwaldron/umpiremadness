@@ -176,12 +176,19 @@ export class Screens {
       sw.append(b);
     }
     menu.append(sw);
-    const main = (cls, ico, t, d, fn, extra = {}) => {
+    const main = (cls, ico, t, d, fn, extra = {}, badge = null) => {
       const b = el('button', { class: `menu-main ${cls}`, 'data-nav': '', type: 'button', onclick: fn, ...extra });
-      b.innerHTML = `<span class="ico">${ico}</span><span><div class="t">${t}</div><div class="d">${d}</div></span>`;
+      b.innerHTML = `<span class="ico">${ico}</span><span><div class="t">${t}</div><div class="d">${d}</div></span>${badge ? `<span class="badge">${badge}</span>` : ''}`;
       return b;
     };
-    if (!campDone) menu.append(main('hero', '🎓', 'ROOKIE CAMP', 'New here? Start with Minors Camp: 7 training stations + a scrimmage.', () => this.push(this.campChooser()), { 'data-autofocus': '' }));
+    // Rookie Camp always has its own bar: the fundamentals (camps, positioning, calls), with your stars and
+    // how many lessons and drills you haven't tried yet. It's the highlighted one until Minors Camp is done.
+    const campItems = [p.career.camp, p.career['camp-majors'], ...[...LESSONS, ...DRILLS].map((d) => p.drills[d.id])];
+    const campStars = campItems.reduce((n, r) => n + ((r && r.stars) || 0), 0);
+    const untried = campItems.filter((r) => !r).length;
+    menu.append(main(campDone ? '' : 'hero', '🎓', 'ROOKIE CAMP',
+      campDone ? `Camps · Positioning · Calls · ${campStars}/${campItems.length * 3}★` : 'New here? Start with Minors Camp, then the position lessons and call drills.',
+      () => this.push(this.campChooser()), campDone ? {} : { 'data-autofocus': '' }, campDone && untried ? `${untried} NEW` : null));
     menu.append(main(campDone ? 'hero' : '', '🏆', 'CAREER', `${LADDER()} · ${careerStars(p)}★ earned`, () => this.push(this.career()), campDone ? { 'data-autofocus': '' } : {}));
     menu.append(main('', '🕹️', 'ARCADE', 'Plate Survival · Base Hustle · Rulebook Rumble · Blitz', () => this.push(this.arcade())));
     const row = el('div', { class: 'menu-row' });
@@ -196,7 +203,6 @@ export class Screens {
       mini('🗂️', 'Rule Cards', () => this.push(this.cards()), `${activeRules().filter((r) => p.cards[r.id]).length}/${activeRules().length}`),
       mini('📊', 'Stats', () => this.push(this.stats())),
       mini('❓', 'How to Play', () => this.push(this.howto())),
-      mini('🎓', 'Rookie Camp', () => this.push(this.campChooser())),
       mini('⚙️', 'Settings', () => this.push(this.settings())),
       mini('📖', 'Bootcamp', () => window.open(BOOTCAMP, '_blank', 'noopener')),
     );
