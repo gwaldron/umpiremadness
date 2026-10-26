@@ -27,12 +27,30 @@ function insideDiamond(p) {
 // The working area: the middle of the infield. On a ball hit to the outfield the base umpire comes in
 // here and pivots (Bootcamp "Working area pivot": ball stays in the infield, stay out; ball goes to the
 // outfield, come in).
-export function inWorkingArea(p) {
-  return insideDiamond(p) && p.y > 22;
+// Where a runner is at time t, from his keyframes
+function runnerAt(runner, t) {
+  const keys = runner.keys;
+  let i = 0;
+  while (i < keys.length - 1 && keys[i + 1].t <= t) i++;
+  const k0 = keys[i], k1 = keys[i + 1];
+  if (!k1 || k1.t <= k0.t) return { x: k0.x, y: k0.y };
+  const u = clamp((t - k0.t) / (k1.t - k0.t), 0, 1);
+  return { x: lerp(k0.x, k1.x, u), y: lerp(k0.y, k1.y, u) };
 }
+
+// It hugs the mound and stays on its second-base side: never past the mound toward home, never far off it.
+const MOUND = { x: 0, y: 46 };
+const WORK_R = 23; // how far from the mound the working area reaches
+export function inWorkingArea(p) {
+  return insideDiamond(p) && p.y >= MOUND.y && dist(p, MOUND) <= WORK_R;
+}
+// Where to go on a ball to the outfield: just north of the mound on the shortstop side, the same distance
+// from second as from third (on the line that splits second and third), about 15 ft from the mound
+const WORK_SPOT = { x: -12, y: 54.4 };
 // From A on a ball in the infield (lessons): the spot straight out from first, 45 degrees off the foul line
 const A_ANGLE_DIST = 18;
-const WORK_POLY = [{ x: 0, y: 26 }, { x: 24, y: 48 }, { x: 10, y: 70 }, { x: -10, y: 70 }, { x: -24, y: 48 }];
+// (drawn as a half circle around the mound, on its second-base side)
+const WORK_POLY = Array.from({ length: 11 }, (_, i) => i * 18).map((a) => ({ x: MOUND.x + Math.cos((a * Math.PI) / 180) * WORK_R, y: MOUND.y + Math.sin((a * Math.PI) / 180) * WORK_R }));
 // The wedge: the triangle formed by the plate umpire, the catcher and the runner coming in. It changes as
 // the play develops, so keep moving to keep it OPEN: stay off the line between the catcher and the runner,
 // so you look into the gap between them (where the tag happens) instead of one of them blocking the other.
@@ -401,8 +419,10 @@ export class BasePlayEvent {
     const dt = this._bang();
     const sweep = rand(0.12, 0.22);
     const cover = toThird ? '3B' : (where === 'LF' || where === 'LC' ? '2B' : 'SS');
-    const gloveAt = toThird ? { x: target.x + 1.2, y: target.y + 0.4, z: 2.8 } : { x: target.x + 0.9, y: target.y - 0.7, z: 2.8 };
-    const coverSpot = toThird ? { x: target.x + 1.6, y: target.y + 0.8 } : { x: target.x + 1.4, y: target.y - 0.6 };
+    // at third he sets up on the home-plate side of the bag and lets the ball come to him (which also keeps
+    // him out of the working-area umpire's line to the bag)
+    const gloveAt = toThird ? { x: target.x + 0.9, y: target.y - 0.9, z: 2.8 } : { x: target.x + 0.9, y: target.y - 0.7, z: 2.8 };
+    const coverSpot = toThird ? { x: target.x + 1.5, y: target.y - 1.9 } : { x: target.x + 1.4, y: target.y - 0.6 };
     const vt = rand(52, 70) * sp;
     // the outfielder runs it down: roll the ball out to where he picks it up
     const dir = norm(sub(land, { x: 0, y: 0 }));
@@ -805,8 +825,18 @@ export class BasePlayEvent {
     if ((this.spec.demo || this.spec.coach) && this.expectSpot === 'A' && c.type === 'force' && c.baseNum === 1 && !this.spec.hold) {
       c.ideal = { x: BASES.first.x, y: BASES.first.y + A_ANGLE_DIST };
     }
+    // a ball to the outfield: the target is the working spot (never past the mound, never far from it)
+    if (c.working) c.ideal = { ...WORK_SPOT };
     c.tFirst = Math.min(c.tb, c.tr, c.tt ?? Infinity);
     c.route = this._route(c, from);
+    // from B or C, wait for the runner to go by before heading in (from A, go right away, before the
+    // batter-runner gets to first)
+    if (c.working && c.route && (this.expectSpot === 'B' || this.expectSpot === 'C')) {
+      const runner = this.tl.actors[this.expectSpot === 'B' ? 'R1' : 'R2'];
+      const tPass = runner ? this._passTime(runner, c.route[0], c.route[c.route.length - 1]) : null;
+      if (tPass !== null) c.go = Math.max(this.tPlate + 0.12, tPass + 0.3);
+      c.waitRunner = runner ? runner.id : null;
+    }
     if (this.critIdx > 0) c.go = this.t + 0.1;
   }
 
@@ -819,11 +849,18 @@ export class BasePlayEvent {
       const d = dist(from, c.ideal), k = Math.min(1, 4 / Math.max(d, 0.01));
       return [from, { x: from.x + (c.ideal.x - from.x) * k, y: from.y + (c.ideal.y - from.y) * k }];
     }
-    if (c.working) {
-      const mid = { x: from.x * 0.35, y: clamp(from.y * 0.8 + 8, 32, 56) };
-      return [from, mid, { x: c.ideal.x, y: c.ideal.y }];
-    }
     return [from, { x: c.ideal.x, y: c.ideal.y }];
+  }
+
+  // When a runner goes past the line from a to b (the moment he's closest to it), from his keyframes
+  _passTime(runner, a, b) {
+    if (!runner.keys || runner.keys.length < 2) return null;
+    let best = null, bd = Infinity;
+    for (let t = this.tPlate; t <= this.tPlate + 6; t += 0.05) {
+      const d = segDist(runnerAt(runner, t), a, b).d;
+      if (d < bd) { bd = d; best = t; }
+    }
+    return bd < 6 ? best : null;
   }
 
   // The demo umpire's stick: along the route, timed to get there and stop before the play
@@ -1035,6 +1072,15 @@ export class BasePlayEvent {
       // a ball to the outfield: did the umpire come into the working area?
       if (c && c.working && this.state === 'live') {
         if (this.t > this.tPlate && inWorkingArea(this.ump)) this.wentIn = true;
+        // from B or C: cutting across in front of the runner (standing where he'll be in the next couple of
+        // seconds) instead of letting him go by
+        const wr = c.waitRunner && this.tl.actors[c.waitRunner];
+        if (wr && !this.cutOff && this.t > this.tPlate) {
+          for (let dt = 0.2; dt <= 2.4; dt += 0.2) {
+            const q = runnerAt(wr, this.t + dt);
+            if (Math.hypot(q.x - this.ump.x, q.y - this.ump.y) < 3) { this.cutOff = true; break; }
+          }
+        }
         if (!this.inCalled && this.t >= c.tLand) {
           this.inCalled = true;
           if ((this.s.hints || this.spec.tutorial) && !this.spec.exam && !this.wentIn) hud.floater('OUTFIELD! COME IN!', false, 50, 30);
@@ -1154,6 +1200,11 @@ export class BasePlayEvent {
     let lazy = need > 12 ? clamp(1 - went / need, 0, 1) : 0;
     if (c.working && !this.wentIn) lazy = Math.max(lazy, 0.65);
     c.lazy = lazy;
+    // came in past the mound (toward home), or wandered off far from it
+    if (c.working) {
+      c.pastMound = this.ump.y < MOUND.y && insideDiamond(this.ump);
+      c.farOff = insideDiamond(this.ump) && dist(this.ump, MOUND) > WORK_R + 4;
+    }
     // which way is the runner going in the umpire's view? (mirror the close-up if needed)
     const sight = norm(sub(c.base, this.ump));
     const runDir = norm(sub(c.runSeg[1], c.runSeg[0]));
@@ -1228,6 +1279,9 @@ export class BasePlayEvent {
     if (c.gate) bonus.push(this.bumped ? { label: 'Ran into the catcher', pts: -50 } : this.gateOk ? { label: 'Opened the gate', pts: 50 } : { label: 'Slow to open the gate', pts: -15 });
     if (c.wedge) bonus.push(c.inWedge ? { label: 'Kept the wedge open', pts: 50 } : { label: 'The wedge closed on you', pts: -25 });
     if (c.working) bonus.push(this.wentIn ? { label: 'Into the working area', pts: 50 } : { label: 'Stayed out on a ball to the outfield', pts: -25 });
+    if (c.working && c.pastMound) bonus.push({ label: 'Came in past the mound', pts: -15 });
+    else if (c.working && c.farOff) bonus.push({ label: 'Wandered far from the mound', pts: -15 });
+    if (c.working && this.cutOff) bonus.push({ label: "Cut into the runner's path", pts: -25 });
     else if (c.lazy > 0.6 && !this.plate) bonus.push({ label: "Didn't move to the play", pts: -25 });
     if (this.spec.coach && this.spec.hold) bonus.push(c.holdDist <= 12 ? { label: 'Held your spot', pts: 25 } : { label: 'Wandered off on an infield ball', pts: -25 });
     else if (this.spec.coach && c.spotOff !== undefined && c.spotOff < 9) bonus.push({ label: 'Got to a good spot', pts: 25 });
@@ -1267,7 +1321,7 @@ export class BasePlayEvent {
     const hud = this.s.hud;
     this.touchHold = true;
     this.umpActor.faceAt = c.touch.base;
-    hud.prompt('WATCH THE TOUCH!', `He's in the working area. Now pivot and watch the runner touch ${c.touch.name}. Glance at the touch, then pick the ball back up for the next play.`);
+    hud.prompt('WATCH THE TOUCH!', `On the way into the working area, pivot and watch the runner touch ${c.touch.name}. Glance at the touch, then pick the ball back up for the next play.`);
     hud.options([{ btn: 'A', id: 'go', label: 'CONTINUE', hot: true }], () => {
       this.touchHold = false;
       this.umpActor.faceAt = null;
@@ -1316,8 +1370,11 @@ export class BasePlayEvent {
       : this.gateOk ? 'You **opened the gate** for the catcher. That\'s the move!' : 'Open the gate **right away**: the moment the ball gets by, step out to the side away from the ball.');
     if (c.wedge) tips.unshift(c.inWedge ? 'You **kept the wedge open**: the triangle of you, the catcher and the runner. You could see right into the gap where the tag happened. Nice!'
       : 'Work **the wedge**: the triangle formed by you, the catcher and the runner coming in. It changes as the play develops, so keep moving to keep it **open**. When the catcher and runner line up in front of you, the wedge is closed and one of them hides the tag.');
-    if (c.working && !this.wentIn) tips.unshift('Ball to the outfield → **come in!** Move into the infield (the **working area**), pivot to watch the runner touch the bag, and be ready for the play at second or third.');
+    if (c.working && !this.wentIn) tips.unshift('Ball to the outfield → **come in!** Move into the **working area**: near the mound, on its **second-base side**, about even with second and third. Pivot to watch the runner touch the bag, and be ready for the play.');
+    else if (c.working && c.pastMound) tips.unshift('You came in, but **past the mound** toward home. The working area is on the **second-base side** of the mound: stay north of it.');
+    else if (c.working && c.farOff) tips.unshift('You came in, but **too far from the mound**. Stay close to it, on its second-base side.');
     else if (c.working) tips.unshift('You came into the **working area** on the hit to the outfield. That\'s the move!');
+    if (c.working && this.cutOff) tips.unshift('You **cut into the runner\'s path**. From B or C, **let the runner go by first**, then head in behind him.');
     else if (c.lazy > 0.6 && !this.plate) tips.unshift('You **barely moved**. Go get an angle while the play develops, then stop and watch.');
     if (this.critIdx === 0 && !this.startOk) tips.unshift(`Start in ${ZONE_HELP[this.expectSpot]}`);
     if (this.spec.coach) {
