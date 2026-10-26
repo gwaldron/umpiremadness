@@ -49,6 +49,8 @@ export function inWorkingArea(p) {
 const WORK_SPOT = { x: -12, y: 54.4 };
 // From A on a ball in the infield (lessons): the spot straight out from first, 45 degrees off the foul line
 const A_ANGLE_DIST = 18;
+const C_STEAL_SHORT = 12; // on a steal of third from C, stop this far short of the bag (along the baseline)
+const DIRT_R = 50; // the infield dirt reaches this far from the mound
 // (drawn as a half circle around the mound, on its second-base side)
 const WORK_POLY = Array.from({ length: 11 }, (_, i) => i * 18).map((a) => ({ x: MOUND.x + Math.cos((a * Math.PI) / 180) * WORK_R, y: MOUND.y + Math.sin((a * Math.PI) / 180) * WORK_R }));
 // The wedge: the triangle formed by the plate umpire, the catcher and the runner coming in. It changes as
@@ -824,6 +826,17 @@ export class BasePlayEvent {
     // 45 degrees off the foul line, halfway between the foul line and the baseline to second
     if ((this.spec.demo || this.spec.coach) && this.expectSpot === 'A' && c.type === 'force' && c.baseNum === 1 && !this.spec.hold) {
       c.ideal = { x: BASES.first.x, y: BASES.first.y + A_ANGLE_DIST };
+    }
+    // the C lesson's steal of third: head straight for third along the baseline (about the same depth
+    // behind it, easing in only as much as it takes to stay on the infield dirt, never out onto the grass),
+    // and stop about 12 ft short of the bag for an angle on the tag
+    if ((this.spec.demo || this.spec.coach) && this.expectSpot === 'C' && this.play === 'steal3B' && !this.spec.hold) {
+      const { u, n } = zoneAxes(START_ZONES.C);
+      const at = (s, d) => ({ x: BASES.second.x + u.x * s + n.x * d, y: BASES.second.y + u.y * s + n.y * d });
+      const sTo = dist(BASES.second, BASES.third) - C_STEAL_SHORT;
+      let d = clamp((from.x - BASES.second.x) * n.x + (from.y - BASES.second.y) * n.y, START_ZONES.C.d0, START_ZONES.C.b1);
+      while (d > START_ZONES.C.d0 && dist(at(sTo, d), MOUND) > DIRT_R - 4) d -= 0.5;
+      c.ideal = at(sTo, d);
     }
     // a ball to the outfield: the target is the working spot (never past the mound, never far from it)
     if (c.working) c.ideal = { ...WORK_SPOT };
