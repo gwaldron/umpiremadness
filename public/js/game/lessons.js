@@ -1,9 +1,8 @@
 // Rookie Camp position lessons (A, B, C): first watch the umpire's track on a ball in the infield and a
 // ball to the outfield (the demo umpire moves by himself along a dotted gold track, with captions), then
-// do it yourself a few times. After each call your trail is drawn next to the gold track, with notes.
+// do it yourself twice: one ball in the infield, one to the outfield. After each call your trail is drawn
+// next to the gold track, with notes.
 // The movements follow Umpire Bootcamp's A/B/C position and working-area lessons.
-import { shuffle } from '../util.js';
-
 const rep = (play, extra = {}) => ({ type: 'base', play, coach: true, ...extra });
 const demo = (play, caption, extra = {}) => ({ type: 'base', play, demo: true, tutorial: true, caption, ...extra });
 const badge = (letter) => `<span class="pos-badge">${letter}</span>`;
@@ -19,7 +18,8 @@ export const LESSONS = [
       demo('hit2B', { title: 'A POSITION · BALL TO THE OUTFIELD', pre: 'Bases empty again. This time the ball goes to the outfield. Watch where he goes.',
         summary: 'Ball to the outfield, so the umpire **came into the infield working area**, pivoted to watch the batter-runner **touch first**, and was already in place for the **play at second**. Remember: ball stays in the infield, you stay out. Ball goes to the outfield, you come in.' }, { runners: [] }),
     ],
-    reps: () => shuffle([rep('force1B', { runners: [] }), rep('force1B', { runners: [] }), rep('force1B', { runners: [] }), rep('hit2B', { runners: [] }), rep('hit2B', { runners: [] }), rep('hit2B', { runners: [] })]),
+    // your turn: one ball in the infield, one to the outfield
+    reps: () => [rep('force1B', { runners: [] }), rep('hit2B', { runners: [] })],
   },
   {
     id: 'posB', icon: badge('B'), title: 'B Position', card: 'abc', div: 'AAA',
@@ -33,7 +33,7 @@ export const LESSONS = [
       demo('steal2B', { title: 'B POSITION · STEAL', pre: 'Runner on first. He\'s going! Watch the umpire follow the play.',
         summary: 'On the steal, the umpire **followed the runner** toward second, **stayed out of his path**, and **stopped** with an angle that shows the **tag and the base** together.' }),
     ],
-    reps: () => shuffle([rep('dp', { hold: true }), rep('dp', { hold: true }), rep('hit3B'), rep('hit3B'), rep('steal2B'), rep('steal2B')]),
+    reps: () => [rep('dp', { hold: true }), rep('hit3B')],
   },
   {
     id: 'posC', icon: badge('C'), title: 'C Position', card: 'abc', div: 'AAA',
@@ -47,7 +47,7 @@ export const LESSONS = [
       demo('steal3B', { title: 'C POSITION · STEAL', pre: 'Runner on second. He\'s going to third! Watch the umpire.',
         summary: 'On the steal of third, the umpire **followed the play** toward third, stayed out of the runner\'s path, and **stopped** with an angle on the tag.' }),
     ],
-    reps: () => shuffle([rep('force1B', { runners: [2], hold: true }), rep('force1B', { runners: [2], hold: true }), rep('hit2B', { runners: [2] }), rep('hit2B', { runners: [2] }), rep('steal3B'), rep('steal3B')]),
+    reps: () => [rep('force1B', { runners: [2], hold: true }), rep('hit2B', { runners: [2] })],
   },
 ];
 
@@ -61,7 +61,7 @@ export function buildLesson(id) {
     events: [
       { type: 'info', title: `📍 ${L.title.toUpperCase()}`, sub: 'First watch, then your turn', body: L.intro, card: L.card },
       ...L.demos,
-      { type: 'info', title: 'YOUR TURN!', sub: `${reps.length} plays · your track vs. the gold dots after each call`, body: 'Take your starting spot, then move on the hit just like the demo: **hold** on a ball in the infield (from B or C), **step in for an angle** (from A), **come into the working area** on a ball to the outfield, **follow** a steal. Get **set** before the play, then make the call.', card: L.card },
+      { type: 'info', title: 'YOUR TURN!', sub: 'One ball in the infield, one to the outfield · your track vs. the gold dots after each call', body: 'Take your starting spot, then move on the hit just like the demo: on a ball in the **infield**, **hold** (from B or C) or **step in for an angle** (from A); on a ball to the **outfield**, **come into the working area**. Get **set** before the play, then make the call.', card: L.card },
       ...reps,
     ],
   };

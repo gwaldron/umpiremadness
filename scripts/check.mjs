@@ -98,7 +98,7 @@ for (const L of LESSONS) {
   if (!RULE[L.card]) problems.push(`lesson ${L.id}: unknown card ${L.card}`);
   const cfg = buildDrill(L.id);
   const demos = cfg.events.filter((e) => e.demo), reps = cfg.events.filter((e) => e.coach);
-  if (demos.length < 2 || reps.length < 4) problems.push(`lesson ${L.id}: ${demos.length} demos, ${reps.length} reps`);
+  if (demos.length < 2 || reps.length !== 2) problems.push(`lesson ${L.id}: ${demos.length} demos, ${reps.length} reps`);
   for (const e of [...demos, ...reps]) {
     if (!PLAYS.has(e.play)) problems.push(`lesson ${L.id}: unknown play ${e.play}`);
     if (e.demo && !(e.caption && e.caption.title && e.caption.pre && e.caption.summary)) problems.push(`lesson ${L.id}: demo ${e.play} missing a caption`);
