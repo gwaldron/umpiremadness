@@ -12,6 +12,17 @@ export const LIFE = [
     explain: 'There is **no "tie goes to the runner" rule**. Stay calm, answer the actual question in one sentence, and get the game moving. Don\'t change a judgment call because someone yelled, and don\'t threaten an ejection for a single complaint.',
   },
   {
+    id: 'bunt-myth', card: 'myth-bunt', who: 'Coach Hayes', role: 'Home manager', mood: 'mad',
+    text: '"Blue! The batter squared around and left the bat over the plate. That\'s a strike — the bat never came back!" (The pitch was a foot outside, and the batter never moved the bat at it.)',
+    options: [
+      { id: 'a', label: '"Ball, coach. Holding the bat there isn\'t an attempt. The batter has to offer at the pitch."' },
+      { id: 'b', label: '"You\'re right, coach. Didn\'t pull it back, so it\'s a strike."' },
+      { id: 'c', label: '"Any bat over the plate is a bunt. Strike."' },
+    ],
+    answer: 'a',
+    explain: 'There\'s **no "pull the bat back" rule**. A bunt attempt (a strike) means the batter **offers at the pitch** by moving the bat toward the ball. Just holding the bat in the zone on a pitch outside it is a **ball**. Answer in one sentence and play on.',
+  },
+  {
     id: 'strike-zone-coach', card: 'handling-questions', who: 'Coach Park', role: 'Home manager', mood: 'mad',
     text: '"That pitch was in the dirt! Where was that, Blue?!"',
     options: [

@@ -11,7 +11,7 @@ export const sport = { id: 'baseball', softball: false, rubber: 46 };
 const SOFTBALL_DIVS = {
   AA: { full: 'AA Minors', blurb: 'Rookie windmill pitchers from 35 feet. Runners wait until the pitch reaches the batter.', mph: [28, 36] },
   AAA: { full: 'AAA Minors', blurb: 'Faster windmills, real steals, and still no dropped third strike.', mph: [32, 41] },
-  MAJ: { full: 'Majors', blurb: 'The 40-foot circle: runners go on the release, plus the dropped third strike and the circle rule.', mph: [38, 48] },
+  MAJ: { full: 'Majors', blurb: '40-foot pitching: runners go on the release, plus the dropped third strike and the circle rule.', mph: [38, 48] },
   AS: { full: 'District All-Stars', blurb: 'Tournament softball. Big crowds, loud coaches, painted corners.', mph: [43, 54] },
   WS: { name: 'Greenville', full: 'Little League Softball World Series', blurb: 'The big show in Greenville, North Carolina, on national TV. The closest plays of your career.', mph: [47, 60] },
 };
