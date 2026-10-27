@@ -24,6 +24,13 @@ function variantReps(id, kinds, n, key = 'k') {
 
 export const DRILLS = [
   {
+    id: 'pitches', icon: '🎯', title: 'Balls and Strikes', card: 'strike-zone', div: 'AAA',
+    desc: 'Short at-bats behind the plate: pitches on the corners, plus a few check swings.',
+    tip: "Get set in **the slot** before the pitch. Track the ball **all the way into the mitt**, pause, then call it. The zone is **armpits to the top of the knees**, over **any part of the plate**.",
+    // 6 short at-bats (3 pitches each), mostly pitches the batter takes
+    reps: () => Array.from({ length: 6 }, () => ({ type: 'atbat', tutorial: true, only: ['take', 'take', 'take', 'take', 'take', 'check'], maxPitches: 3 })),
+  },
+  {
     id: 'fairfoul', icon: '📏', title: 'Fair or Foul?', card: 'fair-foul', div: 'AAA',
     desc: 'Rollers that spin foul, balls over the bag, fly balls past the base, touched balls.',
     tip: "Before first or third base, a grounder is judged where it **stops or is touched**. Past the base, it's where it **first lands** (or where it **passes the bag**). The lines and bases are **fair**.",

@@ -7,16 +7,18 @@ import { sport } from '../sport.js';
 
 const LADDER = () => DIVISIONS.map((d) => d.name).join(' → ');
 
-// Everything in Rookie Camp, in the order NEXT UP walks you through it: Minors Camp, the A/B/C lessons,
-// the call drills, plays at the plate, then Majors Camp. rec = your best run (null = not tried yet).
+// Everything in Rookie Camp, in the order NEXT UP walks you through it: Minors Camp, balls and strikes,
+// the A/B/C lessons, the call drills, plays at the plate, then Majors Camp. rec = your best run (null =
+// not tried yet). The hub shows the lessons and drills in two sections: the plate and the field.
+const CAMP_PLATE = ['pitches', 'fairfoul', 'catch', 'plate'];
+const CAMP_FIELD = ['posA', 'posB', 'posC', 'safeout', 'interference'];
+const CAMP_ORDER = ['pitches', 'posA', 'posB', 'posC', 'fairfoul', 'safeout', 'catch', 'interference', 'plate'];
 function campPlan(p) {
   const camp = (id, ico, title, line) => ({ id, kind: 'camp', ico, title, line, rec: p.career[id] });
   const drill = (d) => ({ id: d.id, kind: LESSON[d.id] ? 'lesson' : 'drill', ico: d.icon, title: d.title, desc: d.desc, rec: p.drills[d.id] });
   const items = [
     camp('camp', '🧢', 'Minors Camp', 'AA & AAA rules · 7 stations + scrimmage · 15 min'),
-    ...LESSONS.map(drill),
-    ...DRILLS.filter((d) => d.id !== 'plate').map(drill),
-    drill(DRILL.plate),
+    ...CAMP_ORDER.map((id) => drill(LESSON[id] || DRILL[id])),
     camp('camp-majors', '🔥', 'Majors Camp', 'Full Little League rules · 7 stations + scrimmage · 15 min'),
   ];
   const stars = items.reduce((n, it) => n + ((it.rec && it.rec.stars) || 0), 0);
@@ -207,7 +209,7 @@ export class Screens {
     // how many lessons and drills you haven't tried yet. It's the highlighted one until Minors Camp is done.
     const plan = campPlan(p);
     menu.append(main(campDone ? '' : 'hero', '🎓', 'ROOKIE CAMP',
-      campDone ? `Camps · Positions · Calls · ${plan.stars}/${plan.max}★` : 'New here? Start with Minors Camp, then the position lessons and call drills.',
+      campDone ? `Camps · Plate · Field · ${plan.stars}/${plan.max}★` : 'New here? Start with Minors Camp, then the position lessons and call drills.',
       () => this.push(this.campChooser()), campDone ? {} : { 'data-autofocus': '' }, campDone && plan.untried ? `${plan.untried} NEW` : null));
     menu.append(main(campDone ? 'hero' : '', '🏆', 'CAREER', `${LADDER()} · ${careerStars(p)}★ earned`, () => this.push(this.career()), campDone ? { 'data-autofocus': '' } : {}));
     menu.append(main('', '🕹️', 'ARCADE', 'Plate Survival · Base Hustle · Rulebook Rumble · Blitz', () => this.push(this.arcade())));
@@ -570,7 +572,8 @@ export class Screens {
     // lessons and drills: small tiles (each one explains itself when it starts)
     const tiles = (title, ids) => {
       wrapEl.append(el('h3', { class: 'drills-head' }, title));
-      const g = el('div', { class: 'tiles' });
+      // one row on a wide screen; on a phone, rows of 2 (or 3 when that fits the count better)
+      const g = el('div', { class: 'tiles', style: `--cols: ${Math.min(ids.length, 5)}; --cols-sm: ${ids.length % 3 === 0 || ids.length === 5 ? 3 : 2}` });
       for (const id of ids) {
         const it = byId[id];
         const t = el('button', { class: `card tile${starsOf(it) === 3 ? ' gold' : ''}`, 'data-nav': '', type: 'button', title: it.desc || '', onclick: () => start(it) });
@@ -579,8 +582,8 @@ export class Screens {
       }
       wrapEl.append(g);
     };
-    tiles('📍 POSITIONS', [...LESSONS.map((l) => l.id), 'plate']);
-    tiles('🎯 CALLS', DRILLS.filter((d) => d.id !== 'plate').map((d) => d.id));
+    tiles('⚾ PLATE', CAMP_PLATE);
+    tiles('🏃 FIELD', CAMP_FIELD);
     return this.screen('dim', wrapEl);
   }
 

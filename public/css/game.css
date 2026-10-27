@@ -308,7 +308,7 @@ button.nextup:hover { transform: translateY(-2px); }
 .camp-card h3 { margin: 0 0 2px; font-size: 16px; }
 .camp-card p { font-size: 12.5px; line-height: 1.3; }
 .camp-card .st { margin-left: auto; flex: none; white-space: nowrap; font-size: 13px; color: rgba(255,255,255,0.3); }
-.tiles { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+.tiles { display: grid; gap: 10px; grid-template-columns: repeat(var(--cols, 4), 1fr); }
 button.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 12px 6px 10px; text-align: center; }
 .tile .ti { font-size: 32px; line-height: 1.1; }
 .tile .tt { font-weight: 800; font-size: 14px; line-height: 1.15; min-height: 2.3em; display: flex; align-items: center; }
@@ -317,7 +317,7 @@ button.tile { display: flex; flex-direction: column; align-items: center; justif
 .tile .new, .camp-card .new { background: var(--red); color: #fff; font-size: 10px; font-weight: 800; border-radius: 99px; padding: 1px 7px; letter-spacing: 0.04em; }
 .tile .new { position: absolute; top: 6px; right: 6px; }
 @media (max-width: 560px) {
-  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .tiles { grid-template-columns: repeat(var(--cols-sm, 2), 1fr); }
   .camps { grid-template-columns: 1fr; }
   .nextup { padding: 12px 14px; gap: 10px; }
   .nextup .nu-ico { font-size: 32px; width: 40px; }
