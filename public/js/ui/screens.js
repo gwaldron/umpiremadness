@@ -6,6 +6,28 @@ import { DIVISIONS, GAME_NAMES, gameRole } from '../data/divisions.js';
 import { sport } from '../sport.js';
 
 const LADDER = () => DIVISIONS.map((d) => d.name).join(' → ');
+
+// Everything in Rookie Camp, in the order NEXT UP walks you through it: Minors Camp, the A/B/C lessons,
+// the call drills, plays at the plate, then Majors Camp. rec = your best run (null = not tried yet).
+function campPlan(p) {
+  const camp = (id, ico, title, line) => ({ id, kind: 'camp', ico, title, line, rec: p.career[id] });
+  const drill = (d) => ({ id: d.id, kind: LESSON[d.id] ? 'lesson' : 'drill', ico: d.icon, title: d.title, desc: d.desc, rec: p.drills[d.id] });
+  const items = [
+    camp('camp', '🧢', 'Minors Camp', 'AA & AAA rules · 7 stations + scrimmage · 15 min'),
+    ...LESSONS.map(drill),
+    ...DRILLS.filter((d) => d.id !== 'plate').map(drill),
+    drill(DRILL.plate),
+    camp('camp-majors', '🔥', 'Majors Camp', 'Full Little League rules · 7 stations + scrimmage · 15 min'),
+  ];
+  const stars = items.reduce((n, it) => n + ((it.rec && it.rec.stars) || 0), 0);
+  // next up: the first thing you haven't tried; after that, the one with the fewest stars
+  let next = items.find((it) => !it.rec) || null;
+  if (!next) {
+    const left = items.filter((it) => (it.rec.stars || 0) < 3);
+    next = left.length ? left.reduce((a, b) => ((b.rec.stars || 0) < (a.rec.stars || 0) ? b : a)) : null;
+  }
+  return { items, stars, max: items.length * 3, untried: items.filter((it) => !it.rec).length, next };
+}
 const TOP = () => DIVISIONS[DIVISIONS.length - 1].name;
 import { ACHIEVEMENTS } from '../data/achievements.js';
 import { RULE, activeRules } from '../data/rules.js';
@@ -183,12 +205,10 @@ export class Screens {
     };
     // Rookie Camp always has its own bar: the fundamentals (camps, positioning, calls), with your stars and
     // how many lessons and drills you haven't tried yet. It's the highlighted one until Minors Camp is done.
-    const campItems = [p.career.camp, p.career['camp-majors'], ...[...LESSONS, ...DRILLS].map((d) => p.drills[d.id])];
-    const campStars = campItems.reduce((n, r) => n + ((r && r.stars) || 0), 0);
-    const untried = campItems.filter((r) => !r).length;
+    const plan = campPlan(p);
     menu.append(main(campDone ? '' : 'hero', '🎓', 'ROOKIE CAMP',
-      campDone ? `Camps · Positioning · Calls · ${campStars}/${campItems.length * 3}★` : 'New here? Start with Minors Camp, then the position lessons and call drills.',
-      () => this.push(this.campChooser()), campDone ? {} : { 'data-autofocus': '' }, campDone && untried ? `${untried} NEW` : null));
+      campDone ? `Camps · Positions · Calls · ${plan.stars}/${plan.max}★` : 'New here? Start with Minors Camp, then the position lessons and call drills.',
+      () => this.push(this.campChooser()), campDone ? {} : { 'data-autofocus': '' }, campDone && plan.untried ? `${plan.untried} NEW` : null));
     menu.append(main(campDone ? 'hero' : '', '🏆', 'CAREER', `${LADDER()} · ${careerStars(p)}★ earned`, () => this.push(this.career()), campDone ? { 'data-autofocus': '' } : {}));
     menu.append(main('', '🕹️', 'ARCADE', 'Plate Survival · Base Hustle · Rulebook Rumble · Blitz', () => this.push(this.arcade())));
     const row = el('div', { class: 'menu-row' });
@@ -514,37 +534,53 @@ export class Screens {
     const app = this.app;
     const p = app.profile;
     const wrapEl = el('div', { class: 'wrap', style: { maxWidth: '820px' } }, this.topbar('ROOKIE CAMP'));
-    wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-6px', marginBottom: '14px' } }, 'The fundamentals, one at a time. New umps start with Minors Camp.'));
-    const head = (t, sub) => {
-      wrapEl.append(el('h3', { class: 'drills-head' }, t));
-      wrapEl.append(el('p', { class: 'footer-note', style: { marginTop: '-4px', marginBottom: '12px' } }, sub));
-    };
-    head('🎓 START HERE', 'Two camps: everything in order, about 15 minutes each.');
-    const grid = el('div', { class: 'grid' });
-    const card = (ico, t, d, done, fn, extra = {}) => {
-      const c = el('button', { class: `card${done ? ' gold' : ''}`, 'data-nav': '', type: 'button', onclick: fn, ...extra });
-      c.innerHTML = `<div class="ico-big">${ico}</div><h3>${t}</h3><p>${d}</p>${done ? `<p style="margin-top:8px;color:var(--gold);font-weight:800">${'★'.repeat(done.stars)}${'☆'.repeat(3 - done.stars)} completed</p>` : ''}`;
-      return c;
-    };
-    grid.append(
-      card('🧢', 'Minors Camp · Start here!', 'AA & AAA rules · about 15 minutes. 7 stations: balls & strikes, the slot, A/B/C positions, seeing the play, fair/foul & catches, interference & obstruction, coaches & safety, then a no-hints scrimmage. No infield fly, no dropped third strike.', p.career.camp, () => app.startCamp('minors'), { 'data-autofocus': '' }),
-      card('🔥', 'Majors Camp', 'Full Little League rules · about 15 minutes. 7 stations: faster pitching, the dropped third strike, the infield fly, double plays, steals & back-picks, appeals & timing plays, game management, then a no-hints scrimmage.', p.career['camp-majors'], () => app.startCamp('majors')),
-    );
-    wrapEl.append(grid);
-    const section = (list) => {
-      const g = el('div', { class: 'grid drills' });
-      for (const d of list) {
-        const done = p.drills[d.id];
-        g.append(card(d.icon, d.title, d.desc, done && done.stars ? done : null, () => app.startDrill(d.id)));
+    const plan = campPlan(p);
+    const byId = Object.fromEntries(plan.items.map((it) => [it.id, it]));
+    const start = (it) => (it.kind === 'camp' ? app.startCamp(it.id === 'camp' ? 'minors' : 'majors') : app.startDrill(it.id));
+    const starsOf = (it) => (it.rec && it.rec.stars) || 0;
+    // NEW pills only once you've played Minors Camp (to a brand-new ump, everything is new)
+    const isNew = (it) => !it.rec && !!byId.camp.rec;
+    const starRow = (n) => `<b>${'★'.repeat(n)}</b>${'☆'.repeat(3 - n)}`;
+    // your progress, and the one thing to do next (so you can do the whole camp just by tapping it)
+    const prog = el('div', { class: 'camp-progress' });
+    prog.innerHTML = `<div class="bar"><i style="width:${Math.round((plan.stars / plan.max) * 100)}%"></i></div><span>★ ${plan.stars}/${plan.max}</span>`;
+    wrapEl.append(prog);
+    const nx = plan.next;
+    if (nx) {
+      const why = !nx.rec
+        ? nx.id === 'camp' ? 'Start here! The basics, step by step' : nx.kind === 'camp' ? 'Full Little League rules · 15 min' : nx.kind === 'lesson' ? 'Watch the umpire, then do it yourself' : 'New drill · about 2 minutes'
+        : `You have ${'★'.repeat(starsOf(nx))} · go for ★★★`;
+      const b = el('button', { class: 'nextup', 'data-nav': '', 'data-autofocus': '', type: 'button', onclick: () => start(nx) });
+      b.innerHTML = `<span class="nu-ico">${nx.ico}</span><span><div class="nu-k">NEXT UP</div><div class="nu-t">${nx.title}</div><div class="nu-d">${why}</div></span><span class="nu-go">▶</span>`;
+      wrapEl.append(b);
+    } else {
+      const d = el('div', { class: 'nextup mastered' });
+      d.innerHTML = '<span class="nu-ico">🏆</span><span><div class="nu-t">ROOKIE CAMP MASTERED!</div><div class="nu-d">Three stars on everything. Time for Career!</div></span>';
+      wrapEl.append(d);
+    }
+    // the two camps: one line each
+    wrapEl.append(el('h3', { class: 'drills-head' }, '🎓 CAMPS'));
+    const camps = el('div', { class: 'camps' });
+    for (const it of [byId.camp, byId['camp-majors']]) {
+      const c = el('button', { class: `card camp-card${starsOf(it) === 3 ? ' gold' : ''}`, 'data-nav': '', type: 'button', onclick: () => start(it) });
+      c.innerHTML = `<span class="ci">${it.ico}</span><span><h3>${it.title}</h3><p>${it.line}</p></span><span class="st">${isNew(it) ? '<span class="new">NEW</span>' : starRow(starsOf(it))}</span>`;
+      camps.append(c);
+    }
+    wrapEl.append(camps);
+    // lessons and drills: small tiles (each one explains itself when it starts)
+    const tiles = (title, ids) => {
+      wrapEl.append(el('h3', { class: 'drills-head' }, title));
+      const g = el('div', { class: 'tiles' });
+      for (const id of ids) {
+        const it = byId[id];
+        const t = el('button', { class: `card tile${starsOf(it) === 3 ? ' gold' : ''}`, 'data-nav': '', type: 'button', title: it.desc || '', onclick: () => start(it) });
+        t.innerHTML = `${isNew(it) ? '<span class="new">NEW</span>' : ''}<span class="ti">${it.ico}</span><span class="tt">${it.title}</span><span class="ts">${starRow(starsOf(it))}</span>`;
+        g.append(t);
       }
       wrapEl.append(g);
     };
-    // Positioning: where to stand and how to move (watch the track, then do it)
-    head('📍 POSITIONING', 'Where to start and how to move. Watch the umpire\'s track first, then do it yourself.');
-    section([...LESSONS, DRILL.plate]);
-    // Calls: practice one kind of call
-    head('🎯 CALLS', 'Practice one kind of call, about 2 minutes each. Miss one and you get another look at the end.');
-    section(DRILLS.filter((d) => d.id !== 'plate'));
+    tiles('📍 POSITIONS', [...LESSONS.map((l) => l.id), 'plate']);
+    tiles('🎯 CALLS', DRILLS.filter((d) => d.id !== 'plate').map((d) => d.id));
     return this.screen('dim', wrapEl);
   }
 

@@ -288,6 +288,44 @@ body[data-input="touch"] [data-nav].focus { outline: none; box-shadow: none; }
 .pos-badge { display: inline-grid; place-items: center; width: 1.1em; height: 1.1em; border-radius: 0.2em; background: #d7261e; color: #fff; font-family: var(--display); font-size: 0.9em; line-height: 1; box-shadow: inset 0 -0.08em 0 rgba(0, 0, 0, 0.25); }
 button.card { text-align: left; cursor: pointer; color: inherit; font: inherit; }
 
+/* Rookie Camp hub: progress, NEXT UP, one-line camps, small tiles */
+.camp-progress { display: flex; align-items: center; gap: 10px; margin: -2px 0 12px; font-weight: 800; color: var(--gold); font-size: 14px; }
+.camp-progress .bar { flex: 1; height: 10px; border-radius: 99px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.camp-progress .bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ffd34d, #ff9a2e); }
+.nextup { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; border: 0; border-radius: 18px; padding: 14px 18px; color: #fff; font: inherit; background: linear-gradient(135deg, #ff9a2e, #ff5a1f); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25), 0 6px 0 #9c3008, 0 12px 26px rgba(0,0,0,0.35); transition: transform 0.1s; }
+button.nextup { cursor: pointer; }
+button.nextup:hover { transform: translateY(-2px); }
+.nextup .nu-ico { font-size: 40px; width: 52px; text-align: center; flex: none; line-height: 1; }
+.nextup .nu-k { font-size: 11px; font-weight: 900; letter-spacing: 0.14em; color: #ffe6cf; }
+.nextup .nu-t { font-family: var(--display); font-size: clamp(19px, 2.6vw, 24px); line-height: 1.05; margin: 2px 0 3px; }
+.nextup .nu-d { font-size: 13.5px; color: #ffe6cf; }
+.nextup .nu-go { margin-left: auto; font-size: 24px; flex: none; }
+.nextup.mastered { background: linear-gradient(135deg, #0b4a2a, #062a17); box-shadow: inset 0 0 0 2px var(--green), 0 12px 26px rgba(0,0,0,0.35); }
+.nextup.mastered .nu-d { color: #bfeccf; }
+.camps { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.camp-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.camp-card .ci { font-size: 30px; flex: none; }
+.camp-card h3 { margin: 0 0 2px; font-size: 16px; }
+.camp-card p { font-size: 12.5px; line-height: 1.3; }
+.camp-card .st { margin-left: auto; flex: none; white-space: nowrap; font-size: 13px; color: rgba(255,255,255,0.3); }
+.tiles { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+button.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 12px 6px 10px; text-align: center; }
+.tile .ti { font-size: 32px; line-height: 1.1; }
+.tile .tt { font-weight: 800; font-size: 14px; line-height: 1.15; min-height: 2.3em; display: flex; align-items: center; }
+.tile .ts { font-size: 13px; letter-spacing: 1px; color: rgba(255,255,255,0.3); }
+.tile .ts b, .camp-card .st b { color: var(--gold); font-weight: 400; }
+.tile .new, .camp-card .new { background: var(--red); color: #fff; font-size: 10px; font-weight: 800; border-radius: 99px; padding: 1px 7px; letter-spacing: 0.04em; }
+.tile .new { position: absolute; top: 6px; right: 6px; }
+@media (max-width: 560px) {
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .camps { grid-template-columns: 1fr; }
+  .nextup { padding: 12px 14px; gap: 10px; }
+  .nextup .nu-ico { font-size: 32px; width: 40px; }
+  button.tile { padding: 9px 6px 8px; gap: 3px; }
+  .tile .ti { font-size: 26px; }
+  .tile .tt { font-size: 13px; }
+}
+
 .division-strip { display: grid; gap: 14px; }
 .division {
   border-radius: 20px;
