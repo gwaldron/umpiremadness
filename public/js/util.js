@@ -115,7 +115,8 @@ export function mini(s) {
 }
 
 export const BOOTCAMP = 'https://umpirebootcamp.gwaldron.workers.dev/';
-export const lessonUrl = (id) => (id ? `${BOOTCAMP}#${id}` : BOOTCAMP);
+// lessons live on the course page; the site root is the Bootcamp / Umpire Madness landing page
+export const lessonUrl = (id) => (id ? `${BOOTCAMP}bootcamp#${id}` : BOOTCAMP);
 
 export function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
