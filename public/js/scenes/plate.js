@@ -201,10 +201,10 @@ export class AtBatEvent {
     this.divots = []; // where the current pitch dug into the dirt
     this.puffs2d = []; // 2D renderer: dirt puffs to animate
     this.lookZ = LOOK_Z;
-    // The zone is the rulebook zone for All-Stars and Williamsport; the younger divisions get more room
-    // (wider and taller), the way umpires call it for kid-pitch: a little in Majors, more in AAA, the most
-    // in AA. Feet added to each side (w), the top (t) and the bottom (b).
-    const grow = { AA: { w: 0.26, t: 0.33, b: 0.22 }, AAA: { w: 0.17, t: 0.22, b: 0.15 }, MAJ: { w: 0.08, t: 0.11, b: 0.08 } }[this.div.id] || { w: 0, t: 0, b: 0 };
+    // A little more room than the rulebook zone (wider and taller), the way umpires call it for kid-pitch:
+    // a little in Majors and up, more in AAA, the most in AA. Feet added to each side (w), the top (t) and
+    // the bottom (b).
+    const grow = { AA: { w: 0.26, t: 0.33, b: 0.22 }, AAA: { w: 0.17, t: 0.22, b: 0.15 } }[this.div.id] || { w: 0.08, t: 0.11, b: 0.08 };
     this.zone = { bot: this.batter.knee - grow.b, top: this.batter.armpit + grow.t, wide: grow.w };
     this.fast = !!spec.fast; // blitz mode: snappier pacing
     this.bg = this._bgActors();
