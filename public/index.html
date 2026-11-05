@@ -82,7 +82,7 @@
   <!-- modulepreload:end -->
   <style>
     /* Splash screen: inline so it paints instantly, before any script or font arrives */
-    #splash { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; text-align: center; color: #fff;
+    #splash { position: fixed; inset: 0; z-index: 100; display: grid; grid-template-rows: 1fr auto; place-items: center; text-align: center; color: #fff;
       background: radial-gradient(ellipse at 50% 35%, #1d3270, #0b1530 70%); font-family: 'Rubik', system-ui, -apple-system, 'Segoe UI', sans-serif;
       transition: opacity 0.45s ease; padding: 16px; }
     #splash.out { opacity: 0; pointer-events: none; }
@@ -95,6 +95,16 @@
     #splash .sp-bar { width: min(78vw, 360px); height: 10px; margin: 0 auto; border-radius: 99px; background: rgba(255,255,255,0.14); overflow: hidden; }
     #splash .sp-bar i { display: block; height: 100%; width: 4%; border-radius: 99px; background: linear-gradient(90deg, #35d07f, #ffd34d); }
     #splash .sp-msg { margin-top: 12px; min-height: 20px; color: #ffd34d; font-weight: 800; font-size: 15px; }
+    #splash .sp-made { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: #8c95a4; padding: 8px 0 env(safe-area-inset-bottom, 0px); }
+    #splash .sp-made img { flex: 0 0 auto; }
+    /* short screens (a phone on its side): tighten everything so it fits above the credit */
+    @media (max-height: 520px) {
+      #splash .sp-logo { font-size: clamp(30px, 11vh, 56px); margin: 8px 0 4px; }
+      #splash .sp-ball { width: 40px; height: 40px; margin: 12px auto 10px; }
+      #splash .sp-msg { margin-top: 8px; }
+      #splash .sp-made { padding-top: 4px; }
+      #splash .sp-made img { width: 28px; height: 30px; }
+    }
     @keyframes spSpin { to { transform: rotate(360deg); } }
     @keyframes spBounce { from { transform: translateY(0); } to { transform: translateY(-14px); } }
     @media (prefers-reduced-motion: reduce) { #splash .sp-ball, #splash .sp-ball svg { animation: none; } }
@@ -110,6 +120,10 @@
       <div class="sp-bar"><i id="spBar"></i></div>
       <div class="sp-msg" id="spMsg">Warming up…</div>
     </div>
+    <footer class="sp-made">
+      <img src="nearlyworks-logo.png" alt="" width="38" height="40">
+      <span>A NearlyWorks Production</span>
+    </footer>
   </div>
   <script>
     // Splash progress: creeps forward on its own, jumps when the game reports a step, fades on done().
